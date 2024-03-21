@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 use ast for std::jule::ast::{Ast}
+use lex for std::jule::lex
 use strings for std::strings
 
 struct Formatter {
@@ -96,14 +97,19 @@ impl Formatter {
         for i, p in d.params {
             if p.mutable {
                 self.buf += "mut "
-                if d.reference {
-                    self.buf += "&"
-                }
-                if d.ident != "" {
-                    self.buf += d.ident
-                    self.buf += ": "
-                }
-                // PARSE_TYPE
+            }
+            if p.reference {
+                self.buf += "&"
+            }
+            if !lex::is_anon_ident(p.ident) {
+                self.buf += p.ident
+                self.buf += ": "
+            } else if p.reference {
+                self.buf += "_: "
+            }
+            // PARSE_TYPE
+            if i + 1 < d.params.len {
+                self.buf += ", "
             }
         }
         self.buf += ")"
