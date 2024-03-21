@@ -1,0 +1,146 @@
+// Copyright 2024 The Jule Programming Language.
+// Use of this source code is governed by a BSD 3-Clause
+// license that can be found in the LICENSE file.
+
+use ast for std::jule::ast::{Ast}
+use strings for std::strings
+
+struct Formatter {
+    mut buf: str
+    mut f:   &Ast
+}
+
+impl Formatter {
+    static fn new(): Formatter {
+        ret Formatter{}
+    }
+
+    fn directive(self, &d: &ast::Directive) {
+        self.buf += "#"
+        self.buf += d.tag.kind
+        for _, arg in d.args {
+            self.buf += " "
+            self.buf += arg.kind
+        }
+    }
+
+    fn top_directives(self) {
+        for _, d in self.f.top_directives {
+            self.buf += "\n"
+            self.directive(d)
+        }
+    }
+
+    fn use_decl(self, d: &ast::UseDecl) {
+        if d.cpp_linked {
+            self.buf += "cpp "
+        }
+        self.buf += "use "
+        if d.alias != "" {
+            self.buf += d.alias
+            self.buf += " for "
+        }
+        if d.cpp_linked {
+            self.buf += "\""
+            self.buf += d.link_path
+            self.buf += "\""
+        } else {
+            self.buf += d.link_path
+        }
+        if d.full {
+            self.buf += "::*"
+            ret
+        }
+        if d.selected.len == 0 {
+            ret
+        }
+        self.buf += "::{\n"
+        for _, s in d.selected {
+            self.buf += "    "
+            self.buf += s.kind
+            self.buf += ",\n"
+        }
+        self.buf += "}"
+    }
+
+    fn use_decls(self) {
+        if self.f.use_decls.len == 0 {
+            ret
+        }
+        self.buf += "\n"
+        for _, decl in self.f.use_decls {
+            self.buf += "\n"
+            self.use_decl(decl)
+        }
+    }
+
+    fn generics(self, &g: []&ast::GenericDecl) {
+        if g.len == 0 {
+            ret
+        }
+        self.buf += "["
+        for i, t in g {
+            self.buf += t.ident
+            if i + 1 < g.len {
+                self.buf += ","
+            }
+        }
+        self.buf += "]"
+    }
+
+    fn fn_decl(self, mut d: &ast::FnDecl) {
+        self.buf += "fn "
+        self.buf += d.ident
+        self.generics(d.generics)
+        self.buf += "("
+        for i, p in d.params {
+            if p.mutable {
+                self.buf += "mut "
+                if d.reference {
+                    self.buf += "&"
+                }
+                if d.ident != "" {
+                    self.buf += d.ident
+                    self.buf += ": "
+                }
+                // PARSE_TYPE
+            }
+        }
+        self.buf += ")"
+    }
+
+    fn node(self, mut &node: ast::Node) {
+        match type node.data {
+        | &ast::EnumDecl:
+            break
+        | &ast::FnDecl:
+            self.fn_decl((&ast::FnDecl)(node.data))
+        | &ast::StructDecl:
+            break
+        | &ast::TraitDecl:
+            break
+        | &ast::TypeAliasDecl:
+            break
+        | &ast::VarDecl:
+            break
+        | &ast::Impl:
+            break
+        }
+    }
+
+    fn nodes(self) {
+        for (_, mut node) in self.f.nodes {
+            self.buf += "\n\n"
+            self.node(node)
+        }
+    }
+
+    fn format(self, mut &f: &Ast): str {
+        self.f = f
+        self.top_directives()
+        self.use_decls()
+        self.nodes()
+        self.f = nil
+        ret strings::trim(self.buf, " \n\r\v\t")
+    }
+}
