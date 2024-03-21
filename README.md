@@ -6,7 +6,7 @@
 
 The official formatter tool for the Jule programming language.
 
-[Contributing](https://jule.dev/contribute) |
+[Contributing](./CONTRIBUTING.md) |
 [Community](https://jule.dev/community)
 
 [![Jule Community](https://dcbadge.vercel.app/api/server/ReWQgPDnP6?style=flat)](https://discord.gg/XNSUUDuGGQ)
@@ -37,7 +37,7 @@ Our main community platforms:
 Any contribution to JuleFmt is greatly appreciated, whether it's a typo fix, a brand new feature, or a bug report.
 
 - Please read [Julenour Code of Conduct](https://jule.dev/code-of-conduct) before contributing anything
-- To contribute, please read the [contribution guidelines](https://jule.dev/contribute)
+- To contribute, please read the [contribution guidelines](./CONTRIBUTING.md)
 
 ## License
 
