@@ -2,8 +2,12 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
-use ast for std::jule::ast::{Ast}
-use lex for std::jule::lex
+use ast for std::jule::ast::{
+    Ast,
+}
+use lex for std::jule::lex::{
+    TokenKind,
+}
 use strings for std::strings
 
 struct Formatter {
@@ -44,8 +48,13 @@ impl Formatter {
     fn directive(&self, &d: &ast::Directive) {
         self.buf += "#"
         self.buf += d.tag.kind
-        for _, arg in d.args {
-            self.buf += " "
+        for i, arg in d.args {
+            match {
+            | i == 0:
+                self.buf += " "
+            | arg.kind != TokenKind.RParent && d.args[i - 1].kind != TokenKind.LParent:
+                self.buf += " "
+            }
             self.buf += arg.kind
         }
     }
