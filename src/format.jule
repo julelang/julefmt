@@ -123,7 +123,7 @@ impl Formatter {
         for i, t in g {
             self.write(t.ident)
             if i + 1 < g.len {
-                self.write(",")
+                self.write(", ")
             }
         }
         self.write("]")
@@ -188,6 +188,77 @@ impl Formatter {
             }
         }
         self.write(")")
+        // SCOPE
+    }
+
+    fn fields(&self, &fields: []&ast::FieldDecl, public: bool, mutable: bool, n: int) {
+        for _, f in fields {
+            if f.public != public || f.mutable != mutable {
+                continue
+            }
+            self.write(self.indent)
+            if f.public {
+                self.buf += "pub "
+            }
+            if f.mutable {
+                self.buf += "mut "
+            }
+            self.write(f.ident)
+            self.write(": ")
+            let diff = n - f.ident.len
+            if diff > 0 {
+                self.write(strings::repeat(" ", diff))
+            }
+            self.format_type(f.kind)
+            self.write("\n")
+        }
+    }
+
+    fn struct_decl(&self, mut d: &ast::StructDecl) {
+        if d.directives.len != 0 {
+            self.directives(d.directives)
+            self.write("\n")
+        }
+        if d.public {
+            self.buf += "pub "
+        }
+        if d.cpp_linked {
+            self.buf += "cpp "
+        }
+        self.buf += "struct "
+        self.buf += d.ident
+        self.generics(d.generics)
+        if d.fields.len == 0 {
+            self.buf += " {}"
+            ret
+        }
+        let (p, pm, pb, pbm) = max_field_len(d.fields)
+        _ = pm, pb, pbm
+        self.buf += " {\n"
+        self.add_indent()
+        if p > 0 {
+            self.fields(d.fields, false, false, p)
+        }
+        if pm > 0 {
+            if p > 0 {
+                self.write("\n")
+            }
+            self.fields(d.fields, false, true, pm)
+        }
+        if pb > 0 {
+            if pm > 0 {
+                self.write("\n")
+            }
+            self.fields(d.fields, true, false, pb)
+        }
+        if pbm > 0 {
+            if pb > 0 {
+                self.write("\n")
+            }
+            self.fields(d.fields, true, true, pbm)
+        }
+        self.done_indent()
+        self.buf += "}"
     }
 
     fn type_alias_decl(&self, mut d: &ast::TypeAliasDecl) {
@@ -244,7 +315,7 @@ impl Formatter {
         | &ast::FnDecl:
             self.fn_decl((&ast::FnDecl)(node.data))
         | &ast::StructDecl:
-            break
+            self.struct_decl((&ast::StructDecl)(node.data))
         | &ast::TraitDecl:
             break
         | &ast::TypeAliasDecl:
@@ -628,4 +699,30 @@ impl ExprFormatter {
             self.ternary((&ast::TernaryExpr)(kind))
         }
     }
+}
+
+// Returns maximum length of field identifiers.
+// Length is calucated with public, mutable and identifier length, not including type.
+// Returns length for private, private mut, public, public mut fields.
+fn max_field_len(&fields: []&ast::FieldDecl): (p: int, pm: int, pb: int, pbm: int) {
+    for _, f in fields {
+        let n = f.ident.len
+        match {
+        | f.mutable:
+            if f.public && n > pbm {
+                pbm = n
+            } else if !f.public && n > pm {
+                pm = n
+            }
+        | f.public:
+            if n > pb {
+                pb = n
+            }
+        |:
+            if n > p {
+                p = n
+            }
+        }
+    }
+    ret
 }
