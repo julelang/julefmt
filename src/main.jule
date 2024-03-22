@@ -36,19 +36,20 @@ fn parse_package(path: str) {
             throw("file could not read: " + _path)
             use nil
         })
-        let mut errors = lex::lex(file)
+        let mut errors = lex::lex(file, lex::LexMode.Comment)
         if errors.len > 0 {
             throw("file could not formatted, have error(s): " + _path)
         }
 
+        let mut cm = CommentMap.build(file.tokens)
         let mut finfo = parser::parse_file(file)
         if finfo.errors.len > 0 {
             throw("file could not formatted, have error(s): " + _path)
         }
 
         let mut f = finfo.ast
-        let buf = fmt.format(f)
-        let fpath = f.file.path()
+        let buf = fmt.format(f, cm)
+        let fpath = f.file.path
         File.write(fpath, []byte(buf), 0o660) else {
             outln("could not write to file: " + fpath)
         }

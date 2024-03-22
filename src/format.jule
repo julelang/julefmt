@@ -6,6 +6,7 @@ use ast for std::jule::ast::{
     Ast,
 }
 use lex for std::jule::lex::{
+    Token,
     TokenKind,
 }
 use strings for std::strings
@@ -14,6 +15,7 @@ struct Formatter {
     mut buf:    str
     mut f:      &Ast
     mut indent: str
+    mut cm:     CommentMap
 }
 
 impl Formatter {
@@ -62,9 +64,11 @@ impl Formatter {
     }
 
     fn directives(&self, dvs: []&ast::Directive) {
-        for _, d in dvs {
-            self.write("\n")
+        for i, d in dvs {
             self.directive(d)
+            if i + 1 < dvs.len {
+                self.write("\n")
+            }
         }
     }
 
@@ -255,11 +259,22 @@ impl Formatter {
     fn nodes(&self) {
         for (_, mut node) in self.f.nodes {
             self.write("\n\n")
+            for {
+                let mut c = self.cm.pop(node.token.row)
+                if c != nil {
+                    self.write(c.txt)
+                    self.write("\n")
+                    continue
+                }
+                break
+            }
             self.node(node)
+            self.write("\n")
         }
     }
 
-    fn format(&self, mut &f: &Ast): str {
+    fn format(&self, mut &f: &Ast, mut &cm: CommentMap): str {
+        self.cm = cm
         self.f = f
         self.directives(self.f.top_directives)
         self.use_decls()

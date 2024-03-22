@@ -1,0 +1,54 @@
+// Copyright 2024 The Jule Programming Language.
+// Use of this source code is governed by a BSD 3-Clause
+// license that can be found in the LICENSE file.
+
+use std::jule::lex::{
+    Token,
+    TokenId,
+}
+
+struct Comment {
+    col: int
+    row: int
+    txt: str
+}
+
+struct CommentMap {
+    map: []&Comment
+}
+
+impl CommentMap {
+    static fn build(mut &tokens: []Token): CommentMap {
+        let mut cm = CommentMap{
+            map: make([]&Comment, 0, 1 << 8),
+        }
+        let mut i = 0
+        for i < tokens.len {
+            let token = tokens[i]
+            if token.id != TokenId.Comment {
+                i++
+                continue
+            }
+            cm.map = append(cm.map, &Comment{
+                col: token.column,
+                row: token.row,
+                txt: token.kind,
+            })
+            _ = copy(tokens[i:], tokens[i + 1:])
+            tokens = tokens[:tokens.len - 1]
+        }
+        ret cm
+    }
+
+    fn pop(mut self, row: int): &Comment {
+        if self.map.len == 0 {
+            ret nil
+        }
+        let mut c = self.map[0]
+        if c.row > row {
+            ret nil
+        }
+        self.map = self.map[1:]
+        ret c
+    }
+}
