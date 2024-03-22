@@ -21,6 +21,10 @@ impl Formatter {
         ret new(Formatter)
     }
 
+    fn write(&self, s: str) {
+        self.buf += s
+    }
+
     fn add_indent(&self) {
         self.indent += "    "
     }
@@ -29,82 +33,80 @@ impl Formatter {
         self.indent = self.indent[:self.indent.len - 4]
     }
 
-    fn format_expr(&self, &expr: &ast::Expr): str {
+    fn format_expr(&self, &expr: &ast::Expr) {
         let ef = ExprFormatter{
             fmt: self,
         }
         ef.format(expr.kind)
-        ret ef.buf
     }
 
-    fn format_type(&self, &expr: &ast::TypeDecl): str {
+    fn format_type(&self, &expr: &ast::TypeDecl) {
         let tf = TypeFormatter{
             fmt: self,
         }
         tf.format(expr.kind)
-        ret tf.buf
     }
 
     fn directive(&self, &d: &ast::Directive) {
-        self.buf += "#"
-        self.buf += d.tag.kind
+        self.write("#")
+        self.write(d.tag.kind)
         for i, arg in d.args {
             match {
             | i == 0:
-                self.buf += " "
+                self.write(" ")
             | arg.kind != TokenKind.RParent && d.args[i - 1].kind != TokenKind.LParent:
-                self.buf += " "
+                self.write(" ")
             }
-            self.buf += arg.kind
+            self.write(arg.kind)
         }
     }
 
     fn directives(&self, dvs: []&ast::Directive) {
         for _, d in dvs {
-            self.buf += "\n"
+            self.write("\n")
             self.directive(d)
         }
     }
 
     fn use_decl(&self, d: &ast::UseDecl) {
         if d.cpp_linked {
-            self.buf += "cpp "
+            self.write("cpp ")
         }
-        self.buf += "use "
+        self.write("use ")
         if d.alias != "" {
-            self.buf += d.alias
-            self.buf += " for "
+            self.write(d.alias)
+            self.write(" for ")
         }
         if d.cpp_linked {
-            self.buf += "\""
-            self.buf += d.link_path
-            self.buf += "\""
+            self.write("\"")
+            self.write(d.link_path)
+            self.write("\"")
         } else {
-            self.buf += d.link_path
+            self.write(d.link_path)
         }
         if d.full {
-            self.buf += "::*"
+            self.write("::*")
             ret
         }
         if d.selected.len == 0 {
             ret
         }
-        self.buf += "::{\n"
+        self.write("::{\n")
         for _, s in d.selected {
-            self.buf += "    "
-            self.buf += s.kind
-            self.buf += ",\n"
+            self.write("    ")
+            self.write(s.kind)
+            self.write(",\n")
         }
-        self.buf += "}"
+        self.write("}")
     }
 
     fn use_decls(&self) {
         if self.f.use_decls.len == 0 {
             ret
         }
-        self.buf += "\n"
+        self.write("\n")
         for _, decl in self.f.use_decls {
-            self.buf += "\n"
+            self.write("\n")
             self.use_decl(decl)
         }
     }
@@ -113,121 +115,121 @@ impl Formatter {
         if g.len == 0 {
             ret
         }
-        self.buf += "["
+        self.write("[")
         for i, t in g {
-            self.buf += t.ident
+            self.write(t.ident)
             if i + 1 < g.len {
-                self.buf += ","
+                self.write(",")
             }
         }
-        self.buf += "]"
+        self.write("]")
     }
 
     fn enum_decl(&self, mut d: &ast::EnumDecl) {
         if d.public {
-            self.buf += "pub "
+            self.write("pub ")
         }
-        self.buf += "enum "
-        self.buf += d.ident
+        self.write("enum ")
+        self.write(d.ident)
         if !d.default_typed() {
-            self.buf += ": "
-            self.buf += self.format_type(d.kind)
+            self.write(": ")
+            self.format_type(d.kind)
         }
-        self.buf += " {\n"
+        self.write(" {\n")
         self.add_indent()
         for _, item in d.items {
-            self.buf += self.indent
-            self.buf += item.ident
+            self.write(self.indent)
+            self.write(item.ident)
             if !item.auto_expr() {
-                self.buf += " = "
-                self.buf += self.format_expr(item.expr)
+                self.write(" = ")
+                self.format_expr(item.expr)
             }
-            self.buf += ",\n"
+            self.write(",\n")
         }
-        self.buf += "}"
+        self.write("}")
         self.done_indent()
     }
 
     fn fn_decl(&self, mut d: &ast::FnDecl) {
         if d.directives.len != 0 {
             self.directives(d.directives)
-            self.buf += "\n"
+            self.write("\n")
         }
         if d.public {
-            self.buf += "pub "
+            self.write("pub ")
         }
         if d.statically {
-            self.buf += "static "
+            self.write("static ")
         }
-        self.buf += "fn "
-        self.buf += d.ident
+        self.write("fn ")
+        self.write(d.ident)
         self.generics(d.generics)
-        self.buf += "("
+        self.write("(")
         for i, p in d.params {
             if p.mutable {
-                self.buf += "mut "
+                self.write("mut ")
             }
             if p.reference {
-                self.buf += "&"
+                self.write("&")
             }
             if !lex::is_anon_ident(p.ident) {
-                self.buf += p.ident
-                self.buf += ": "
+                self.write(p.ident)
+                self.write(": ")
             } else if p.reference {
-                self.buf += "_: "
+                self.write("_: ")
             }
-            self.buf += self.format_type(p.kind)
+            self.format_type(p.kind)
             if i + 1 < d.params.len {
-                self.buf += ", "
+                self.write(", ")
             }
         }
-        self.buf += ")"
+        self.write(")")
     }
 
     fn type_alias_decl(&self, mut d: &ast::TypeAliasDecl) {
         if d.public {
-            self.buf += "pub "
+            self.write("pub ")
         }
         if d.cpp_linked {
-            self.buf += "cpp "
+            self.write("cpp ")
         }
-        self.buf += d.ident
-        self.buf += ": "
-        self.buf += self.format_type(d.kind)
+        self.write(d.ident)
+        self.write(": ")
+        self.format_type(d.kind)
     }
 
     fn var_decl(&self, mut d: &ast::VarDecl) {
         if d.directives.len != 0 {
             self.directives(d.directives)
-            self.buf += "\n"
+            self.write("\n")
         }
         if d.cpp_linked {
-            self.buf += "cpp let "
+            self.write("cpp let ")
         } else {
             if d.public {
-                self.buf += "pub "
+                self.write("pub ")
             }
             if d.statically {
-                self.buf += "static "
+                self.write("static ")
             }
             if d.constant {
-                self.buf += "const "
+                self.write("const ")
             }
         }
         if d.mutable {
-            self.buf += "mut "
+            self.write("mut ")
         }
         if d.reference {
-            self.buf += "&"
+            self.write("&")
         }
-        self.buf += d.ident
+        self.write(d.ident)
         if d.kind != nil {
-            self.buf += ": "
-            self.buf += self.format_type(d.kind)
+            self.write(": ")
+            self.format_type(d.kind)
         }
         if d.expr != nil {
-            self.buf += " = "
-            self.buf += self.format_expr(d.expr)
+            self.write(" = ")
+            self.format_expr(d.expr)
         }
     }
 
@@ -252,7 +254,7 @@ impl Formatter {
 
     fn nodes(&self) {
         for (_, mut node) in self.f.nodes {
-            self.buf += "\n\n"
+            self.write("\n\n")
             self.node(node)
         }
     }
@@ -273,72 +275,76 @@ struct TypeFormatter {
 }
 
 impl TypeFormatter {
+    fn write(self, s: str) {
+        self.fmt.buf += s
+    }
+
     fn generics(self, g: []&ast::TypeDecl) {
         if g.len == 0 {
             ret
         }
-        self.buf += "["
+        self.write("[")
         for i, t in g {
             self.format(t.kind)
             if i + 1 < g.len {
-                self.buf += ","
+                self.write(",")
             }
         }
-        self.buf += "]"
+        self.write("]")
     }
 
     fn ident(self, id: &ast::IdentTypeDecl) {
         if id.cpp_linked {
-            self.buf += "cpp."
+            self.write("cpp.")
         }
-        self.buf += id.ident
+        self.write(id.ident)
         self.generics(id.generics)
     }
 
     fn namespace(self, ns: &ast::NamespaceTypeDecl) {
         for _, id in ns.idents {
-            self.buf += id.kind
-            self.buf += "::"
+            self.write(id.kind)
+            self.write("::")
         }
         self.ident(ns.kind)
     }
 
     fn sptr(self, sptr: &ast::SptrTypeDecl) {
-        self.buf += "&"
+        self.write("&")
         self.format(sptr.elem.kind)
     }
 
     fn slc(self, slc: &ast::SlcTypeDecl) {
-        self.buf += "[]"
+        self.write("[]")
         self.format(slc.elem.kind)
     }
 
     fn ptr(self, ptr: &ast::PtrTypeDecl) {
-        self.buf += "*"
+        self.write("*")
         if ptr.is_unsafe() {
-            self.buf += "unsafe"
+            self.write("unsafe")
             ret
         }
         self.format(ptr.elem.kind)
     }
 
     fn arr(self, arr: &ast::ArrTypeDecl) {
-        self.buf += "["
+        self.write("[")
         if arr.auto_sized() {
-            self.buf += "..."
+            self.write("...")
         } else {
-            self.buf += self.fmt.format_expr(arr.size)
+            self.fmt.format_expr(arr.size)
         }
-        self.buf += "]"
+        self.write("]")
         self.format(arr.elem.kind)
     }
 
     fn map(self, map: &ast::MapTypeDecl) {
-        self.buf += "["
+        self.write("[")
         self.format(map.key.kind)
-        self.buf += ":"
+        self.write(":")
         self.format(map.val.kind)
-        self.buf += "]"
+        self.write("]")
     }
 
     fn format(self, &kind: any) {
@@ -367,8 +373,12 @@ struct ExprFormatter {
 }
 
 impl ExprFormatter {
+    fn write(self, s: str) {
+        self.fmt.buf += s
+    }
+
     fn usexpr(self, u: &ast::UseExpr) {
-        self.buf += "use "
+        self.write("use ")
         self.format(u.expr.kind)
     }
 
@@ -376,71 +386,71 @@ impl ExprFormatter {
         for i, expr in tup.expr {
             self.format(expr.kind)
             if i + 1 < tup.expr.len {
-                self.buf += ", "
+                self.write(", ")
             }
         }
     }
 
     fn lit(self, l: &ast::LitExpr) {
-        self.buf += l.value
+        self.write(l.value)
     }
 
     fn unsafexpr(self, u: &ast::UnsafeExpr) {
-        self.buf += "unsafe { "
+        self.write("unsafe { ")
         self.format(u.expr)
-        self.buf += " }"
+        self.write(" }")
     }
 
     fn coexpr(self, c: &ast::CoExpr) {
-        self.buf += "co "
+        self.write("co ")
         self.format(c.expr.kind)
     }
 
     fn ident(self, id: &ast::IdentExpr) {
         if id.cpp_linked {
-            self.buf += "cpp."
+            self.write("cpp.")
         }
-        self.buf += id.ident
+        self.write(id.ident)
     }
 
     fn unary(self, u: &ast::UnaryExpr) {
-        self.buf += u.op.kind
+        self.write(u.op.kind)
         self.format(u.expr)
     }
 
     fn variadic(self, v: &ast::VariadicExpr) {
         self.format(v.expr)
-        self.buf += "..."
+        self.write("...")
     }
 
     fn cast(self, c: &ast::CastExpr) {
-        self.buf += "("
-        self.buf += self.fmt.format_type(c.kind)
-        self.buf += ")"
-        self.buf += "("
+        self.write("(")
+        self.fmt.format_type(c.kind)
+        self.write(")")
+        self.write("(")
         self.format(c.expr)
-        self.buf += ")"
+        self.write(")")
     }
 
     fn nselect(self, ns: &ast::NsSelectionExpr) {
         for _, s in ns.ns {
-            self.buf += s.kind
-            self.buf += "::"
+            self.write(s.kind)
+            self.write("::")
         }
-        self.buf += ns.ident.kind
+        self.write(ns.ident.kind)
     }
 
     fn sub_ident(self, si: &ast::SubIdentExpr) {
         self.format(si.expr)
-        self.buf += "."
-        self.buf += si.ident.kind
+        self.write(".")
+        self.write(si.ident.kind)
     }
 
     fn binary(self, bin: &ast::BinopExpr) {
         self.format(bin.left)
-        self.buf += " "
-        self.buf += bin.op.kind
-        self.buf += " "
+        self.write(" ")
+        self.write(bin.op.kind)
+        self.write(" ")
         self.format(bin.right)
     }
 
@@ -448,7 +458,7 @@ impl ExprFormatter {
         for i, arg in args {
             self.format(arg.kind)
             if i + 1 < args.len {
-                self.buf += ", "
+                self.write(", ")
             }
         }
     }
@@ -457,7 +467,7 @@ impl ExprFormatter {
         for i, arg in args {
             self.format(arg)
             if i + 1 < args.len {
-                self.buf += ", "
+                self.write(", ")
             }
         }
     }
@@ -468,12 +478,12 @@ impl ExprFormatter {
             fmt: self.fmt,
         }
         tf.generics(f.generics)
-        self.buf += tf.buf
-        self.buf += "("
+        self.write(tf.buf)
+        self.write("(")
         self.args(f.args)
-        self.buf += ")"
+        self.write(")")
         if f.ignored() {
-            self.buf += "!"
+            self.write("!")
         } else if f.exception != nil {
             // SCOPE
         }
@@ -481,77 +491,77 @@ impl ExprFormatter {
 
     fn field_expr_pair(self, pair: &ast::FieldExprPair) {
         if pair.is_targeted() {
-            self.buf += pair.field.kind
-            self.buf += ": "
+            self.write(pair.field.kind)
+            self.write(": ")
         }
         self.format(pair.expr)
     }
 
     fn struct_lit(self, lit: &ast::StructLit) {
-        self.buf += self.fmt.format_type(lit.kind)
+        self.fmt.format_type(lit.kind)
         if lit.exprs.len == 0 {
-            self.buf += "{}"
+            self.write("{}")
             ret
         }
-        self.buf += "{\n"
+        self.write("{\n")
         self.fmt.add_indent()
         for _, expr in lit.exprs {
-            self.buf += self.fmt.indent
+            self.write(self.fmt.indent)
             self.format(expr)
-            self.buf += ",\n"
+            self.write(",\n")
         }
         self.fmt.done_indent()
-        self.buf += "}"
+        self.write("}")
     }
 
     fn brace_lit(self, lit: &ast::BraceLit) {
-        self.buf += "{\n"
+        self.write("{\n")
         self.fmt.add_indent()
         for _, expr in lit.exprs {
-            self.buf += self.fmt.indent
+            self.write(self.fmt.indent)
             self.format(expr)
-            self.buf += ",\n"
+            self.write(",\n")
         }
         self.fmt.done_indent()
-        self.buf += "}"
+        self.write("}")
     }
 
     fn key_val_pair(self, pair: &ast::KeyValPair) {
         self.format(pair.key)
-        self.buf += ": "
+        self.write(": ")
         self.format(pair.val)
     }
 
     fn slice(self, s: &ast::SliceExpr) {
-        self.buf += "["
+        self.write("[")
         self.args_data(s.elems)
-        self.buf += "]"
+        self.write("]")
     }
 
     fn indexing(self, i: &ast::IndexingExpr) {
         self.format(i.expr)
-        self.buf += "["
+        self.write("[")
         self.format(i.index)
-        self.buf += "]"
+        self.write("]")
     }
 
     fn slicing(self, i: &ast::SlicingExpr) {
         self.format(i.expr)
-        self.buf += "["
+        self.write("[")
         self.format(i.start)
-        self.buf += ":"
+        self.write(":")
         self.format(i.to)
-        self.buf += "]"
+        self.write("]")
     }
 
     fn ternary(self, t: &ast::TernaryExpr) {
-        self.buf += "if "
+        self.write("if ")
         self.format(t.condition)
-        self.buf += " { "
+        self.write(" { ")
         self.format(t.true_expr)
-        self.buf += " } else { "
+        self.write(" } else { ")
         self.format(t.false_expr)
-        self.buf += " }"
+        self.write(" }")
     }
 
     fn format(self, &kind: any) {
