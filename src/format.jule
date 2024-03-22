@@ -35,6 +35,18 @@ impl Formatter {
         self.indent = self.indent[:self.indent.len - 4]
     }
 
+    fn write_comments(&self, row: int) {
+        for {
+            let mut c = self.cm.pop(row)
+            if c == nil {
+                break
+            }
+            self.write(self.indent)
+            self.write(c.txt)
+            self.write("\n")
+        }
+    }
+
     fn format_expr(&self, &expr: &ast::Expr) {
         let ef = ExprFormatter{
             fmt: self,
@@ -176,13 +188,17 @@ impl Formatter {
             if p.reference {
                 self.write("&")
             }
-            if !lex::is_anon_ident(p.ident) {
-                self.write(p.ident)
-                self.write(": ")
-            } else if p.reference {
-                self.write("_: ")
+            if p.is_self() {
+                self.buf += "self"
+            } else {
+                if !lex::is_anon_ident(p.ident) {
+                    self.write(p.ident)
+                    self.write(": ")
+                } else if p.reference {
+                    self.write("_: ")
+                }
+                self.format_type(p.kind)
             }
-            self.format_type(p.kind)
             if i + 1 < d.params.len {
                 self.write(", ")
             }
@@ -261,6 +277,28 @@ impl Formatter {
         self.buf += "}"
     }
 
+    fn trait_decl(&self, mut d: &ast::TraitDecl) {
+        if d.public {
+            self.buf += "pub "
+        }
+        self.buf += d.ident
+        if d.methods.len == 0 {
+            self.buf += " {}"
+            ret
+        }
+        self.buf += " {"
+        self.add_indent()
+        for (_, mut m) in d.methods {
+            self.write("\n")
+            self.write_comments(m.token.row)
+            self.write(self.indent)
+            self.fn_decl(m)
+            self.write("\n")
+        }
+        self.done_indent()
+        self.buf += "}"
+    }
+
     fn type_alias_decl(&self, mut d: &ast::TypeAliasDecl) {
         if d.public {
             self.write("pub ")
@@ -317,7 +355,7 @@ impl Formatter {
         | &ast::StructDecl:
             self.struct_decl((&ast::StructDecl)(node.data))
         | &ast::TraitDecl:
-            break
+            self.trait_decl((&ast::TraitDecl)(node.data))
         | &ast::TypeAliasDecl:
             self.type_alias_decl((&ast::TypeAliasDecl)(node.data))
         | &ast::VarDecl:
@@ -330,15 +368,7 @@ impl Formatter {
     fn nodes(&self) {
         for (_, mut node) in self.f.nodes {
             self.write("\n\n")
-            for {
-                let mut c = self.cm.pop(node.token.row)
-                if c != nil {
-                    self.write(c.txt)
-                    self.write("\n")
-                    continue
-                }
-                break
-            }
+            self.write_comments(node.token.row)
             self.node(node)
             self.write("\n")
         }
