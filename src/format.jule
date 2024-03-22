@@ -184,6 +184,18 @@ impl Formatter {
         self.buf += ")"
     }
 
+    fn type_alias_decl(&self, mut d: &ast::TypeAliasDecl) {
+        if d.public {
+            self.buf += "pub "
+        }
+        if d.cpp_linked {
+            self.buf += "cpp "
+        }
+        self.buf += d.ident
+        self.buf += ": "
+        self.buf += self.format_type(d.kind)
+    }
+
     fn var_decl(&self, mut d: &ast::VarDecl) {
         if d.directives.len != 0 {
             self.directives(d.directives)
@@ -230,7 +242,7 @@ impl Formatter {
         | &ast::TraitDecl:
             break
         | &ast::TypeAliasDecl:
-            break
+            self.type_alias_decl((&ast::TypeAliasDecl)(node.data))
         | &ast::VarDecl:
             self.var_decl((&ast::VarDecl)(node.data))
         | &ast::Impl:
