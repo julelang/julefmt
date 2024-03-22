@@ -115,6 +115,12 @@ impl Formatter {
     }
 
     fn fn_decl(&self, mut d: &ast::FnDecl) {
+        if d.public {
+            self.buf += "pub "
+        }
+        if d.statically {
+            self.buf += "static "
+        }
         self.buf += "fn "
         self.buf += d.ident
         self.generics(d.generics)
@@ -140,6 +146,37 @@ impl Formatter {
         self.buf += ")"
     }
 
+    fn var_decl(&self, mut d: &ast::VarDecl) {
+        if d.cpp_linked {
+            self.buf += "cpp let "
+        } else {
+            if d.public {
+                self.buf += "pub "
+            }
+            if d.statically {
+                self.buf += "static "
+            }
+            if d.constant {
+                self.buf += "const "
+            }
+        }
+        if d.mutable {
+            self.buf += "mut "
+        }
+        if d.reference {
+            self.buf += "&"
+        }
+        self.buf += d.ident
+        if d.kind != nil {
+            self.buf += ": "
+            self.buf += self.format_type(d.kind)
+        }
+        if d.expr != nil {
+            self.buf += " = "
+            self.buf += self.format_expr(d.expr)
+        }
+    }
+
     fn node(&self, mut &node: ast::Node) {
         match type node.data {
         | &ast::EnumDecl:
@@ -153,7 +190,7 @@ impl Formatter {
         | &ast::TypeAliasDecl:
             break
         | &ast::VarDecl:
-            break
+            self.var_decl((&ast::VarDecl)(node.data))
         | &ast::Impl:
             break
         }
