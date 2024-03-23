@@ -740,7 +740,7 @@ impl ScopeFormatter {
     }
 
     fn multi_assign(self, &a: &ast::AssignSt) {
-        self.write("(")
+        self.write("let (")
         for i, l in a.left {
             if l.ident != "" {
                 if l.mutable {
@@ -751,7 +751,9 @@ impl ScopeFormatter {
                 }
                 self.write(l.ident)
             } else {
+                self.write("(")
                 self.fmt.format_expr(l.expr)
+                self.write(")")
             }
             if i + 1 < a.left.len {
                 self.write(", ")
