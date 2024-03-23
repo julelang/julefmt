@@ -352,9 +352,10 @@ impl Formatter {
             }
             if d.statically {
                 self.write("static ")
-            }
-            if d.constant {
+            } else  if d.constant {
                 self.write("const ")
+            } else {
+                self.write("let ")
             }
         }
         if d.mutable {
