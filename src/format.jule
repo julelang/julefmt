@@ -12,6 +12,9 @@ use lex for std::jule::lex::{
 use strings for std::strings
 
 struct Formatter {
+    indent_len: int = 4
+    indent_str: str = " "
+
     mut buf:    str
     mut f:      &Ast
     mut indent: str
@@ -28,7 +31,8 @@ impl Formatter {
     }
 
     fn add_indent(&self) {
-        self.indent += "    "
+        static indent = strings::repeat(self.indent_str, self.indent_len)
+        self.indent += indent
     }
 
     fn done_indent(&self) {
@@ -59,6 +63,13 @@ impl Formatter {
             fmt: self,
         }
         tf.format(expr.kind)
+    }
+
+    fn format_scope(&self, &scope: &ast::ScopeTree) {
+        let sf = ScopeFormatter{
+            fmt: self,
+        }
+        sf.format(scope)
     }
 
     fn directive(&self, &d: &ast::Directive) {
@@ -181,6 +192,9 @@ impl Formatter {
         if d.statically {
             self.write("static ")
         }
+        if d.unsafety {
+            self.write("unsafe ")
+        }
         self.write("fn ")
         self.write(d.ident)
         self.generics(d.generics)
@@ -193,7 +207,7 @@ impl Formatter {
                 self.write("&")
             }
             if p.is_self() {
-                self.buf += "self"
+                self.write("self")
             } else {
                 if !lex::is_anon_ident(p.ident) {
                     self.write(p.ident)
@@ -208,7 +222,13 @@ impl Formatter {
             }
         }
         self.write(")")
-        // SCOPE
+        if d.scope != nil {
+            self.write(" ")
+            let unsafety = d.unsafety
+            d.scope.unsafety = false // Avoid unsafe keyword beginning of scope.
+            self.format_scope(d.scope)
+            d.scope.unsafety = unsafety
+        }
     }
 
     fn fields(&self, &fields: []&ast::FieldDecl, public: bool, mutable: bool, n: int) {
@@ -218,10 +238,10 @@ impl Formatter {
             }
             self.write(self.indent)
             if f.public {
-                self.buf += "pub "
+                self.write("pub ")
             }
             if f.mutable {
-                self.buf += "mut "
+                self.write("mut ")
             }
             self.write(f.ident)
             self.write(": ")
@@ -240,21 +260,21 @@ impl Formatter {
             self.write("\n")
         }
         if d.public {
-            self.buf += "pub "
+            self.write("pub ")
         }
         if d.cpp_linked {
-            self.buf += "cpp "
+            self.write("cpp ")
         }
-        self.buf += "struct "
-        self.buf += d.ident
+        self.write("struct ")
+        self.write(d.ident)
         self.generics(d.generics)
         if d.fields.len == 0 {
-            self.buf += " {}"
+            self.write(" {}")
             ret
         }
         let (p, pm, pb, pbm) = max_field_len(d.fields)
         _ = pm, pb, pbm
-        self.buf += " {\n"
+        self.write(" {\n")
         self.add_indent()
         if p > 0 {
             self.fields(d.fields, false, false, p)
@@ -278,19 +298,20 @@ impl Formatter {
             self.fields(d.fields, true, true, pbm)
         }
         self.done_indent()
-        self.buf += "}"
+        self.write("}")
     }
 
     fn trait_decl(&self, mut d: &ast::TraitDecl) {
         if d.public {
-            self.buf += "pub "
+            self.write("pub ")
         }
-        self.buf += d.ident
+        self.write("trait ")
+        self.write(d.ident)
         if d.methods.len == 0 {
-            self.buf += " {}"
+            self.write(" {}")
             ret
         }
-        self.buf += " {"
+        self.write(" {")
         self.add_indent()
         for (_, mut m) in d.methods {
             self.write("\n")
@@ -300,22 +321,23 @@ impl Formatter {
             self.write("\n")
         }
         self.done_indent()
-        self.buf += "}"
+        self.write("}")
     }
 
-    fn type_alias_decl(&self, mut d: &ast::TypeAliasDecl) {
+    fn type_alias_decl(&self, d: &ast::TypeAliasDecl) {
         if d.public {
             self.write("pub ")
         }
         if d.cpp_linked {
             self.write("cpp ")
         }
+        self.write("type ")
         self.write(d.ident)
         self.write(": ")
         self.format_type(d.kind)
     }
 
-    fn var_decl(&self, mut d: &ast::VarDecl) {
+    fn var_decl(&self, d: &ast::VarDecl) {
         if d.directives.len != 0 {
             self.directives(d.directives)
             self.write("\n")
@@ -361,7 +383,7 @@ impl Formatter {
             self.write(" {}")
             ret
         }
-        self.buf += " {\n"
+        self.write(" {\n")
         self.add_indent()
         for (_, mut s) in d.statics {
             self.write_comments(s.token.row)
@@ -421,7 +443,6 @@ impl Formatter {
 
 struct TypeFormatter {
     mut fmt: &Formatter
-    mut buf: str
 }
 
 impl TypeFormatter {
@@ -517,19 +538,275 @@ impl TypeFormatter {
     }
 }
 
-struct ExprFormatter {
+struct ScopeFormatter {
     mut fmt: &Formatter
-    mut buf: str
 }
 
-impl ExprFormatter {
+impl ScopeFormatter {
     fn write(self, s: str) {
         self.fmt.buf += s
     }
 
     fn usexpr(self, u: &ast::UseExpr) {
         self.write("use ")
-        self.format(u.expr.kind)
+        self.fmt.format_expr(u.expr)
+    }
+
+    fn co_expr(self, expr: &ast::CoExpr) {
+        self.write("co ")
+        self.fmt.format_expr(expr.expr)
+    }
+
+    fn label(self, l: &ast::LabelSt) {
+        // Remove one indentation.
+        self.fmt.buf = self.fmt.buf[:self.fmt.buf.len - self.fmt.indent_len]
+        self.write(l.ident)
+        self.write(":")
+    }
+
+    fn goto_st(self, g: &ast::GotoSt) {
+        self.write("goto ")
+        self.write(g.label.kind)
+    }
+
+    fn fall_st(self, fll: &ast::FallSt) {
+        self.write("fall")
+    }
+
+    fn cont_st(self, cont: &ast::ContSt) {
+        self.write("continue ")
+        self.write(cont.label.kind)
+    }
+
+    fn break_st(self, brk: &ast::BreakSt) {
+        self.write("break ")
+        self.write(brk.label.kind)
+    }
+
+    fn ret_st(self, r: &ast::RetSt) {
+        self.write("ret ")
+        self.fmt.format_expr(r.expr)
+    }
+
+    fn iter(self, it: &ast::Iter) {
+        self.write("for")
+        if !it.is_inf() {
+            match type it.kind {
+            | &ast::WhileKind:
+                self.write(" ")
+                let wk = (&ast::WhileKind)(it.kind)
+                self.fmt.format_expr(wk.expr)
+            | &ast::RangeKind:
+                self.write(" ")
+                let rk = (&ast::RangeKind)(it.kind)
+                let p = (rk.key_a != nil && rk.key_a.mutable) || (rk.key_b != nil && rk.key_b.mutable)
+                if p {
+                    self.write("(")
+                }
+                if rk.key_a != nil {
+                    if rk.key_a.mutable {
+                        self.write("mut ")
+                    }
+                    self.write(rk.key_a.ident)
+                }
+                if rk.key_b != nil {
+                    self.write(", ")
+                    if rk.key_b.mutable {
+                        self.write("mut ")
+                    }
+                    self.write(rk.key_b.ident)
+                }
+                if p {
+                    self.write(")")
+                }
+                self.write(" in ")
+                self.fmt.format_expr(rk.expr)
+            }
+        }
+        self.write(" ")
+        self.format(it.scope)
+    }
+
+    fn conditional_case(self, c: &ast::If) {
+        self.write("if ")
+        self.fmt.format_expr(c.expr)
+        self.write(" ")
+        self.format(c.scope)
+    }
+
+    fn conditional(self, c: &ast::Conditional) {
+        self.conditional_case(c.head)
+        for _, t in c.tail {
+            self.write(" else ")
+            self.conditional_case(t)
+        }
+        if c.default != nil {
+            self.write(" else ")
+            self.format(c.default.scope)
+        }
+    }
+
+    fn match_case(self, mc: &ast::MatchCase) {
+        self.write("match ")
+        if mc.type_match {
+            self.write("type ")
+        }
+        if mc.expr != nil {
+            self.fmt.format_expr(mc.expr)
+            self.write(" ")
+        }
+        self.write("{\n")
+        for _, c in mc.cases {
+            self.write(self.fmt.indent)
+            for i, expr in c.exprs {
+                if i > 0 {
+                    self.write(" ")
+                }
+                self.write("| ")
+                self.fmt.format_expr(expr)
+            }
+            self.write(":\n")
+            self.fmt.add_indent()
+            self.format_stmts(c.scope.stmts)
+            self.fmt.done_indent()
+        }
+        if mc.default != nil {
+            self.write(self.fmt.indent)
+            self.write("|:\n")
+            self.fmt.add_indent()
+            self.format_stmts(mc.default.scope.stmts)
+            self.fmt.done_indent()
+        }
+        self.write(self.fmt.indent)
+        self.write("}")
+    }
+
+    fn postfix(self, &a: &ast::AssignSt) {
+        let expr = a.left[0].expr
+        self.fmt.format_expr(expr)
+        self.write(a.setter.kind)
+    }
+
+    fn single_assign(self, &a: &ast::AssignSt) {
+        if lex::is_ignore_ident(a.left[0].ident) {
+            self.write("_ ")
+        } else {
+            let expr = a.left[0].expr
+            self.fmt.format_expr(expr)
+            self.write(" ")
+        }
+        self.write(a.setter.kind)
+        self.write(" ")
+        self.fmt.format_expr(a.right)
+    }
+
+    fn multi_assign(self, &a: &ast::AssignSt) {
+        self.write("(")
+        for i, l in a.left {
+            if l.ident != "" {
+                if l.mutable {
+                    self.write("mut ")
+                }
+                if l.reference {
+                    self.write("&")
+                }
+                self.write(l.ident)
+            } else {
+                self.fmt.format_expr(l.expr)
+            }
+            if i + 1 < a.left.len {
+                self.write(", ")
+            }
+        }
+        self.write(") = ")
+        self.fmt.format_expr(a.right)
+    }
+
+    fn assign(self, a: &ast::AssignSt) {
+        match {
+        | lex::is_postfix_op(a.setter.kind):
+            self.postfix(a)
+        | a.left.len == 1 && !a.declarative:
+            self.single_assign(a)
+        |:
+            self.multi_assign(a)
+        }
+    }
+
+    fn format_stmt(self, &stmt: ast::NodeData) {
+        match type stmt {
+        | &ast::ScopeTree:
+            self.format((&ast::ScopeTree)(stmt))
+        | &ast::Expr:
+            let expr = (&ast::Expr)(stmt)
+            self.fmt.format_expr(expr)
+        | &ast::VarDecl:
+            self.fmt.var_decl((&ast::VarDecl)(stmt))
+        | &ast::CoExpr:
+            self.co_expr((&ast::CoExpr)(stmt))
+        | &ast::TypeAliasDecl:
+            self.fmt.type_alias_decl((&ast::TypeAliasDecl)(stmt))
+        | &ast::LabelSt:
+            self.label((&ast::LabelSt)(stmt))
+        | &ast::GotoSt:
+            self.goto_st((&ast::GotoSt)(stmt))
+        | &ast::UseExpr:
+            self.usexpr((&ast::UseExpr)(stmt))
+        | &ast::FallSt:
+            self.fall_st((&ast::FallSt)(stmt))
+        | &ast::ContSt:
+            self.cont_st((&ast::ContSt)(stmt))
+        | &ast::BreakSt:
+            self.break_st((&ast::BreakSt)(stmt))
+        | &ast::RetSt:
+            self.ret_st((&ast::RetSt)(stmt))
+        | &ast::Iter:
+            self.iter((&ast::Iter)(stmt))
+        | &ast::Conditional:
+            self.conditional((&ast::Conditional)(stmt))
+        | &ast::MatchCase:
+            self.match_case((&ast::MatchCase)(stmt))
+        | &ast::AssignSt:
+            self.assign((&ast::AssignSt)(stmt))
+        }
+    }
+
+    fn format_stmts(self, &stmts: []&ast::Node) {
+        for _, stmt in stmts {
+            self.fmt.write_comments(stmt.token.row)
+            self.write(self.fmt.indent)
+            self.format_stmt(stmt.data)
+            self.write("\n")
+        }
+    }
+
+    fn format(self, scope: &ast::ScopeTree) {
+        if scope.unsafety {
+            self.write("unsafe ")
+        }
+        if scope.deferred {
+            self.write("defer ")
+        }
+        if scope.stmts.len == 0 {
+            self.write("{}")
+            ret
+        }
+        self.write("{\n")
+        self.fmt.add_indent()
+        self.format_stmts(scope.stmts)
+        self.fmt.done_indent()
+        self.write(self.fmt.indent)
+        self.write("}")
+    }
+}
+
+struct ExprFormatter {
+    mut fmt: &Formatter
+}
+
+impl ExprFormatter {
+    fn write(self, s: str) {
+        self.fmt.buf += s
     }
 
     fn tuple(self, tup: &ast::TupleExpr) {
@@ -628,14 +905,14 @@ impl ExprFormatter {
             fmt: self.fmt,
         }
         tf.generics(f.generics)
-        self.write(tf.buf)
         self.write("(")
         self.args(f.args)
         self.write(")")
         if f.ignored() {
             self.write("!")
         } else if f.exception != nil {
-            // SCOPE
+            self.write(" ")
+            self.fmt.format_scope(f.exception)
         }
     }
 
@@ -721,8 +998,6 @@ impl ExprFormatter {
             self.format(expr.kind)
         | &ast::IdentExpr:
             self.ident((&ast::IdentExpr)(kind))
-        | &ast::UseExpr:
-            self.usexpr((&ast::UseExpr)(kind))
         | &ast::TupleExpr:
             self.tuple((&ast::TupleExpr)(kind))
         | &ast::LitExpr:
