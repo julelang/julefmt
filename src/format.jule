@@ -80,6 +80,7 @@ impl Formatter {
             self.directive(d)
             if i + 1 < dvs.len {
                 self.write("\n")
+                self.write(self.indent)
             }
         }
     }
@@ -172,6 +173,7 @@ impl Formatter {
         if d.directives.len != 0 {
             self.directives(d.directives)
             self.write("\n")
+            self.write(self.indent)
         }
         if d.public {
             self.write("pub ")
@@ -348,6 +350,36 @@ impl Formatter {
         }
     }
 
+    fn impl_decl(&self, mut d: &ast::Impl) {
+        self.write("impl ")
+        if d.is_trait_impl() {
+            self.format_type(d.base)
+            self.write(" for ")
+        }
+        self.format_type(d.dest)
+        if d.methods.len == 0 && d.statics.len == 0 {
+            self.write(" {}")
+            ret
+        }
+        self.buf += " {\n"
+        self.add_indent()
+        for (_, mut s) in d.statics {
+            self.write_comments(s.token.row)
+            self.write(self.indent)
+            self.var_decl(s)
+            self.write("\n")
+        }
+        for (_, mut m) in d.methods {
+            self.write("\n")
+            self.write_comments(m.token.row)
+            self.write(self.indent)
+            self.fn_decl(m)
+            self.write("\n")
+        }
+        self.done_indent()
+        self.write("}")
+    }
+
     fn node(&self, mut &node: ast::Node) {
         match type node.data {
         | &ast::EnumDecl:
@@ -363,7 +395,7 @@ impl Formatter {
         | &ast::VarDecl:
             self.var_decl((&ast::VarDecl)(node.data))
         | &ast::Impl:
-            break
+            self.impl_decl((&ast::Impl)(node.data))
         }
     }
 
