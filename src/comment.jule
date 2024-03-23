@@ -40,6 +40,21 @@ impl CommentMap {
         ret cm
     }
 
+    fn first(mut self, row: int): &Comment {
+        if self.map.len == 0 {
+            ret nil
+        }
+        let mut c = self.map[0]
+        if c.row > row {
+            ret nil
+        }
+        ret c
+    }
+
+    fn drop_first(mut self) {
+        self.map = self.map[1:]
+    }
+
     fn pop(mut self, row: int): &Comment {
         if self.map.len == 0 {
             ret nil
@@ -48,7 +63,7 @@ impl CommentMap {
         if c.row > row {
             ret nil
         }
-        self.map = self.map[1:]
+        self.drop_first()
         ret c
     }
 }
