@@ -14,7 +14,8 @@ use strings for std::strings
 struct Formatter {
     indent_len: int = 4
     indent_str: str = " "
-
+    
+    mut i:      int
     mut buf:    str
     mut f:      &Ast
     mut indent: str
@@ -138,6 +139,7 @@ impl Formatter {
             self.write_comments(decl.token.row)
             self.use_decl(decl)
         }
+        self.write("\n\n")
     }
 
     fn generics(&self, &g: []&ast::GenericDecl) {
@@ -372,6 +374,30 @@ impl Formatter {
         }
     }
 
+    fn group_decls[T](&self, nodes: []ast::Node, mut &i: int) {
+        let mut row = -1
+        for i < nodes.len {
+            let node = nodes[i]
+            match type node.data {
+            | T:
+                let decl = T(node.data)
+                if row == -1 || decl.token.row - 1 == row {
+                    row = decl.token.row
+                    match type T {
+                    | &ast::VarDecl:
+                        self.var_decl(decl)
+                    | &ast::TypeAliasDecl:
+                        self.type_alias_decl(decl)
+                    }
+                    self.write("\n")
+                    i++
+                    continue
+                }
+            }
+            break
+        }
+    }
+
     fn impl_decl(&self, mut d: &ast::Impl) {
         self.write("impl ")
         if d.is_trait_impl() {
@@ -413,20 +439,32 @@ impl Formatter {
         | &ast::TraitDecl:
             self.trait_decl((&ast::TraitDecl)(node.data))
         | &ast::TypeAliasDecl:
-            self.type_alias_decl((&ast::TypeAliasDecl)(node.data))
+            self.group_decls[&ast::TypeAliasDecl](self.f.nodes, self.i)
         | &ast::VarDecl:
-            self.var_decl((&ast::VarDecl)(node.data))
+            self.group_decls[&ast::VarDecl](self.f.nodes, self.i)
         | &ast::Impl:
             self.impl_decl((&ast::Impl)(node.data))
         }
     }
 
     fn nodes(&self) {
-        for (_, mut node) in self.f.nodes {
-            self.write("\n\n")
+        self.i = 0
+        let mut row = 0
+        for self.i < self.f.nodes.len; self.i++ {
+            let mut node = self.f.nodes[self.i]
             self.write_comments(node.token.row)
+            let old = self.i
             self.node(node)
-            self.write("\n")
+            match {
+            | old != self.i:
+                self.i--
+                fall
+            | row + 1 == node.token.row:
+                self.write("\n")
+            |:
+                self.write("\n\n")
+            }
+            row = node.token.row
         }
     }
 
