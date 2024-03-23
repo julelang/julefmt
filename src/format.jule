@@ -161,6 +161,16 @@ impl Formatter {
         self.write("]")
     }
 
+    fn enum_item(&self, &item: &ast::EnumItemDecl) {
+        self.write(self.indent)
+        self.write(item.ident)
+        if !item.auto_expr() {
+            self.write(" = ")
+            self.format_expr(item.expr)
+        }
+        self.write(",")
+    }
+
     fn enum_decl(&self, mut d: &ast::EnumDecl) {
         if d.public {
             self.write("pub ")
@@ -173,15 +183,19 @@ impl Formatter {
         }
         self.write(" {\n")
         self.add_indent()
-        for _, item in d.items {
-            self.write_comments(item.token.row)
-            self.write(self.indent)
-            self.write(item.ident)
-            if !item.auto_expr() {
-                self.write(" = ")
-                self.format_expr(item.expr)
+        let (mut i, mut row) = 0, 0
+        for i < d.items.len; i++ {
+            let old = self.i
+            let item = d.items[i]
+            _ = item
+            self.group_decls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.items, i)
+            if old != i {
+                if i < d.items.len {
+                    self.write("\n")
+                }
+                i--
             }
-            self.write(",\n")
+            row = item.token.row
         }
         self.write("}")
         self.done_indent()
@@ -380,45 +394,55 @@ impl Formatter {
         }
     }
 
-    fn group_decls[T](&self, nodes: []ast::Node, mut &i: int) {
+    fn group_decls[T, Node](&self, mut nodes: []Node, mut &i: int) {
         const CAP = 1 << 4
         let mut lines = make([]str, 0, CAP)
         let mut comments = make([]&Comment, 0, CAP)
 
         let mut row = -1
         let mut max = 0
+    loop:
         for i < nodes.len {
-            let node = nodes[i]
-            match type node.data {
-            | T:
-                let decl = T(node.data)
-                if row == -1 || decl.token.row - 1 == row {
-                    row = decl.token.row
-                    self.write_comments_except(row)
-                    if self.cm.map.len > 0 && self.cm.map[0].row == row {
-                        comments = append(comments, self.cm.pop(row))
-                    } else {
-                        let mut c: &Comment
-                        comments = append(comments, c)
-                    }
-                    let n = self.buf.len
-                    match type T {
-                    | &ast::VarDecl:
-                        self.var_decl(decl)
-                    | &ast::TypeAliasDecl:
-                        self.type_alias_decl(decl)
-                    }
-                    let diff = self.buf.len - n
-                    if max < diff {
-                        max = diff
-                    }
-                    lines = append(lines, self.buf[n:])
-                    self.buf = self.buf[:self.buf.len - diff]
-                    i++
-                    continue
+            let mut decl: T =  nil
+            match type Node {
+            | &ast::EnumItemDecl:
+                decl = nodes[i]
+            | ast::Node:
+                let node = nodes[i]
+                match type node.data {
+                | T:
+                    decl = (T)(nodes[i].data)
+                |:
+                    break loop
                 }
             }
-            break
+            if row != -1 && decl.token.row - 1 != row {
+                break loop
+            }
+            row = decl.token.row
+            self.write_comments_except(row)
+            if self.cm.map.len > 0 && self.cm.map[0].row == row {
+                comments = append(comments, self.cm.pop(row))
+            } else {
+                let mut c: &Comment
+                comments = append(comments, c)
+            }
+            let n = self.buf.len
+            match type T {
+            | &ast::VarDecl:
+                self.var_decl(decl)
+            | &ast::TypeAliasDecl:
+                self.type_alias_decl(decl)
+            | &ast::EnumItemDecl:
+                self.enum_item(decl)
+            }
+            let diff = self.buf.len - n
+            if max < diff {
+                max = diff
+            }
+            lines = append(lines, self.buf[n:])
+            self.buf = self.buf[:self.buf.len - diff]
+            i++
         }
 
         for j, line in lines {
@@ -465,9 +489,9 @@ impl Formatter {
     fn node(&self, mut &node: ast::Node) {
         match type node.data {
         | &ast::TypeAliasDecl:
-            self.group_decls[&ast::TypeAliasDecl](self.f.nodes, self.i)
+            self.group_decls[&ast::TypeAliasDecl, ast::Node](self.f.nodes, self.i)
         | &ast::VarDecl:
-            self.group_decls[&ast::VarDecl](self.f.nodes, self.i)
+            self.group_decls[&ast::VarDecl, ast::Node](self.f.nodes, self.i)
         }
 
         self.write_comments(node.token.row)
