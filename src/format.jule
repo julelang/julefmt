@@ -276,6 +276,10 @@ impl Formatter {
             self.write(strings::repeat(" ", max))
         }
         self.format_type(f.f.kind)
+        if f.f.default != nil {
+            self.write(" = ")
+            self.format_expr(f.f.default)
+        }
     }
 
     fn fields(&self, mut &fields: []&ast::FieldDecl) {
