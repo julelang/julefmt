@@ -11,6 +11,11 @@ use lex for std::jule::lex::{
 }
 use strings for std::strings
 
+struct Field {
+    f:     &ast::FieldDecl
+    token: Token
+}
+
 struct Formatter {
     indent_len: int = 4
     indent_str: str = " "
@@ -184,16 +189,16 @@ impl Formatter {
         self.write(" {\n")
         self.add_indent()
         let (mut i, mut row) = 0, 0
-        for i < d.items.len; i++ {
+        for i < d.items.len {
             let old = self.i
             let item = d.items[i]
-            _ = item
             self.group_decls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.items, i)
             if old != i {
                 if i < d.items.len {
                     self.write("\n")
                 }
-                i--
+            } else {
+                i++
             }
             row = item.token.row
         }
@@ -252,26 +257,48 @@ impl Formatter {
         }
     }
 
-    fn fields(&self, &fields: []&ast::FieldDecl, public: bool, mutable: bool, n: int) {
-        for _, f in fields {
-            if f.public != public || f.mutable != mutable {
-                continue
+    // Only parses last field.
+    // Leading fields used to calculate maximum declaration length of group for padding.
+    fn field(&self, f: &Field, mut max: int) {
+        self.write(self.indent)
+        if f.f.public {
+            self.write("pub ")
+            max -= 4
+        }
+        if f.f.mutable {
+            self.write("mut ")
+            max -= 4
+        }
+        self.write(f.f.ident)
+        max -= f.f.ident.len
+        self.write(": ")
+        if max > 0 {
+            self.write(strings::repeat(" ", max))
+        }
+        self.format_type(f.f.kind)
+    }
+
+    fn fields(&self, mut &fields: []&ast::FieldDecl) {
+        let mut flds = make([]&Field, 0, fields.len)
+        for (_, mut f) in fields {
+            flds = append(flds, &Field{
+                f:     f,
+                token: f.token,
+            })
+        }
+        let (mut i, mut row) = 0, 0
+        for i < flds.len {
+            let old = self.i
+            let f = flds[i]
+            self.group_decls[&Field, &Field](flds, i)
+            if old != i {
+                if i < flds.len {
+                    self.write("\n")
+                }
+            } else {
+                i++
             }
-            self.write(self.indent)
-            if f.public {
-                self.write("pub ")
-            }
-            if f.mutable {
-                self.write("mut ")
-            }
-            self.write(f.ident)
-            self.write(": ")
-            let diff = n - f.ident.len
-            if diff > 0 {
-                self.write(strings::repeat(" ", diff))
-            }
-            self.format_type(f.kind)
-            self.write("\n")
+            row = f.token.row
         }
     }
 
@@ -293,31 +320,9 @@ impl Formatter {
             self.write(" {}")
             ret
         }
-        let (p, pm, pb, pbm) = max_field_len(d.fields)
-        _ = pm, pb, pbm
         self.write(" {\n")
         self.add_indent()
-        if p > 0 {
-            self.fields(d.fields, false, false, p)
-        }
-        if pm > 0 {
-            if p > 0 {
-                self.write("\n")
-            }
-            self.fields(d.fields, false, true, pm)
-        }
-        if pb > 0 {
-            if pm > 0 {
-                self.write("\n")
-            }
-            self.fields(d.fields, true, false, pb)
-        }
-        if pbm > 0 {
-            if pb > 0 {
-                self.write("\n")
-            }
-            self.fields(d.fields, true, true, pbm)
-        }
+        self.fields(d.fields)
         self.done_indent()
         self.write("}")
     }
@@ -399,13 +404,17 @@ impl Formatter {
         let mut lines = make([]str, 0, CAP)
         let mut comments = make([]&Comment, 0, CAP)
 
+        let mut start = i
         let mut row = -1
         let mut max = 0
+        let mut field_max = 0
+        let n = self.buf.len
     loop:
         for i < nodes.len {
             let mut decl: T =  nil
             match type Node {
-            | &ast::EnumItemDecl:
+            | &ast::EnumItemDecl
+            | &Field:
                 decl = nodes[i]
             | ast::Node:
                 let node = nodes[i]
@@ -427,7 +436,6 @@ impl Formatter {
                 let mut c: &Comment
                 comments = append(comments, c)
             }
-            let n = self.buf.len
             match type T {
             | &ast::VarDecl:
                 self.var_decl(decl)
@@ -435,6 +443,20 @@ impl Formatter {
                 self.type_alias_decl(decl)
             | &ast::EnumItemDecl:
                 self.enum_item(decl)
+            | &Field:
+                let mut fm = 0
+                if decl.f.public {
+                    fm += "pub ".len
+                }
+                if decl.f.mutable {
+                    fm += "mut ".len
+                }
+                fm += decl.f.ident.len
+                if fm > field_max {
+                    field_max = fm
+                }
+                i++
+                continue
             }
             let diff = self.buf.len - n
             if max < diff {
@@ -443,6 +465,21 @@ impl Formatter {
             lines = append(lines, self.buf[n:])
             self.buf = self.buf[:self.buf.len - diff]
             i++
+        }
+
+        match type T {
+        | &Field:
+            for start < i; start++ {
+                self.field(nodes[start], field_max)
+                lines = append(lines, self.buf[n:])
+                let diff = self.buf.len - n
+                if max < diff {
+                    max = diff
+                }
+                self.buf = self.buf[:self.buf.len - diff]
+            }
+        |:
+            _ = start, field_max
         }
 
         for j, line in lines {
@@ -1139,30 +1176,4 @@ impl ExprFormatter {
             self.ternary((&ast::TernaryExpr)(kind))
         }
     }
-}
-
-// Returns maximum length of field identifiers.
-// Length is calucated with public, mutable and identifier length, not including type.
-// Returns length for private, private mut, public, public mut fields.
-fn max_field_len(&fields: []&ast::FieldDecl): (p: int, pm: int, pb: int, pbm: int) {
-    for _, f in fields {
-        let n = f.ident.len
-        match {
-        | f.mutable:
-            if f.public && n > pbm {
-                pbm = n
-            } else if !f.public && n > pm {
-                pm = n
-            }
-        | f.public:
-            if n > pb {
-                pb = n
-            }
-        |:
-            if n > p {
-                p = n
-            }
-        }
-    }
-    ret
 }
