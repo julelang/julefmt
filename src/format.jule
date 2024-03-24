@@ -66,7 +66,7 @@ impl Formatter {
         let ef = ExprFormatter{
             fmt: self,
         }
-        ef.format(expr.kind)
+        ef.format(expr)
     }
 
     fn format_type(&self, mut &expr: &ast::TypeDecl) {
@@ -1045,7 +1045,7 @@ impl ExprFormatter {
 
     fn tuple(self, mut tup: &ast::TupleExpr) {
         for (i, mut expr) in tup.expr {
-            self.format(expr.kind)
+            self.format(expr)
             if i + 1 < tup.expr.len {
                 self.write(", ")
             }
@@ -1064,7 +1064,7 @@ impl ExprFormatter {
 
     fn coexpr(self, mut c: &ast::CoExpr) {
         self.write("co ")
-        self.format(c.expr.kind)
+        self.format(c.expr)
     }
 
     fn ident(self, id: &ast::IdentExpr) {
@@ -1117,14 +1117,14 @@ impl ExprFormatter {
 
     fn args(self, mut &args: []&ast::Expr) {
         for (i, mut arg) in args {
-            self.format(arg.kind)
+            self.format(arg)
             if i + 1 < args.len {
                 self.write(", ")
             }
         }
     }
 
-    fn args_data(self, mut &args: []ast::ExprData) {
+    fn args_data(self, mut &args: []&ast::Expr) {
         for (i, mut arg) in args {
             self.format(arg)
             if i + 1 < args.len {
@@ -1134,7 +1134,7 @@ impl ExprFormatter {
     }
 
     fn fn_call(self, mut f: &ast::FnCallExpr) {
-        self.format(f.expr.kind)
+        self.format(f.expr)
         let tf = TypeFormatter{
             fmt: self.fmt,
         }
@@ -1168,7 +1168,7 @@ impl ExprFormatter {
         self.fmt.add_indent()
         for (_, mut expr) in lit.exprs {
             self.write(self.fmt.indent)
-            self.format(expr)
+            self.format_kind(expr)
             self.write(",\n")
         }
         self.fmt.done_indent()
@@ -1180,7 +1180,7 @@ impl ExprFormatter {
         self.fmt.add_indent()
         for (_, mut expr) in lit.exprs {
             self.write(self.fmt.indent)
-            self.format(expr)
+            self.format_kind(expr)
             self.write(",\n")
         }
         self.fmt.done_indent()
@@ -1225,11 +1225,11 @@ impl ExprFormatter {
         self.write(" }")
     }
 
-    fn format(self, mut &kind: any) {
+    fn format_kind(self, mut &kind: any) {
         match type kind {
         | &ast::Expr:
             let mut expr = (&ast::Expr)(kind)
-            self.format(expr.kind)
+            self.format(expr)
         | &ast::TypeDecl:
             let mut t = (&ast::TypeDecl)(kind)
             self.fmt.format_type(t)
@@ -1273,6 +1273,19 @@ impl ExprFormatter {
             self.slicing((&ast::SlicingExpr)(kind))
         | &ast::TernaryExpr:
             self.ternary((&ast::TernaryExpr)(kind))
+        }
+    }
+
+    fn format(self, mut &expr: &ast::Expr) {
+        if expr == nil {
+            ret
+        }
+        if expr.range {
+            self.write("(")
+        }
+        self.format_kind(expr.kind)
+        if expr.range {
+            self.write(")")
         }
     }
 }
