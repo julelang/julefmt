@@ -790,8 +790,14 @@ impl ScopeFormatter {
     fn conditional_case(self, mut c: &ast::If) {
         self.write("if ")
         self.fmt.format_expr(c.expr)
-        self.write(" ")
-        self.format(c.scope)
+        self.write(" {\n")
+        if c.scope.stmts.len > 0 {
+            self.fmt.add_indent()
+            self.format_stmts(c.scope.stmts)
+            self.fmt.done_indent()
+        }
+        self.write(self.fmt.indent)
+        self.write("}")
     }
 
     fn conditional(self, mut c: &ast::Conditional) {
@@ -801,8 +807,14 @@ impl ScopeFormatter {
             self.conditional_case(t)
         }
         if c.default != nil {
-            self.write(" else ")
-            self.format(c.default.scope)
+            self.write(" else {\n")
+            if c.default.scope.stmts.len > 0 {
+                self.fmt.add_indent()
+                self.format_stmts(c.default.scope.stmts)
+                self.fmt.done_indent()
+            }
+            self.write(self.fmt.indent)
+            self.write("}")
         }
     }
 
