@@ -1196,14 +1196,31 @@ impl ExprFormatter {
     }
 
     fn brace_lit(self, mut lit: &ast::BraceLit) {
-        self.write("{\n")
+        self.write("{")
         self.fmt.add_indent()
-        for (_, mut expr) in lit.exprs {
-            self.write(self.fmt.indent)
+        let mut row = lit.token.row
+        let mut lined = false
+        for (i, mut expr) in lit.exprs {
+            if row != expr.token.row {
+                lined = true
+                self.write("\n")
+                self.write(self.fmt.indent)
+            } else if i > 0 {
+                self.write(" ")
+            }
             self.format(expr)
-            self.write(",\n")
+            if lined || lit.exprs.len - i > 1 {
+                self.write(",")
+            }
+            row = expr.token.row
         }
         self.fmt.done_indent()
+        if self.fmt.buf[self.fmt.buf.len - 1] == '\n' {
+            self.write(self.fmt.indent)
+        } else if lined {
+            self.write("\n")
+            self.write(self.fmt.indent)
+        }
         self.write("}")
     }
 
