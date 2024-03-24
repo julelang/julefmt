@@ -130,11 +130,28 @@ impl Formatter {
         if d.selected.len == 0 {
             ret
         }
-        self.write("::{\n")
+        let mut newline = false
+        let mut row = d.token.row
         for _, s in d.selected {
-            self.write("    ")
+            if row != s.row {
+                newline = true
+                break
+            }
+        }
+        self.write("::{")
+        if newline {
+            self.write("\n")
+        }
+        for i, s in d.selected {
+            if newline {
+                self.write("    ")
+            }
             self.write(s.kind)
-            self.write(",\n")
+            if newline {
+                self.write(",\n")
+            } else if i + 1 < d.selected.len {
+                self.write(", ")
+            }
         }
         self.write("}")
     }
