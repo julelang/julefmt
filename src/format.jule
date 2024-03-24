@@ -1195,8 +1195,7 @@ impl ExprFormatter {
         self.write("}")
     }
 
-    fn brace_lit(self, mut lit: &ast::BraceLit) {
-        self.write("{")
+    fn responsive_exprs[T](self, mut &lit: T) {
         self.fmt.add_indent()
         let mut row = lit.token.row
         let mut lined = false
@@ -1221,6 +1220,11 @@ impl ExprFormatter {
             self.write("\n")
             self.write(self.fmt.indent)
         }
+    }
+
+    fn brace_lit(self, mut lit: &ast::BraceLit) {
+        self.write("{")
+        self.responsive_exprs[&ast::BraceLit](lit)
         self.write("}")
     }
 
@@ -1232,7 +1236,7 @@ impl ExprFormatter {
 
     fn slice(self, mut s: &ast::SliceExpr) {
         self.write("[")
-        self.args_data(s.elems)
+        self.responsive_exprs[&ast::SliceExpr](s)
         self.write("]")
     }
 
