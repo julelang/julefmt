@@ -744,8 +744,11 @@ impl ScopeFormatter {
     }
 
     fn ret_st(self, mut r: &ast::RetSt) {
-        self.write("ret ")
-        self.fmt.format_expr(r.expr)
+        self.write("ret")
+        if r.expr != nil {
+            self.write(" ")
+            self.fmt.format_expr(r.expr)
+        }
     }
 
     fn iter(self, mut it: &ast::Iter) {
