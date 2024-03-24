@@ -1165,9 +1165,10 @@ impl ExprFormatter {
             ret
         }
         let mut newline = false
-        let row = lit.exprs[0].token.row
-        for _, expr in lit.exprs[1:] {
-            if expr.token.row != row {
+        for _, expr in lit.exprs {
+            // Compare with kind row. Because kind and brace should be same line.
+            // Therefore, kind row also means brace row.
+            if expr.token.row != lit.kind.token.row {
                 newline = true
                 break
             }
