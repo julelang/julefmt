@@ -1164,14 +1164,34 @@ impl ExprFormatter {
             self.write("{}")
             ret
         }
-        self.write("{\n")
+        let mut newline = false
+        let row = lit.exprs[0].token.row
+        for _, expr in lit.exprs[1:] {
+            if expr.token.row != row {
+                newline = true
+                break
+            }
+        }
+        self.write("{")
+        if newline {
+            self.write("\n")
+        }
         self.fmt.add_indent()
-        for (_, mut expr) in lit.exprs {
-            self.write(self.fmt.indent)
-            self.format_kind(expr)
-            self.write(",\n")
+        for (i, mut expr) in lit.exprs {
+            if newline {
+                self.write(self.fmt.indent)
+            }
+            self.format(expr)
+            if newline {
+                self.write(",\n")
+            } else if lit.exprs.len - i > 1 {
+                self.write(", ")
+            }
         }
         self.fmt.done_indent()
+        if newline {
+            self.write(self.fmt.indent)
+        }
         self.write("}")
     }
 
@@ -1180,7 +1200,7 @@ impl ExprFormatter {
         self.fmt.add_indent()
         for (_, mut expr) in lit.exprs {
             self.write(self.fmt.indent)
-            self.format_kind(expr)
+            self.format(expr)
             self.write(",\n")
         }
         self.fmt.done_indent()
