@@ -58,7 +58,28 @@ impl Formatter {
             lrow = c.row
             self.cm.drop_first()
             self.write(self.indent)
+            if self.indent.len > 0 && c.txt[1] == '*' {
+                // Range comment should be checked.
+                // Endind is should be padded by indentation.
+                let mut i = c.txt.len - 3
+            lookup:
+                for i > 1; i-- {
+                    let b = c.txt[i]
+                    match b {
+                    | ' ' | '\t' | '\v' | '\r':
+                        continue
+                    | '\n':
+                        self.write(c.txt[:i + 1])
+                        self.write(self.indent)
+                        self.write("*/")
+                        goto end
+                    |:
+                        break lookup
+                    }
+                }
+            }
             self.write(c.txt)
+        end:
             self.write("\n")
         }
         ret lrow
