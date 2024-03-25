@@ -1213,20 +1213,35 @@ impl ExprFormatter {
     }
 
     fn args(self, mut &args: []&ast::Expr) {
-        for (i, mut arg) in args {
-            self.format(arg)
-            if i + 1 < args.len {
-                self.write(", ")
-            }
+        if args.len == 0 {
+            ret
         }
-    }
-
-    fn args_data(self, mut &args: []&ast::Expr) {
+        let mut row = args[0].token.row
+        let mut indented = false
         for (i, mut arg) in args {
-            self.format(arg)
-            if i + 1 < args.len {
-                self.write(", ")
+            if i > 0 {
+                self.write(",")
             }
+            if row != arg.token.row {
+                if !indented {
+                    indented = true
+                    self.fmt.add_indent()
+                }
+                let c = self.fmt.cm.pop(row)
+                if c != nil {
+                    self.write(" ")
+                    self.write(c.txt)
+                }
+                self.write("\n")
+                self.write(self.fmt.indent)
+                row = arg.token.row
+            } else {
+                self.write(" ")
+            }
+            self.format(arg)
+        }
+        if indented {
+            self.fmt.done_indent()
         }
     }
 
@@ -1239,6 +1254,13 @@ impl ExprFormatter {
         self.write("(")
         self.args(f.args)
         self.write(")")
+        if f.args.len > 0 {
+            let c = self.fmt.cm.pop(f.args[f.args.len - 1].token.row)
+            if c != nil {
+                self.write(" ")
+                self.write(c.txt)
+            }
+        }
         if f.ignored() {
             self.write("!")
         } else if f.exception != nil {
