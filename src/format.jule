@@ -1214,8 +1214,32 @@ impl ExprFormatter {
         self.format(bin.left)
         self.write(" ")
         self.write(bin.op.kind)
-        self.write(" ")
-        self.format(bin.right)
+    rep:
+        if bin.op.row == bin.right.token.row {
+            self.write(" ")
+            self.format(bin.right)
+            ret
+        }
+        self.fmt.add_indent()
+        let c = self.fmt.cm.pop(bin.op.row)
+        if c != nil {
+            self.write(" ")
+            self.fmt.write_comment(c)
+        }
+        self.write("\n")
+        self.write(self.fmt.indent)
+        match type bin.right.kind {
+        | &ast::BinopExpr:
+            bin = (&ast::BinopExpr)(bin.right.kind)
+            self.format(bin.left)
+            self.write(" ")
+            self.write(bin.op.kind)
+            self.fmt.done_indent()
+            goto rep
+        |:
+            self.format(bin.right)
+        }
+        self.fmt.done_indent()
     }
 
     fn args(self, mut &args: []&ast::Expr) {
