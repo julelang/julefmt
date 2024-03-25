@@ -911,15 +911,35 @@ impl ScopeFormatter {
         }
         self.write("{\n")
         for (_, mut c) in mc.cases {
-            self.write(self.fmt.indent)
+            let mut row = c.exprs[0].token.row
             for (i, mut expr) in c.exprs {
-                if i > 0 {
+                if row != expr.token.row {
+                    let c = self.fmt.cm.pop(row)
+                    if c != nil {
+                        self.write(" ")
+                        self.write(c.txt)
+                    }
+                }
+                self.fmt.write_comments_except(expr.token.row)
+                if row != expr.token.row {
+                    self.write("\n")
+                    self.write(self.fmt.indent)
+                } else if i == 0 {
+                    self.write(self.fmt.indent)
+                } else if i > 0 {
                     self.write(" ")
                 }
+                row = expr.token.row
                 self.write("| ")
                 self.fmt.format_expr(expr)
             }
-            self.write(":\n")
+            self.write(":")
+            let cmt = self.fmt.cm.pop(row)
+            if cmt != nil {
+                self.write(" ")
+                self.write(cmt.txt)
+            }
+            self.write("\n")
             self.fmt.add_indent()
             self.format_stmts(c.scope.stmts)
             self.fmt.done_indent()
