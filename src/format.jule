@@ -1035,9 +1035,9 @@ impl ScopeFormatter {
                 }
                 self.write(l.ident)
             } else {
-                self.write("(")
+                // Do not write range parentheses.
+                // Expression formatter will add.
                 self.fmt.format_expr(l.expr)
-                self.write(")")
             }
             if i + 1 < a.left.len {
                 self.write(", ")
