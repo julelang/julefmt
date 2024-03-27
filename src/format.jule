@@ -1097,17 +1097,17 @@ impl ScopeFormatter {
             ret
         }
         let mut i = 0
-        let mut row = stmts[0].token.row
+        self.fmt.ef.row = stmts[0].token.row
         let mut old = i
         for i < stmts.len; i++ {
             let mut stmt = stmts[i]
-            if stmt.token.row - row > 1 {
+            if stmt.token.row - self.fmt.ef.row > 1 {
                 self.write("\n\n")
             } else if i > 0 {
                 self.write("\n")
             }
             old = i
-            row = stmt.token.row
+            self.fmt.ef.row = stmt.token.row
             match type stmt.data {
             | &ast::TypeAliasDecl:
                 self.fmt.group_decls[&ast::TypeAliasDecl, ast::Node](stmts, i)
@@ -1121,7 +1121,7 @@ impl ScopeFormatter {
             }
             if old != i {
                 i--
-                row = stmts[i].token.row
+                self.fmt.ef.row = stmts[i].token.row
                 self.fmt.buf = self.fmt.buf[:self.fmt.buf.len - 1]
             }
         }
