@@ -25,11 +25,19 @@ struct Formatter {
     mut f:      &Ast
     mut indent: str
     mut cm:     CommentMap
+
+    mut ef: ExprFormatter
+    mut sf: ScopeFormatter
+    mut tf: TypeFormatter
 }
 
 impl Formatter {
     static fn new(): &Formatter {
-        ret new(Formatter)
+        let mut fmt = new(Formatter)
+        fmt.ef = ExprFormatter{fmt: fmt}
+        fmt.sf = ScopeFormatter{fmt: fmt}
+        fmt.tf = TypeFormatter{fmt: fmt}
+        ret fmt
     }
 
     fn write(&self, s: str) {
@@ -96,24 +104,15 @@ impl Formatter {
     }
 
     fn format_expr(&self, mut &expr: &ast::Expr) {
-        let ef = ExprFormatter{
-            fmt: self,
-        }
-        ef.format(expr)
+        self.ef.format(expr)
     }
 
     fn format_type(&self, mut &expr: &ast::TypeDecl) {
-        let tf = TypeFormatter{
-            fmt: self,
-        }
-        tf.format(expr.kind)
+        self.tf.format(expr.kind)
     }
 
     fn format_scope(&self, mut &scope: &ast::ScopeTree) {
-        let sf = ScopeFormatter{
-            fmt: self,
-        }
-        sf.format(scope)
+        self.sf.format(scope)
     }
 
     fn directive(&self, &d: &ast::Directive) {
