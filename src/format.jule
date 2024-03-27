@@ -104,6 +104,25 @@ impl Formatter {
         ret self.write_comments_except(row + 1)
     }
 
+    fn pop_row_comments_by_f(&self, row: int, f: fn(_: &Comment)) {
+        for i, c in self.cm.map {
+            if c.row == row {
+                f(c)
+                self.cm.map = append(self.cm.map[:i], self.cm.map[i + 1:]...)
+                continue
+            } else if c.row > row {
+                break
+            }
+        }
+    }
+
+    fn pop_row_comments_by(&self, row: int) {
+        self.pop_row_comments_by_f(row, fn(c: &Comment) {
+            self.write(" ")
+            self.write_comment(c)
+        })
+    }
+
     fn pop_row_comments(&self, row: int) {
         for {
             let c = self.cm.pop(row)
@@ -523,12 +542,10 @@ impl Formatter {
             let row = rows[k]
             self.write_comments_except(row)
             self.write(line)
-            let c = self.cm.first(row)
-            if c != nil && c.row == row {
-                self.cm.drop_first()
+            self.pop_row_comments_by_f(row, fn (c: &Comment) {
                 self.write(strings::repeat(" ", padding_abs(max - line.len) + 1))
                 self.write_comment(c)
-            }
+            })
             self.write("\n")
             start++
         }
@@ -542,12 +559,6 @@ impl Formatter {
         let all = i == -1
         if all {
             i = 0
-        }
-
-        self.ef.ignore_comments = true
-        let ignore_comments = self.ef.ignore_comments
-        defer {
-            self.ef.ignore_comments = ignore_comments
         }
 
         self.ef.row = -1
@@ -596,12 +607,10 @@ impl Formatter {
             let row = rows[j]
             self.write_comments_except(row)
             self.write(line)
-            let c = self.cm.first(row)
-            if c != nil && c.row == row {
-                self.cm.drop_first()
+            self.pop_row_comments_by_f(row, fn(c: &Comment) {
                 self.write(strings::repeat(" ", padding_abs(max - line.len) + 1))
                 self.write_comment(c)
-            }
+            })
             self.write("\n")
         }
     }
@@ -1149,7 +1158,6 @@ impl ScopeFormatter {
 struct ExprFormatter {
     mut fmt:             &Formatter
     mut row:             int        // Last seen row.
-    mut ignore_comments: bool
 }
 
 impl ExprFormatter {
@@ -1232,9 +1240,7 @@ impl ExprFormatter {
             ret
         }
         self.fmt.add_indent()
-        if !self.ignore_comments {
-            self.fmt.pop_row_comments(bin.op.row)
-        }
+        self.fmt.pop_row_comments_by(bin.op.row)
         self.write("\n")
         self.write(self.fmt.indent)
         match type bin.right.kind {
@@ -1360,12 +1366,6 @@ impl ExprFormatter {
         let mut lined = false
 
         self.fmt.add_indent()
-        self.fmt.ef.ignore_comments = true
-        let ignore_comments = self.fmt.ef.ignore_comments
-        defer {
-            self.fmt.ef.ignore_comments = ignore_comments
-        }
-
         for (i, mut expr) in lit.exprs {
             if row != expr.token.row {
                 lined = true
