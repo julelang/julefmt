@@ -456,6 +456,9 @@ impl Formatter {
     }
 
     fn fields(&self, mut &fields: []&ast::FieldDecl) {
+        if fields.len == 0 {
+            ret
+        }
         let mut flds = make([]&Field, 0, fields.len)
         for (_, mut f) in fields {
             flds = append(flds, &Field{
@@ -463,10 +466,9 @@ impl Formatter {
                 token: f.token,
             })
         }
-        let (mut i, mut row) = 0, 0
+        let mut i = 0
         for i < flds.len {
-            let old = self.i
-            let f = flds[i]
+            let old = i
             self.field_group_decls(flds, i)
             if old != i {
                 if i < flds.len {
@@ -475,7 +477,6 @@ impl Formatter {
             } else {
                 i++
             }
-            row = f.token.row
         }
     }
 
@@ -616,13 +617,13 @@ impl Formatter {
             if fm > field_max {
                 field_max = fm
             }
-            i++
             if decl.f.default != nil {
                 self.format_expr(decl.f.default)
                 decl.expr = self.buf[n:]
                 self.buf = self.buf[:n]
             }
             rows = append(rows, self.row)
+            i++
         }
 
         let mut j = start
