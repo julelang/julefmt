@@ -5,8 +5,7 @@
 *.so
 *.dylib
 main
-julec
-!julec/
+julefmt
 
 # Dist
 dist/
@@ -34,4 +33,3 @@ __*
 
 # Vim swap files
 *.swp
-
