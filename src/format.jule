@@ -414,6 +414,9 @@ impl Formatter {
         if d.statically {
             self.write("static ")
         }
+        if d.cpp_linked {
+            self.write("cpp ")
+        }
         if d.unsafety {
             self.write("unsafe ")
         }
