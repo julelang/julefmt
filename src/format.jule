@@ -197,13 +197,13 @@ impl Formatter {
             self.write("\n")
         }
         for i, d in dvs {
+            if i > 0 {
+                self.write(self.indent)
+            }
             self.write_comments_except(d.tag.row)
             self.directive(d)
             self.pop_row_comments(d.tag.row)
-            if i + 1 < dvs.len {
-                self.write("\n")
-                self.write(self.indent)
-            }
+            self.write("\n")
             self.row = d.tag.row
         }
     }
@@ -266,14 +266,18 @@ impl Formatter {
             ret
         }
         let first = self.f.use_decls[0]
-        if first.token.row - self.row != 0 {
+        self.add_global_padding_for_comment(first.token.row)
+        self.row = self.write_comments(first.token.row)
+        if first.token.row - self.row > 1 {
             self.write("\n")
         }
-        for _, decl in self.f.use_decls {
+        for i, decl in self.f.use_decls {
             self.row = decl.token.row
-            self.write("\n")
             self.write_comments(self.row)
             self.use_decl(decl)
+            if self.f.use_decls.len - i > 1 {
+                self.write("\n")
+            }
         }
     }
 
