@@ -1560,6 +1560,9 @@ impl ExprFormatter {
     }
 
     fn responsive_exprs[T](&self, mut &lit: T) {
+        if lit.exprs.len == 0 {
+            ret
+        }
         const CAP = 1 << 8
         let mut exprs = make([]str, 0, CAP)
         let mut rows = make([]RowAlign, 0, CAP)
