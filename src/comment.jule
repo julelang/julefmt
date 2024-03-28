@@ -45,7 +45,7 @@ impl CommentMap {
             ret nil
         }
         let mut c = self.map[0]
-        if c.row > row {
+        if row != -1 && c.row > row {
             ret nil
         }
         ret c

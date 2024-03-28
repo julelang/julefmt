@@ -31,6 +31,7 @@ struct Formatter {
     mut f:      &Ast
     mut indent: str
     mut cm:     CommentMap
+    mut row:    int
 
     mut ef: &ExprFormatter
     mut sf: &ScopeFormatter
@@ -90,7 +91,7 @@ impl Formatter {
         let mut lrow = row
         for {
             let mut c = self.cm.first(row)
-            if c == nil || c.row == row {
+            if c == nil || (row != -1 && c.row == row) {
                 break
             }
             if c.row - lrow > 1 {
@@ -107,6 +108,18 @@ impl Formatter {
 
     fn write_comments(&self, row: int): int {
         ret self.write_comments_except(row + 1)
+    }
+
+    fn add_global_padding_for_comment(&self, row: int) {
+        let c = self.cm.first(row)
+        if c != nil && c.row - self.row > 1 {
+            self.write("\n")
+        }
+    }
+
+    fn write_remaining_comments(&self) {
+        self.add_global_padding_for_comment(-1)
+        self.write_comments_except(-1)
     }
 
     fn pop_row_comments_by_f(&self, row: int, col: int, f: fn(_: &Comment)) {
@@ -301,8 +314,12 @@ impl Formatter {
             }
             row = item.token.row
         }
+        self.add_global_padding_for_comment(d.end.row)
+        self.write_comments_except(d.end.row)
         self.write("}")
         self.done_indent()
+        self.pop_row_comments(d.end.row)
+        self.row = d.end.row
     }
 
     fn fn_decl(&self, mut d: &ast::FnDecl) {
@@ -353,6 +370,9 @@ impl Formatter {
             d.scope.unsafety = false // Avoid unsafe keyword beginning of scope.
             self.format_scope(d.scope)
             d.scope.unsafety = unsafety
+            self.row = d.scope.end.row
+        } else {
+            self.row = d.token.row
         }
     }
 
@@ -426,8 +446,12 @@ impl Formatter {
         self.write(" {\n")
         self.add_indent()
         self.fields(d.fields)
+        self.add_global_padding_for_comment(d.end.row)
+        self.write_comments_except(d.end.row)
         self.done_indent()
         self.write("}")
+        self.pop_row_comments(d.end.row)
+        self.row = d.end.row
     }
 
     fn trait_decl(&self, mut d: &ast::TraitDecl) {
@@ -450,8 +474,12 @@ impl Formatter {
             self.pop_row_comments(m.token.row)
             self.write("\n")
         }
+        self.add_global_padding_for_comment(d.end.row)
+        self.write_comments_except(d.end.row)
         self.done_indent()
         self.write("}")
+        self.pop_row_comments(d.end.row)
+        self.row = d.end.row
     }
 
     fn type_alias_decl(&self, mut d: &ast::TypeAliasDecl) {
@@ -685,8 +713,11 @@ impl Formatter {
             let mut j = -1
             self.group_decls[&ast::VarDecl, &ast::VarDecl](vars, j)
         }
+        self.add_global_padding_for_comment(d.end.row)
+        self.write_comments_except(d.end.row)
         self.done_indent()
         self.write("}")
+        self.pop_row_comments(d.end.row)
     }
 
     fn node(&self, mut &node: ast::Node) {
@@ -723,22 +754,22 @@ impl Formatter {
 
     fn nodes(&self) {
         self.i = 0
-        let mut row = 0
+        self.row = 0
         for self.i < self.f.nodes.len; self.i++ {
             let mut node = self.f.nodes[self.i]
             let old = self.i
-            self.node(node)
-            match {
-            | old != self.i:
-                self.i--
-                fall
-            | row + 1 == node.token.row:
+            if node.token.row - self.row < 2 {
                 self.write("\n")
-            |:
+            } else {
                 self.write("\n\n")
             }
-            row = node.token.row
+            self.node(node)
+            if old != self.i {
+                self.i--
+                self.write("\n")
+            }
         }
+        self.write_remaining_comments()
     }
 
     fn format(&self, mut &f: &Ast, mut &cm: CommentMap): str {
@@ -1157,16 +1188,23 @@ impl ScopeFormatter {
         if scope.deferred {
             self.write("defer ")
         }
-        if scope.stmts.len == 0 {
-            self.write("{}")
-            ret
-        }
         self.write("{\n")
+        let n = self.fmt.buf.len
         self.fmt.add_indent()
         self.format_stmts(scope.stmts)
+
+        self.fmt.write_comments_except(scope.end.row)
+
         self.fmt.done_indent()
-        self.write(self.fmt.indent)
+
+        if n == self.fmt.buf.len {
+            self.fmt.buf = self.fmt.buf[:n - 1]
+        } else {
+            self.write(self.fmt.indent)
+        }
+
         self.write("}")
+        self.fmt.pop_row_comments(scope.end.row)
     }
 }
 
