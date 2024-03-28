@@ -335,6 +335,60 @@ impl Formatter {
         self.row = d.end.row
     }
 
+    fn params(&self, mut &params: []&ast::ParamDecl) {
+        if params.len == 0 {
+            self.write("()")
+            ret
+        }
+        self.write("(")
+        let mut indented = false
+        let mut row = params[0].token.row
+        for (i, mut p) in params {
+            if row != p.token.row {
+                self.write("\n")
+                if !indented {
+                    indented = true
+                    self.add_indent()
+                }
+                self.write(self.indent)
+            } else {
+                self.write(" ")
+            }
+            self.pop_row_comments_by_c(p.token.row, p.token.column)
+            if p.mutable {
+                self.write("mut ")
+            }
+            if p.reference {
+                self.write("&")
+            }
+            if p.is_self() {
+                self.write("self")
+            } else {
+                if !lex::is_anon_ident(p.ident) {
+                    self.write(p.ident)
+                    self.write(": ")
+                } else if p.reference {
+                    self.write("_: ")
+                }
+                self.pop_row_comments_by_c(p.kind.token.row, p.kind.token.column)
+                self.format_type(p.kind)
+            }
+            if i + 1 < params.len {
+                if params[i + 1].token.row != p.token.row {
+                    self.pop_row_comments(p.token.row)
+                }
+                self.write(",")
+            } else {
+                self.pop_row_comments(p.token.row)
+            }
+            row = p.token.row
+        }
+        if indented {
+            self.done_indent()
+        }
+        self.write(")")
+    }
+
     fn fn_decl(&self, mut d: &ast::FnDecl) {
         if d.directives.len != 0 {
             self.directives(d.directives)
@@ -356,30 +410,7 @@ impl Formatter {
             self.write(d.ident)
         }
         self.generics(d.generics)
-        self.write("(")
-        for (i, mut p) in d.params {
-            if p.mutable {
-                self.write("mut ")
-            }
-            if p.reference {
-                self.write("&")
-            }
-            if p.is_self() {
-                self.write("self")
-            } else {
-                if !lex::is_anon_ident(p.ident) {
-                    self.write(p.ident)
-                    self.write(": ")
-                } else if p.reference {
-                    self.write("_: ")
-                }
-                self.format_type(p.kind)
-            }
-            if i + 1 < d.params.len {
-                self.write(", ")
-            }
-        }
-        self.write(")")
+        self.params(d.params)
         if d.result.kind != nil {
             self.write(": ")
             self.tf.result(d.result)
@@ -719,7 +750,7 @@ impl Formatter {
                 statics = -1
                 self.write("\n")
             }
-            self.write_comments(m.token.row)
+            self.write_comments_except(m.token.row)
             self.write(self.indent)
             self.fn_decl(m)
             self.write("\n")
@@ -754,6 +785,12 @@ impl Formatter {
             }
             self.group_decls[&ast::VarDecl, ast::Node](self.f.nodes, self.i)
             ret
+        | &ast::FnDecl:
+            if node.token.row - self.write_comments_except(node.token.row) > 1 {
+                self.write("\n")
+            }
+            self.fn_decl((&ast::FnDecl)(node.data))
+            ret
         }
         if node.token.row - self.write_comments(node.token.row) > 1 {
             self.write("\n")
@@ -761,8 +798,6 @@ impl Formatter {
         match type node.data {
         | &ast::EnumDecl:
             self.enum_decl((&ast::EnumDecl)(node.data))
-        | &ast::FnDecl:
-            self.fn_decl((&ast::FnDecl)(node.data))
         | &ast::StructDecl:
             self.struct_decl((&ast::StructDecl)(node.data))
         | &ast::TraitDecl:
