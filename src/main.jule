@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
+use env for std::env
 use std::fs::{Directory, File}
 use path for std::fs::path
 use process for std::process
@@ -18,44 +19,52 @@ fn throw(msg: str) {
     process::exit(1)
 }
 
+fn format_file(path: str) {
+    let mut file = lex::new_file_set(path)
+    file.fill(File.read(path) else {
+        throw("file could not read: " + path)
+        use nil
+    })
+    let mut errors = lex::lex(file, lex::LexMode.Comment)
+    if errors.len > 0 {
+        throw("file could not formatted, have error(s): " + path)
+    }
+
+    let mut cm = CommentMap.build(file.tokens)
+    let mut finfo = parser::parse_file(file)
+    if finfo.errors.len > 0 {
+        throw("file could not formatted, have error(s): " + path)
+    }
+
+    let mut f = finfo.ast
+    let fmt = Formatter.new()
+    let buf = fmt.format(f, cm)
+    let fpath = f.file.path
+    File.write(fpath, []byte(buf), 0o660) else {
+        outln("could not write to file: " + fpath)
+    }
+}
+
 fn parse_package(path: str) {
     let mut dirents = Directory.read(path) else {
         throw("connot read package directory: " + path)
         use nil
     }
-    let fmt = Formatter.new()
     for _, dirent in dirents {
         // Skip directories, and non-jule files.
         if dirent.stat.is_dir() || !strings::has_suffix(dirent.name, EXT) {
             continue
         }
 
-        let _path = path::join(path, dirent.name)
-        let mut file = lex::new_file_set(_path)
-        file.fill(File.read(_path) else {
-            throw("file could not read: " + _path)
-            use nil
-        })
-        let mut errors = lex::lex(file, lex::LexMode.Comment)
-        if errors.len > 0 {
-            throw("file could not formatted, have error(s): " + _path)
-        }
-
-        let mut cm = CommentMap.build(file.tokens)
-        let mut finfo = parser::parse_file(file)
-        if finfo.errors.len > 0 {
-            throw("file could not formatted, have error(s): " + _path)
-        }
-
-        let mut f = finfo.ast
-        let buf = fmt.format(f, cm)
-        let fpath = f.file.path
-        File.write(fpath, []byte(buf), 0o660) else {
-            outln("could not write to file: " + fpath)
-        }
+        let filepath = path::join(path, dirent.name)
+        format_file(filepath)
     }
 }
 
 fn main() {
-    parse_package(".")
+    let args = env::args()
+    if args.len == 1 {
+        ret
+    }
+    parse_package(args[1])
 }
