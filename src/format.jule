@@ -1286,9 +1286,9 @@ impl ExprFormatter {
         self.write("(")
         self.fmt.format_type(c.kind)
         self.write(")")
-        self.write("(")
+        // Do not write parentheses for expression.
+        // Expression formatter will add.
         self.format(c.expr)
-        self.write(")")
     }
 
     fn nselect(&self, ns: &ast::NsSelectionExpr) {
