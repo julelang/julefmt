@@ -1325,9 +1325,13 @@ impl ExprFormatter {
     }
 
     fn cast(&self, mut c: &ast::CastExpr) {
-        self.write("(")
-        self.fmt.format_type(c.kind)
-        self.write(")")
+        if is_prim_type(c.kind) {
+            self.fmt.format_type(c.kind)
+        } else {
+            self.write("(")
+            self.fmt.format_type(c.kind)
+            self.write(")")
+        }
         // Do not write parentheses for expression.
         // Expression formatter will add.
         self.format(c.expr)
@@ -1692,4 +1696,12 @@ fn padding_abs(x: int): int {
         ret 0
     }
     ret x
+}
+
+fn is_prim_type(&t: &ast::TypeDecl): bool {
+    match type t.kind {
+    | &ast::IdentTypeDecl:
+        ret (&ast::IdentTypeDecl)(t.kind).is_prim()
+    }
+    ret false
 }
