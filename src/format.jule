@@ -379,6 +379,10 @@ impl Formatter {
             }
         }
         self.write(")")
+        if d.result != nil {
+            self.write(": ")
+            self.tf.result(d.result)
+        }
         if d.scope != nil {
             self.write(" ")
             let unsafety = d.unsafety
@@ -806,7 +810,6 @@ impl TypeFormatter {
     fn write(self, s: str) {
         self.fmt.buf += s
     }
-
     fn generics(self, mut g: []&ast::TypeDecl) {
         if g.len == 0 {
             ret
@@ -873,6 +876,42 @@ impl TypeFormatter {
         self.write(":")
         self.format(map.val.kind)
         self.write("]")
+    }
+
+    fn result(self, mut r: &ast::RetTypeDecl) {
+        if r.idents.len == 0 {
+            self.format(r.kind.kind)
+            ret
+        }
+        if r.idents.len == 1 {
+            if lex::is_ignore_ident(r.idents[0].kind) ||
+                lex::is_anon_ident(r.idents[0].kind) {
+                self.format(r.kind.kind)
+                ret
+            }
+            self.write("(")
+            self.write(r.idents[0].kind)
+            self.write(": ")
+            self.format(r.kind.kind)
+            self.write(")")
+        }
+        let mut types = (&ast::TupleTypeDecl)(r.kind.kind).types
+        self.write("(")
+        for (i, mut t) in types {
+            let ident = r.idents[i]
+            if lex::is_ignore_ident(ident.kind) ||
+                lex::is_anon_ident(ident.kind) {
+                self.format(t.kind)
+            } else {
+                self.write(ident.kind)
+                self.write(": ")
+                self.format(t.kind)
+            }
+            if types.len - i > 1 {
+                self.write(", ")
+            }
+        }
+        self.write(")")
     }
 
     fn format(self, mut &kind: any) {
