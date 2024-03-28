@@ -856,6 +856,7 @@ impl TypeFormatter {
     fn write(self, s: str) {
         self.fmt.buf += s
     }
+
     fn generics(self, mut g: []&ast::TypeDecl) {
         if g.len == 0 {
             ret
@@ -1265,15 +1266,22 @@ impl ScopeFormatter {
         }
         let mut i = 0
         self.fmt.row = scope.stmts[0].token.row
-        let mut old = i
+        let mut z = i
         for i < scope.stmts.len; i++ {
             let mut stmt = scope.stmts[i]
-            if stmt.token.row - self.fmt.row > 1 {
-                self.write("\n\n")
-            } else if i > 0 {
+            if i > 0 {
                 self.write("\n")
             }
-            old = i
+            z = self.fmt.row
+            self.fmt.add_global_padding_for_comment(stmt.token.row)
+            self.fmt.row = self.fmt.write_comments_except(stmt.token.row)
+            if stmt.token.row - self.fmt.row == 0 {
+                self.fmt.row = z
+            }
+            if stmt.token.row - self.fmt.row > 1 {
+                self.write("\n")
+            }
+            z = i
             self.fmt.row = stmt.token.row
             match type stmt.data {
             | &ast::TypeAliasDecl:
@@ -1281,12 +1289,11 @@ impl ScopeFormatter {
             | &ast::VarDecl:
                 self.fmt.group_decls[&ast::VarDecl, ast::Node](scope.stmts, i)
             |:
-                self.fmt.write_comments_except(self.fmt.row)
                 self.write(self.fmt.indent)
                 self.format_stmt(stmt.data)
                 self.fmt.pop_row_comments(self.fmt.row)
             }
-            if old != i {
+            if z != i {
                 i--
                 self.fmt.buf = self.fmt.buf[:self.fmt.buf.len - 1]
             }
@@ -1739,6 +1746,7 @@ impl ExprFormatter {
         if expr.range {
             self.write(")")
         }
+        self.fmt.row = expr.end.row
     }
 }
 
