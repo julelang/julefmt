@@ -189,12 +189,22 @@ impl Formatter {
     }
 
     fn directives(&self, dvs: []&ast::Directive) {
+        if dvs.len == 0 {
+            ret
+        }
+        let first = dvs[0]
+        if first.tag.row - self.write_comments_except(first.tag.row) > 1 {
+            self.write("\n")
+        }
         for i, d in dvs {
+            self.write_comments_except(d.tag.row)
             self.directive(d)
+            self.pop_row_comments(d.tag.row)
             if i + 1 < dvs.len {
                 self.write("\n")
                 self.write(self.indent)
             }
+            self.row = d.tag.row
         }
     }
 
@@ -255,13 +265,16 @@ impl Formatter {
         if self.f.use_decls.len == 0 {
             ret
         }
-        self.write("\n")
-        for _, decl in self.f.use_decls {
+        let first = self.f.use_decls[0]
+        if first.token.row - self.row != 0 {
             self.write("\n")
-            self.write_comments(decl.token.row)
+        }
+        for _, decl in self.f.use_decls {
+            self.row = decl.token.row
+            self.write("\n")
+            self.write_comments(self.row)
             self.use_decl(decl)
         }
-        self.write("\n\n")
     }
 
     fn generics(&self, &g: []&ast::GenericDecl) {
@@ -766,7 +779,7 @@ impl Formatter {
             self.node(node)
             if old != self.i {
                 self.i--
-                self.write("\n")
+                self.buf = self.buf[:self.buf.len - 1] // Remove trailing newline.
             }
         }
         self.write_remaining_comments()
