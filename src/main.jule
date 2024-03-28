@@ -14,26 +14,23 @@ use sema for std::jule::sema::{
 }
 use strings for std::strings
 
-fn throw(msg: str) {
-    outln(msg)
-    process::exit(1)
-}
-
 fn format_file(path: str) {
     let mut file = lex::new_file_set(path)
     file.fill(File.read(path) else {
-        throw("file could not read: " + path)
-        use nil
+        outln("error: file could not read: " + path)
+        ret
     })
     let mut errors = lex::lex(file, lex::LexMode.Comment)
     if errors.len > 0 {
-        throw("file could not formatted, have error(s): " + path)
+        outln("error: file could not formatted, have error(s): " + path)
+        ret
     }
 
     let mut cm = CommentMap.build(file.tokens)
     let mut finfo = parser::parse_file(file)
     if finfo.errors.len > 0 {
-        throw("file could not formatted, have error(s): " + path)
+        outln("error: file could not formatted, have error(s): " + path)
+        ret
     }
 
     let mut f = finfo.ast
@@ -41,14 +38,15 @@ fn format_file(path: str) {
     let buf = fmt.format(f, cm)
     let fpath = f.file.path
     File.write(fpath, []byte(buf), 0o660) else {
-        outln("could not write to file: " + fpath)
+        outln("error: could not write to file: " + fpath)
+        ret
     }
 }
 
 fn parse_package(path: str) {
     let mut dirents = Directory.read(path) else {
-        throw("connot read package directory: " + path)
-        use nil
+        outln("error: connot read package directory: " + path)
+        ret
     }
     for _, dirent in dirents {
         // Skip directories, and non-jule files.
