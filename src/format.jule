@@ -365,6 +365,9 @@ impl Formatter {
                 self.write("&")
             }
             if p.is_self() {
+                if p.is_ref() {
+                    self.write("&")
+                }
                 self.write("self")
             } else {
                 if !lex::is_anon_ident(p.ident) {
