@@ -350,8 +350,9 @@ impl Formatter {
         if d.unsafety {
             self.write("unsafe ")
         }
-        self.write("fn ")
+        self.write("fn")
         if !lex::is_anon_ident(d.ident) {
+            self.write(" ")
             self.write(d.ident)
         }
         self.generics(d.generics)
@@ -379,7 +380,7 @@ impl Formatter {
             }
         }
         self.write(")")
-        if d.result != nil {
+        if d.result.kind != nil {
             self.write(": ")
             self.tf.result(d.result)
         }
@@ -930,6 +931,8 @@ impl TypeFormatter {
             self.arr((&ast::ArrTypeDecl)(kind))
         | &ast::MapTypeDecl:
             self.map((&ast::MapTypeDecl)(kind))
+        | &ast::FnDecl:
+            self.fmt.fn_decl((&ast::FnDecl)(kind))
         }
     }
 }
