@@ -266,6 +266,9 @@ impl Formatter {
             ret
         }
         let first = self.f.use_decls[0]
+        if self.cm.first(first.token.row) == nil && first.token.row - self.row > 1 {
+            self.write("\n")
+        }
         self.add_global_padding_for_comment(first.token.row)
         self.row = self.write_comments(first.token.row)
         if first.token.row - self.row > 1 {
