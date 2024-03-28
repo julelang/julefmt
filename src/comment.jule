@@ -9,6 +9,7 @@ use std::jule::lex::{
 
 struct Comment {
     row: int
+    col: int
     txt: str
 }
 
@@ -30,6 +31,7 @@ impl CommentMap {
             }
             cm.map = append(cm.map, &Comment{
                 row: token.row,
+                col: token.column,
                 txt: token.kind,
             })
             _ = copy(tokens[i:], tokens[i + 1:])
