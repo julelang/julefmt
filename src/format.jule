@@ -351,7 +351,9 @@ impl Formatter {
             self.write("unsafe ")
         }
         self.write("fn ")
-        self.write(d.ident)
+        if !lex::is_anon_ident(d.ident) {
+            self.write(d.ident)
+        }
         self.generics(d.generics)
         self.write("(")
         for (i, mut p) in d.params {
@@ -1066,6 +1068,7 @@ impl ScopeFormatter {
             self.fmt.done_indent()
         }
         self.write(self.fmt.indent)
+        self.fmt.row = mc.end.row
         self.write("}")
     }
 
@@ -1582,6 +1585,8 @@ impl ExprFormatter {
         | &ast::TypeDecl:
             let mut t = (&ast::TypeDecl)(kind)
             self.fmt.format_type(t)
+        | &ast::FnDecl:
+            self.fmt.fn_decl((&ast::FnDecl)(kind))
         | &ast::IdentExpr:
             self.ident((&ast::IdentExpr)(kind))
         | &ast::TupleExpr:
