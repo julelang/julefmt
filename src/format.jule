@@ -961,6 +961,7 @@ impl TypeFormatter {
             self.write(": ")
             self.format(r.kind.kind)
             self.write(")")
+            ret
         }
         let mut types = (&ast::TupleTypeDecl)(r.kind.kind).types
         self.write("(")
