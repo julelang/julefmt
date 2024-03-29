@@ -252,8 +252,10 @@ impl Formatter {
             }
             self.write(s.kind)
             if newline {
-                self.write(",\n")
-            } else if i + 1 < d.selected.len {
+                self.write(",")
+                self.pop_row_comments_by(s.row)
+                self.write("\n")
+            } else if d.selected.len - i > 1 {
                 self.write(", ")
             }
         }
