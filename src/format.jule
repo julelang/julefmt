@@ -949,8 +949,7 @@ impl TypeFormatter {
             ret
         }
         if r.idents.len == 1 {
-            if lex::is_ignore_ident(r.idents[0].kind) ||
-                lex::is_anon_ident(r.idents[0].kind) {
+            if lex::is_anon_ident(r.idents[0].kind) {
                 self.format(r.kind.kind)
                 ret
             }
@@ -964,8 +963,7 @@ impl TypeFormatter {
         self.write("(")
         for (i, mut t) in types {
             let ident = r.idents[i]
-            if lex::is_ignore_ident(ident.kind) ||
-                lex::is_anon_ident(ident.kind) {
+            if lex::is_anon_ident(ident.kind) {
                 self.format(t.kind)
             } else {
                 self.write(ident.kind)
