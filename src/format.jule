@@ -386,6 +386,9 @@ impl Formatter {
                     self.write("_: ")
                 }
                 self.pop_row_comments_by_c(p.kind.token.row, p.kind.token.column)
+                if p.variadic {
+                    self.write("...")
+                }
                 self.format_type(p.kind)
             }
             if i + 1 < params.len {
