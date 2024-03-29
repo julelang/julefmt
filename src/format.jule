@@ -883,7 +883,7 @@ impl TypeFormatter {
         for (i, mut t) in g {
             self.format(t.kind)
             if i + 1 < g.len {
-                self.write(",")
+                self.write(", ")
             }
         }
         self.write("]")
