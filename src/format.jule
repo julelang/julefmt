@@ -1069,6 +1069,10 @@ impl ScopeFormatter {
                 let mut wk = (&ast::WhileKind)(it.kind)
                 self.fmt.pop_row_comments_by_c(wk.expr.token.row, wk.expr.token.column)
                 self.fmt.format_expr(wk.expr)
+                if wk.next != nil {
+                    self.write("; ")
+                    self.format_stmt(wk.next)
+                }
                 self.write(" ")
             | &ast::RangeKind:
                 let mut rk = (&ast::RangeKind)(it.kind)
