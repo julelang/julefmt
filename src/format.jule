@@ -43,7 +43,7 @@ struct Formatter {
 impl Formatter {
     static fn new(): &Formatter {
         let mut fmt = new(Formatter)
-        fmt.ef = &ExprFormatter{fmt: fmt}
+        fmt.ef = ExprFormatter.new(fmt)
         fmt.sf = &ScopeFormatter{fmt: fmt}
         fmt.tf = &TypeFormatter{fmt: fmt}
         ret fmt
@@ -166,6 +166,7 @@ impl Formatter {
 
     fn format_expr(&self, mut &expr: &ast::Expr) {
         self.ef.format(expr)
+        self.ef.clean()
     }
 
     fn format_type(&self, mut &expr: &ast::TypeDecl) {
@@ -1361,11 +1362,26 @@ impl ScopeFormatter {
 
 struct ExprFormatter {
     mut fmt: &Formatter
+    mut bf:  &BinaryFormatter
 }
 
 impl ExprFormatter {
+    static fn new(&fmt: &Formatter): &ExprFormatter {
+        let mut ef = &ExprFormatter{
+            fmt: unsafe { *(&fmt) },
+        }
+        ef.bf = &BinaryFormatter{
+            ef: ef,
+        }
+        ret ef
+    }
+
     fn write(&self, s: str) {
         self.fmt.buf += s
+    }
+
+    fn clean(&self) {
+        self.bf.clean()
     }
 
     fn tuple(&self, mut tup: &ast::TupleExpr) {
@@ -1437,41 +1453,8 @@ impl ExprFormatter {
     }
 
     fn binary(&self, mut bin: &ast::BinopExpr) {
-        self.fmt.pop_row_comments_by_c(bin.left.token.row, bin.left.token.column)
-        self.format(bin.left)
-        self.write(" ")
-        self.fmt.pop_row_comments_by_c(bin.op.row, bin.op.column)
-        self.write(bin.op.kind)
-    rep:
-        if bin.op.row == bin.right.token.row {
-            self.write(" ")
-            self.fmt.pop_row_comments_by_c(bin.right.token.row, bin.right.token.column)
-            self.format(bin.right)
-            ret
-        }
-        self.fmt.add_indent()
-        self.fmt.pop_row_comments_by(bin.op.row)
-        self.write("\n")
-        self.write(self.fmt.indent)
-        self.fmt.pop_row_comments_by_c(bin.right.token.row, bin.right.token.column)
-        match type bin.right.kind {
-        | &ast::BinopExpr:
-            bin = (&ast::BinopExpr)(bin.right.kind)
-            self.fmt.pop_row_comments_by_c(bin.left.token.row, bin.left.token.column)
-            self.format(bin.left)
-            self.write(" ")
-            self.fmt.pop_row_comments_by_c(bin.left.token.row, bin.left.token.column)
-            self.fmt.pop_row_comments_by_c(bin.op.row, bin.op.column)
-            self.write(bin.op.kind)
-            self.fmt.pop_row_comments(bin.op.row)
-            self.fmt.done_indent()
-            goto rep
-        |:
-            self.fmt.pop_row_comments_by_c(bin.right.token.row, bin.right.token.column)
-            self.format(bin.right)
-            self.fmt.row = bin.right.token.row
-        }
-        self.fmt.done_indent()
+        self.bf.new(bin)
+        self.bf.binary(bin)
     }
 
     fn args(&self, mut &args: []&ast::Expr) {
@@ -1641,7 +1624,10 @@ impl ExprFormatter {
         for i, expr in exprs {
             let erow = rows[i]
             self.write(expr)
-            col = if lined { -1 } else { erow.col }
+            col = erow.col
+            if lined {
+                col = -1
+            }
             self.fmt.pop_row_comments_by_f(erow.row, col, fn(c: &Comment) {
                 if erow.max {
                     self.write(strings::repeat(" ", padding_abs(max - expr.len) + 1))
@@ -1762,6 +1748,134 @@ impl ExprFormatter {
             self.write(")")
         }
         self.fmt.row = expr.end.row
+    }
+}
+
+struct BinaryFormatter {
+    mut ef:  &ExprFormatter
+    mut zip: bool
+    mut op:  bool
+    mut bin: &ast::BinopExpr
+    mut weak: bool
+}
+
+impl BinaryFormatter {
+    static fn is_op(&bin: &ast::BinopExpr): bool {
+        ret bin.op.kind == TokenKind.DblVline ||
+            bin.op.kind == TokenKind.DblAmper ||
+            bin.op.kind == TokenKind.Gt ||
+            bin.op.kind == TokenKind.Lt ||
+            bin.op.kind == TokenKind.LessEq ||
+            bin.op.kind == TokenKind.GreatEq ||
+            bin.op.kind == TokenKind.Eqs ||
+            bin.op.kind == TokenKind.NotEq
+    }
+
+    fn write(&self, s: str) {
+        self.ef.write(s)
+    }
+
+    fn clean(&self) {
+        self.zip = false
+        self.op = false
+        self.bin = nil
+        self.weak = false
+    }
+
+    fn head(&self, mut &bin: &ast::BinopExpr) {
+        self.ef.fmt.pop_row_comments_by_c(bin.left.token.row, bin.left.token.column)
+        self.format(bin.left)
+        self.op = BinaryFormatter.is_op(bin)
+        if !self.zip || self.op {
+            self.write(" ")
+        }
+        self.ef.fmt.pop_row_comments_by_c(bin.op.row, bin.op.column)
+        self.write(bin.op.kind)
+    }
+
+    fn binary(&self, mut &bin: &ast::BinopExpr) {
+        self.bin = bin
+        self.head(bin)
+    rep:
+        if bin.op.row == bin.right.token.row {
+            if !self.zip || self.op {
+                self.write(" ")
+            }
+            self.ef.fmt.pop_row_comments_by_c(bin.right.token.row, bin.right.token.column)
+            self.format(bin.right)
+            ret
+        }
+        self.ef.fmt.add_indent()
+        self.ef.fmt.pop_row_comments_by(bin.op.row)
+        self.write("\n")
+        self.write(self.ef.fmt.indent)
+        self.ef.fmt.pop_row_comments_by_c(bin.right.token.row, bin.right.token.column)
+        match type bin.right.kind {
+        | &ast::BinopExpr:
+            bin = (&ast::BinopExpr)(bin.right.kind)
+            self.head(bin)
+            self.ef.fmt.pop_row_comments(bin.op.row)
+            self.ef.fmt.done_indent()
+            goto rep
+        |:
+            self.ef.fmt.pop_row_comments_by_c(bin.right.token.row, bin.right.token.column)
+            self.format(bin.right)
+            self.ef.fmt.row = bin.right.token.row
+        }
+        self.ef.fmt.done_indent()
+    }
+
+    fn is_zip(&self, mut kind: ast::ExprData): bool {
+        match type kind {
+        | &ast::BinopExpr:
+            let mut bin = (&ast::BinopExpr)(kind)
+            if bin.op.kind == TokenKind.DblVline ||
+                bin.op.kind == TokenKind.DblAmper {
+                ret true
+            }
+            ret self.is_zip(bin.left) || self.is_zip(bin.right)
+        |:
+            ret false
+        }
+    }
+
+    fn new(&self, mut &bin: &ast::BinopExpr) {
+        if self.zip {
+            ret
+        }
+        if bin.op.kind == TokenKind.DblVline ||
+            bin.op.kind == TokenKind.DblAmper {
+            self.zip = true
+            ret
+        }
+        self.zip = self.is_zip(bin.left) || self.is_zip(bin.right)
+        if !self.zip {
+            self.zip = BinaryFormatter.is_op(bin)
+            self.weak = true
+        }
+    }
+
+    fn format(&self, mut &expr: &ast::Expr) {
+        if expr == nil {
+            ret
+        }
+        let zip = self.zip
+        if self.weak ||
+            self.bin.op.kind == TokenKind.DblVline ||
+            self.bin.op.kind == TokenKind.DblAmper {
+            match type expr.kind {
+            | &ast::Expr:
+                if (&ast::Expr)(expr.kind).range {
+                    self.zip = false
+                }
+            |:
+                if expr.range {
+                    self.zip = false
+                }
+            }
+        }
+        self.ef.format(expr)
+        self.zip = zip
     }
 }
 
