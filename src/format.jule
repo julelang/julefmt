@@ -1698,16 +1698,6 @@ impl ExprFormatter {
         self.write("]")
     }
 
-    fn ternary(&self, mut t: &ast::TernaryExpr) {
-        self.write("if ")
-        self.format(t.condition)
-        self.write(" { ")
-        self.format(t.true_expr)
-        self.write(" } else { ")
-        self.format(t.false_expr)
-        self.write(" }")
-    }
-
     fn format_kind(&self, mut &kind: any) {
         match type kind {
         | &ast::Expr:
@@ -1756,8 +1746,6 @@ impl ExprFormatter {
             self.indexing((&ast::IndexingExpr)(kind))
         | &ast::SlicingExpr:
             self.slicing((&ast::SlicingExpr)(kind))
-        | &ast::TernaryExpr:
-            self.ternary((&ast::TernaryExpr)(kind))
         }
     }
 
