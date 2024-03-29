@@ -844,11 +844,7 @@ impl Formatter {
         for self.i < self.f.nodes.len; self.i++ {
             let mut node = self.f.nodes[self.i]
             let old = self.i
-            if node.token.row - self.row < 2 {
-                self.write("\n")
-            } else {
-                self.write("\n\n")
-            }
+            self.write("\n\n")
             self.node(node)
             if old != self.i {
                 self.i--
