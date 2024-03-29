@@ -1812,7 +1812,6 @@ impl BinaryFormatter {
         | &ast::BinopExpr:
             bin = (&ast::BinopExpr)(bin.right.kind)
             self.head(bin)
-            self.ef.fmt.pop_row_comments(bin.op.row)
             self.ef.fmt.done_indent()
             goto rep
         |:
