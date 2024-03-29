@@ -10,6 +10,7 @@ use lex for std::jule::lex::{
     TokenKind,
 }
 use strings for std::strings
+use utf8 for std::unicode::utf8
 
 struct Field {
     f:     &ast::FieldDecl
@@ -19,6 +20,7 @@ struct Field {
 
 struct RowAlign {
     row: int
+    col: int
     max: bool
 }
 
@@ -643,12 +645,13 @@ impl Formatter {
         for j < i; j++ {
             let mut f = fields[j]
             self.field(f, field_max)
-            lines = append(lines, self.buf[n:])
-            let diff = self.buf.len - n
+            let line = self.buf[n:]
+            lines = append(lines, line)
+            let diff = utf8::rune_count_str(line)
             if max < diff && f.f.token.row == rows[j - start] {
                 max = diff
             }
-            self.buf = self.buf[:self.buf.len - diff]
+            self.buf = self.buf[:n]
         }
 
         for k, line in lines {
@@ -665,6 +668,10 @@ impl Formatter {
     }
 
     fn group_decls[T, Node](&self, mut nodes: []Node, mut &i: int) {
+        if nodes.len == 0 {
+            ret
+        }
+
         const CAP = 1 << 4
         let mut lines = make([]str, 0, CAP)
         let mut rows = make([]int, 0, CAP)
@@ -706,13 +713,14 @@ impl Formatter {
             | &ast::EnumItemDecl:
                 self.enum_item(decl)
             }
-            let diff = self.buf.len - n
+            let line = self.buf[n:]
+            let diff = utf8::rune_count_str(line)
             if max < diff && row == self.row {
                 max = diff
             }
-            lines = append(lines, self.buf[n:])
+            lines = append(lines, line)
             rows = append(rows, self.row)
-            self.buf = self.buf[:self.buf.len - diff]
+            self.buf = self.buf[:n]
             i++
         }
 
@@ -1497,9 +1505,6 @@ impl ExprFormatter {
         self.write("(")
         self.args(f.args)
         self.write(")")
-        if f.args.len > 0 {
-            self.fmt.pop_row_comments(f.args[f.args.len - 1].token.row)
-        }
         if f.ignored() {
             self.write("!")
         } else if f.exception != nil {
@@ -1572,6 +1577,7 @@ impl ExprFormatter {
 
         let n = self.fmt.buf.len
         let mut max = 0
+        let mut col = 0
         let mut row = lit.token.row
         let mut lined = false
 
@@ -1579,15 +1585,17 @@ impl ExprFormatter {
         for (i, mut expr) in lit.exprs {
             if row != expr.token.row {
                 lined = true
-                let diff = self.fmt.buf.len - n
+                let line = self.fmt.buf[n:]
+                let diff = utf8::rune_count_str(line)
                 if diff > 0 {
                     if max < diff && self.fmt.row == row {
                         max = diff
                     }
-                    exprs = append(exprs, self.fmt.buf[n:])
+                    exprs = append(exprs, line)
                     self.fmt.buf = self.fmt.buf[:n]
                     rows = append(rows, RowAlign{
                         row: self.fmt.row,
+                        col: col,
                         max: self.fmt.row == row,
                     })
                 }
@@ -1596,20 +1604,22 @@ impl ExprFormatter {
             }
             self.fmt.pop_row_comments_by_c(expr.token.row, expr.token.column)
             self.format(expr)
-            self.fmt.pop_row_comments_by_c(expr.token.row, expr.token.column)
             row = expr.token.row
-            if lined || lit.exprs.len - i > 1 {
+            col = expr.end.column
+            if lined || lit.exprs.len - i  > 1 {
                 self.write(",")
             }
         }
         if n != self.fmt.buf.len {
-            let diff = self.fmt.buf.len - n
+            let line = self.fmt.buf[n:]
+            let diff = utf8::rune_count_str(line)
             if max < diff && self.fmt.row == row {
                 max = diff
             }
-            exprs = append(exprs, self.fmt.buf[n:])
+            exprs = append(exprs, line)
             rows = append(rows, RowAlign{
                 row: self.fmt.row,
+                col: lit.end.column,
                 max: self.fmt.row == row,
             })
             self.fmt.buf = self.fmt.buf[:n]
@@ -1622,18 +1632,15 @@ impl ExprFormatter {
         for i, expr in exprs {
             let erow = rows[i]
             self.write(expr)
-            for {
-                let c = self.fmt.cm.pop(erow.row)
-                if c == nil {
-                    break
-                }
+            col = if lined { -1 } else { erow.col }
+            self.fmt.pop_row_comments_by_f(erow.row, col, fn(c: &Comment) {
                 if erow.max {
                     self.write(strings::repeat(" ", padding_abs(max - expr.len) + 1))
                 } else {
                     self.write(" ")
                 }
                 self.fmt.write_comment(c)
-            }
+            })
             if exprs.len - i > 1 {
                 self.write("\n")
                 self.write(self.fmt.indent)
@@ -1652,7 +1659,6 @@ impl ExprFormatter {
         self.write("{")
         self.responsive_exprs[&ast::BraceLit](lit)
         self.write("}")
-        self.fmt.pop_row_comments(lit.token.row)
     }
 
     fn key_val_pair(&self, mut pair: &ast::KeyValPair) {
@@ -1665,7 +1671,6 @@ impl ExprFormatter {
         self.write("[")
         self.responsive_exprs[&ast::SliceExpr](s)
         self.write("]")
-        self.fmt.pop_row_comments(s.token.row)
     }
 
     fn indexing(&self, mut i: &ast::IndexingExpr) {
