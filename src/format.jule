@@ -1212,7 +1212,9 @@ impl ScopeFormatter {
     }
 
     fn multi_assign(self, mut &a: &ast::AssignSt) {
-        self.write("let (")
+        if a.declarative {
+            self.write("let (")
+        }
         for (i, mut l) in a.left {
             if l.ident != "" {
                 if l.mutable {
@@ -1227,11 +1229,14 @@ impl ScopeFormatter {
                 // Expression formatter will add.
                 self.fmt.format_expr(l.expr)
             }
-            if i + 1 < a.left.len {
+            if a.left.len - i > 1 {
                 self.write(", ")
             }
         }
-        self.write(") = ")
+        if a.declarative {
+            self.write(")")
+        }
+        self.write(" = ")
         self.fmt.format_expr(a.right)
     }
 
