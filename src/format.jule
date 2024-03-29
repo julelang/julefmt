@@ -1222,12 +1222,10 @@ impl ScopeFormatter {
                 if l.reference {
                     self.write("&")
                 }
-                self.write(l.ident)
-            } else {
-                // Do not write range parentheses.
-                // Expression formatter will add.
-                self.fmt.format_expr(l.expr)
             }
+            // Do not write range parentheses for expression parts.
+            // Expression formatter will add.
+            self.fmt.format_expr(l.expr)
             if a.left.len - i > 1 {
                 self.write(", ")
             }
