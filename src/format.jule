@@ -1299,7 +1299,7 @@ impl ScopeFormatter {
                 self.write("\n")
             }
             z = self.fmt.row
-            self.fmt.add_global_padding_for_comment(stmt.token.row)
+            self.fmt.add_global_padding_for_comment(stmt.token.row - 1) // Use -1 row for avoid inline comments.
             self.fmt.row = self.fmt.write_comments_except(stmt.token.row)
             if stmt.token.row - self.fmt.row == 0 {
                 self.fmt.row = z
