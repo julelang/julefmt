@@ -395,12 +395,13 @@ impl Formatter {
                 self.format_type(p.kind)
             }
             if i+1 < f.params.len {
-                if f.params[i+1].token.row != p.token.row {
-                    self.pop_row_comments(p.token.row)
-                }
                 self.write(",")
-            } else {
-                self.pop_row_comments(p.token.row)
+                if f.params[i+1].token.row != p.token.row {
+                    self.pop_row_comments_by_f(p.token.row, -1, fn(c: &Comment) {
+                        self.write(" ")
+                        self.write_comment(c)
+                    })
+                }
             }
             self.row = p.token.row
         }
@@ -719,6 +720,15 @@ impl Formatter {
                 self.type_alias_decl(decl)
             | &ast::EnumItemDecl:
                 self.enum_item(decl)
+            | &ast::FnDecl:
+                if !decl.cpp_linked {
+                    // If it is the first node to check, write declaration to catch.
+                    if max == 0 {
+                        self.fn_decl(decl)
+                    }
+                    break loop
+                }
+                self.fn_decl(decl)
             }
             let line = self.buf[n:]
             let diff = utf8::rune_count_str(line)
@@ -824,7 +834,7 @@ impl Formatter {
             if node.token.row-self.write_comments_except(node.token.row) > 1 {
                 self.write("\n")
             }
-            self.fn_decl((&ast::FnDecl)(node.data))
+            self.group_decls[&ast::FnDecl, ast::Node](self.f.nodes, self.i)
             ret
         }
         if node.token.row-self.write_comments(node.token.row) > 1 {
@@ -1517,6 +1527,9 @@ impl ExprFormatter {
     }
 
     fn struct_lit(&self, mut lit: &ast::StructLit) {
+        defer {
+            self.fmt.row = lit.end.row
+        }
         self.fmt.format_type(lit.kind)
         if lit.exprs.len == 0 {
             self.write("{}")
