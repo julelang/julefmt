@@ -124,7 +124,7 @@ impl Formatter {
         self.write_comments_except(-1)
     }
 
-    fn pop_row_comments_by_f(&self, row: int, col: int, f: fn(_: &Comment)) {
+    fn pop_row_comments_by_f(&self, row: int, col: int, f: fn(&Comment)) {
         let mut i = 0
         for i < self.cm.map.len {
             let c = self.cm.map[i]
@@ -1018,37 +1018,37 @@ struct ScopeFormatter {
 }
 
 impl ScopeFormatter {
-    fn write(self, s: str) {
+    fn write(&self, s: str) {
         self.fmt.buf += s
     }
 
-    fn usexpr(self, mut u: &ast::UseExpr) {
+    fn usexpr(&self, mut u: &ast::UseExpr) {
         self.write("use ")
         self.fmt.format_expr(u.expr)
     }
 
-    fn co_expr(self, mut expr: &ast::CoExpr) {
+    fn co_expr(&self, mut expr: &ast::CoExpr) {
         self.write("co ")
         self.fmt.format_expr(expr.expr)
     }
 
-    fn label(self, l: &ast::LabelSt) {
+    fn label(&self, l: &ast::LabelSt) {
         // Remove one indentation.
         self.fmt.buf = self.fmt.buf[:self.fmt.buf.len - self.fmt.indent_len]
         self.write(l.ident)
         self.write(":")
     }
 
-    fn goto_st(self, g: &ast::GotoSt) {
+    fn goto_st(&self, g: &ast::GotoSt) {
         self.write("goto ")
         self.write(g.label.kind)
     }
 
-    fn fall_st(self, fll: &ast::FallSt) {
+    fn fall_st(&self, fll: &ast::FallSt) {
         self.write("fall")
     }
 
-    fn cont_st(self, cont: &ast::ContSt) {
+    fn cont_st(&self, cont: &ast::ContSt) {
         self.write("continue")
         if cont.label.kind != "" {
             self.write(" ")
@@ -1056,7 +1056,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn break_st(self, brk: &ast::BreakSt) {
+    fn break_st(&self, brk: &ast::BreakSt) {
         self.write("break")
         if brk.label.kind != "" {
             self.write(" ")
@@ -1064,7 +1064,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn ret_st(self, mut r: &ast::RetSt) {
+    fn ret_st(&self, mut r: &ast::RetSt) {
         self.write("ret")
         if r.expr != nil {
             self.write(" ")
@@ -1072,7 +1072,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn iter(self, mut it: &ast::Iter) {
+    fn iter(&self, mut it: &ast::Iter) {
         self.write("for ")
         if !it.is_inf() {
             match type it.kind {
@@ -1123,11 +1123,16 @@ impl ScopeFormatter {
         self.format(it.scope)
     }
 
-    fn conditional_case(self, mut c: &ast::If) {
+    fn conditional_case(&self, mut c: &ast::If) {
         self.write("if ")
         self.fmt.pop_row_comments_by_c(c.expr.token.row, c.expr.token.column)
         self.fmt.format_expr(c.expr)
-        self.write(" {\n")
+        self.write(" {")
+        self.fmt.pop_row_comments_by_f(self.fmt.row, -1, fn(c: &Comment) {
+            self.write(" ")
+            self.fmt.write_comment(c)
+        })
+        self.write("\n")
         self.fmt.add_indent()
         self.format_stmts(c.scope)
         self.fmt.done_indent()
@@ -1135,7 +1140,7 @@ impl ScopeFormatter {
         self.write("}")
     }
 
-    fn conditional(self, mut c: &ast::Conditional) {
+    fn conditional(&self, mut c: &ast::Conditional) {
         self.conditional_case(c.head)
         for (_, mut t) in c.tail {
             self.write(" ")
@@ -1146,7 +1151,12 @@ impl ScopeFormatter {
         if c.default != nil {
             self.write(" ")
             self.fmt.pop_row_comments_by_c(c.default.token.row, c.default.token.column)
-            self.write("else {\n")
+            self.write("else {")
+            self.fmt.pop_row_comments_by_f(self.fmt.row, -1, fn(c: &Comment) {
+                self.write(" ")
+                self.fmt.write_comment(c)
+            })
+            self.write("\n")
             self.fmt.add_indent()
             self.format_stmts(c.default.scope)
             self.fmt.done_indent()
@@ -1155,7 +1165,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn match_case(self, mut mc: &ast::MatchCase) {
+    fn match_case(&self, mut mc: &ast::MatchCase) {
         self.write("match ")
         if mc.type_match {
             self.write("type ")
@@ -1205,13 +1215,13 @@ impl ScopeFormatter {
         self.write("}")
     }
 
-    fn postfix(self, mut &a: &ast::AssignSt) {
+    fn postfix(&self, mut &a: &ast::AssignSt) {
         let mut expr = a.left[0].expr
         self.fmt.format_expr(expr)
         self.write(a.setter.kind)
     }
 
-    fn single_assign(self, mut &a: &ast::AssignSt) {
+    fn single_assign(&self, mut &a: &ast::AssignSt) {
         if lex::is_ignore_ident(a.left[0].ident) {
             self.write("_ ")
         } else {
@@ -1224,7 +1234,7 @@ impl ScopeFormatter {
         self.fmt.format_expr(a.right)
     }
 
-    fn multi_assign(self, mut &a: &ast::AssignSt) {
+    fn multi_assign(&self, mut &a: &ast::AssignSt) {
         if a.declarative {
             self.write("let (")
         }
@@ -1251,7 +1261,7 @@ impl ScopeFormatter {
         self.fmt.format_expr(a.right)
     }
 
-    fn assign(self, mut a: &ast::AssignSt) {
+    fn assign(&self, mut a: &ast::AssignSt) {
         match {
         | lex::is_postfix_op(a.setter.kind):
             self.postfix(a)
@@ -1262,7 +1272,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn format_stmt(self, mut &stmt: ast::NodeData) {
+    fn format_stmt(&self, mut &stmt: ast::NodeData) {
         match type stmt {
         | &ast::ScopeTree:
             self.format((&ast::ScopeTree)(stmt))
@@ -1296,7 +1306,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn format_stmts(self, mut &scope: &ast::ScopeTree) {
+    fn format_stmts(&self, mut &scope: &ast::ScopeTree) {
         defer {
             self.fmt.row = scope.end.row
         }
@@ -1350,15 +1360,20 @@ impl ScopeFormatter {
         self.fmt.write_comments_except(scope.end.row)
     }
 
-    fn format(self, mut scope: &ast::ScopeTree) {
+    fn format(&self, mut scope: &ast::ScopeTree) {
         if scope.unsafety {
             self.write("unsafe ")
         }
         if scope.deferred {
             self.write("defer ")
         }
-        self.write("{\n")
+        self.write("{")
         let n = self.fmt.buf.len
+        self.fmt.pop_row_comments_by_f(self.fmt.row, -1, fn(c: &Comment) {
+            self.write(" ")
+            self.fmt.write_comment(c)
+        })
+        self.write("\n")
         self.fmt.add_indent()
         self.format_stmts(scope)
         self.fmt.done_indent()
