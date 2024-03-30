@@ -357,9 +357,9 @@ impl Formatter {
         }
         self.write("(")
         let mut indented = false
-        let mut row = f.token.row
+        self.row = f.token.row
         for (i, mut p) in f.params {
-            if row != p.token.row {
+            if self.row != p.token.row {
                 self.write("\n")
                 if !indented {
                     indented = true
@@ -402,7 +402,7 @@ impl Formatter {
             } else {
                 self.pop_row_comments(p.token.row)
             }
-            row = p.token.row
+            self.row = p.token.row
         }
         if indented {
             self.done_indent()
@@ -543,18 +543,21 @@ impl Formatter {
         }
         self.write(" {")
         self.add_indent()
-        for (_, mut m) in d.methods {
+        self.row = d.token.row
+        for (i, mut m) in d.methods {
             self.write("\n")
+            if i > 0 && m.token.row - self.row > 1 {
+                self.write("\n")
+            }
             self.write_comments_except(m.token.row)
             self.write(self.indent)
             self.fn_decl(m)
             self.pop_row_comments(m.token.row)
-            self.write("\n")
         }
         self.add_global_padding_for_comment(d.end.row)
         self.write_comments_except(d.end.row)
         self.done_indent()
-        self.write("}")
+        self.write("\n}")
         self.pop_row_comments(d.end.row)
         self.row = d.end.row
     }
