@@ -1567,6 +1567,8 @@ impl ExprFormatter {
         for (i, mut expr) in lit.exprs {
             let diff = lit.exprs.len - i
             if newline {
+                self.fmt.add_global_padding_for_comment(expr.token.row)
+                self.fmt.write_comments_except(expr.token.row)
                 self.write(self.fmt.indent)
             }
             self.fmt.pop_row_comments_by_c(expr.token.row, expr.token.column)
@@ -1582,6 +1584,8 @@ impl ExprFormatter {
                 self.write(", ")
             }
         }
+        self.fmt.add_global_padding_for_comment(lit.end.row)
+        self.fmt.write_comments_except(lit.end.row)
         self.fmt.done_indent()
         if newline {
             self.write(self.fmt.indent)
@@ -1647,12 +1651,21 @@ impl ExprFormatter {
             self.fmt.buf = self.fmt.buf[:n]
         }
 
+        let fmt_row = self.fmt.row
+        defer {
+            self.fmt.row = fmt_row
+        }
         if lit.token.row != lit.exprs[0].token.row {
             self.write("\n")
-            self.write(self.fmt.indent)
         }
+        self.fmt.row = rows[0].row
         for i, expr in exprs {
             let erow = rows[i]
+            self.fmt.add_global_padding_for_comment(erow.row)
+            self.fmt.write_comments_except(erow.row)
+            if self.fmt.buf[self.fmt.buf.len-1] == '\n' {
+                self.write(self.fmt.indent)
+            }
             self.write(expr)
             col = erow.col
             if lined {
@@ -1668,16 +1681,16 @@ impl ExprFormatter {
             })
             if exprs.len-i > 1 {
                 self.write("\n")
-                self.write(self.fmt.indent)
             }
+            self.fmt.row = erow.row
         }
-        self.fmt.done_indent()
-        if self.fmt.buf[self.fmt.buf.len-1] == '\n' {
-            self.write(self.fmt.indent)
-        } else if lined {
+        if self.fmt.buf[self.fmt.buf.len-1] != '\n' && lined {
             self.write("\n")
-            self.write(self.fmt.indent)
         }
+        self.fmt.add_global_padding_for_comment(lit.end.row)
+        self.fmt.write_comments_except(lit.end.row)
+        self.fmt.done_indent()
+        self.write(self.fmt.indent)
     }
 
     fn brace_lit(&self, mut lit: &ast::BraceLit) {
