@@ -1701,15 +1701,53 @@ impl ExprFormatter {
     fn indexing(&self, mut i: &ast::IndexingExpr) {
         self.format(i.expr)
         self.write("[")
+
+        let zip = self.bf.zip
+        let strict = self.bf.strict
+        self.bf.zip = true
+        self.bf.strict = true
         self.format(i.index)
+        self.bf.zip = zip
+        self.bf.strict = strict
+
         self.write("]")
     }
 
     fn slicing(&self, mut i: &ast::SlicingExpr) {
+        let zip = self.bf.zip
+        defer {
+            self.bf.zip = zip
+        }
+
+        let (mut lb, mut rb) = false, false
+        let lr = is_ranged(i.start)
+        let rr = is_ranged(i.to)
+        if !lr && i.start != nil {
+            match type i.start.kind {
+            | &ast::BinopExpr:
+                lb = true
+            }
+        }
+        if !rr && i.to != nil {
+            match type i.to.kind {
+            | &ast::BinopExpr:
+                rb = true
+            }
+        }
+
         self.format(i.expr)
         self.write("[")
+
+        self.bf.zip = zip || !lr
         self.format(i.start)
-        self.write(":")
+
+        if lb && rb {
+            self.write(" : ")
+        } else {
+            self.write(":")
+        }
+
+        self.bf.zip = zip || !rr
         self.format(i.to)
         self.write("]")
     }
@@ -1782,11 +1820,12 @@ impl ExprFormatter {
 }
 
 struct BinaryFormatter {
-    mut ef:   &ExprFormatter
-    mut zip:  bool
-    mut op:   bool
-    mut bin:  &ast::BinopExpr
-    mut weak: bool
+    mut ef:      &ExprFormatter
+    mut zip:    bool
+    mut strict: bool
+    mut op:     bool
+    mut bin:    &ast::BinopExpr
+    mut weak:   bool
 }
 
 impl BinaryFormatter {
@@ -1810,6 +1849,7 @@ impl BinaryFormatter {
         self.op = false
         self.bin = nil
         self.weak = false
+        self.strict = false
     }
 
     fn head(&self, mut &bin: &ast::BinopExpr) {
@@ -1869,6 +1909,9 @@ impl BinaryFormatter {
     }
 
     fn new(&self, mut &bin: &ast::BinopExpr) {
+        if self.strict {
+            ret
+        }
         if self.zip {
             ret
         }
@@ -1889,18 +1932,11 @@ impl BinaryFormatter {
             ret
         }
         let zip = self.zip
-        if self.weak ||
+        if !self.strict && (self.weak ||
             self.bin.op.kind == TokenKind.DblVline ||
-            self.bin.op.kind == TokenKind.DblAmper {
-            match type expr.kind {
-            | &ast::Expr:
-                if (&ast::Expr)(expr.kind).range {
-                    self.zip = false
-                }
-            |:
-                if expr.range {
-                    self.zip = false
-                }
+            self.bin.op.kind == TokenKind.DblAmper) {
+            if is_ranged(expr) {
+                self.zip = false
             }
         }
         self.ef.format(expr)
@@ -1919,6 +1955,21 @@ fn is_prim_type(&t: &ast::TypeDecl): bool {
     match type t.kind {
     | &ast::IdentTypeDecl:
         ret (&ast::IdentTypeDecl)(t.kind).is_prim()
+    }
+    ret false
+}
+
+fn is_ranged(&e: &ast::Expr): bool {
+    if e == nil {
+        ret false
+    }
+    if e.range {
+        ret true
+    }
+    match type e.kind {
+    | &ast::Expr:
+        let expr = (&ast::Expr)(e.kind)
+        ret is_ranged(expr)
     }
     ret false
 }
