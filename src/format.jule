@@ -1876,6 +1876,11 @@ impl BinaryFormatter {
             bin.op.kind == TokenKind.NotEq
     }
 
+    static fn is_zip_op(&bin: &ast::BinopExpr): bool {
+        ret bin.op.kind == TokenKind.DblVline ||
+            bin.op.kind == TokenKind.DblAmper
+    }
+
     fn write(&self, s: str) {
         self.ef.write(s)
     }
@@ -1934,8 +1939,7 @@ impl BinaryFormatter {
         match type kind {
         | &ast::BinopExpr:
             let mut bin = (&ast::BinopExpr)(kind)
-            if bin.op.kind == TokenKind.DblVline ||
-                bin.op.kind == TokenKind.DblAmper {
+            if BinaryFormatter.is_zip_op(bin) {
                 ret true
             }
             ret self.is_zip(bin.left) || self.is_zip(bin.right)
@@ -1951,8 +1955,7 @@ impl BinaryFormatter {
         if self.zip {
             ret
         }
-        if bin.op.kind == TokenKind.DblVline ||
-            bin.op.kind == TokenKind.DblAmper {
+        if BinaryFormatter.is_zip_op(bin) {
             self.zip = true
             ret
         }
@@ -1967,16 +1970,22 @@ impl BinaryFormatter {
         if expr == nil {
             ret
         }
+
         let zip = self.zip
-        if !self.strict && (self.weak ||
-            self.bin.op.kind == TokenKind.DblVline ||
-            self.bin.op.kind == TokenKind.DblAmper) {
+        let weak = self.weak
+        let mut bin = self.bin
+        defer {
+            self.zip = zip
+            self.weak = weak
+            self.bin = bin
+        }
+
+        if !self.strict && (self.weak || BinaryFormatter.is_zip_op(self.bin)) {
             if is_ranged(expr) {
                 self.zip = false
             }
         }
         self.ef.format(expr)
-        self.zip = zip
     }
 }
 
