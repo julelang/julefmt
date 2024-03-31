@@ -505,6 +505,8 @@ impl Formatter {
     fn struct_decl(&self, mut d: &ast::StructDecl) {
         if d.directives.len != 0 {
             self.directives(d.directives)
+        } else {
+            self.write_comments(d.token.row)
         }
         if d.public {
             self.write("pub ")
