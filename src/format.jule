@@ -816,26 +816,36 @@ impl Formatter {
         self.pop_row_comments(d.end.row)
     }
 
+    fn group_node[T](&self, &node: ast::Node) {
+        let mut row = node.token.row
+        match type T {
+        | &ast::TypeAliasDecl:
+            break
+        |:
+            let data = (T)(node.data)
+            if data.directives.len > 0 {
+                row = data.directives[0].tag.row
+            }
+        }
+        if row-self.write_comments_except(row) > 1 {
+            self.write("\n")
+        }
+        self.group_decls[T, ast::Node](self.f.nodes, self.i)
+    }
+
     fn node(&self, mut &node: ast::Node) {
         match type node.data {
         | &ast::TypeAliasDecl:
-            if node.token.row-self.write_comments_except(node.token.row) > 1 {
-                self.write("\n")
-            }
-            self.group_decls[&ast::TypeAliasDecl, ast::Node](self.f.nodes, self.i)
+            self.group_node[&ast::TypeAliasDecl](node)
             ret
         | &ast::VarDecl:
-            if node.token.row-self.write_comments_except(node.token.row) > 1 {
-                self.write("\n")
-            }
-            self.group_decls[&ast::VarDecl, ast::Node](self.f.nodes, self.i)
+            self.group_node[&ast::VarDecl](node)
             ret
         | &ast::FnDecl:
-            if node.token.row-self.write_comments_except(node.token.row) > 1 {
-                self.write("\n")
-            }
-            self.group_decls[&ast::FnDecl, ast::Node](self.f.nodes, self.i)
+            self.group_node[&ast::FnDecl](node)
             ret
+        | &ast::StructDecl:
+            self.struct_decl((&ast::StructDecl)(node.data))
         }
         if node.token.row-self.write_comments(node.token.row) > 1 {
             self.write("\n")
@@ -843,8 +853,6 @@ impl Formatter {
         match type node.data {
         | &ast::EnumDecl:
             self.enum_decl((&ast::EnumDecl)(node.data))
-        | &ast::StructDecl:
-            self.struct_decl((&ast::StructDecl)(node.data))
         | &ast::TraitDecl:
             self.trait_decl((&ast::TraitDecl)(node.data))
         | &ast::Impl:
@@ -1848,7 +1856,7 @@ impl ExprFormatter {
 }
 
 struct BinaryFormatter {
-    mut ef:      &ExprFormatter
+    mut ef:     &ExprFormatter
     mut zip:    bool
     mut strict: bool
     mut op:     bool
