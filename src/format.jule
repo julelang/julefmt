@@ -1466,9 +1466,24 @@ impl ExprFormatter {
     }
 
     fn unsafexpr(&self, mut u: &ast::UnsafeExpr) {
-        self.write("unsafe { ")
+        self.write("unsafe {")
+        let line = u.expr.token.row != u.expr.end.row
+        if line {
+            self.fmt.add_indent()
+            self.write("\n")
+            self.write(self.fmt.indent)
+        } else {
+            self.write(" ")
+        }
         self.format(u.expr)
-        self.write(" }")
+        if line {
+            self.fmt.done_indent()
+            self.write("\n")
+            self.write(self.fmt.indent)
+        } else {
+            self.write(" ")
+        }
+        self.write("}")
     }
 
     fn coexpr(&self, mut c: &ast::CoExpr) {
