@@ -795,8 +795,10 @@ impl Formatter {
             if s != nil && (m == nil || s.token.row < m.token.row) {
                 if statics == -1 {
                     statics = si
-                    let mut mtds = d.methods[methods:mi]
-                    self.write_impl_nodes[&ast::FnDecl](mtds)
+                    if methods != -1 {
+                        let mut mtds = d.methods[methods:mi]
+                        self.write_impl_nodes[&ast::FnDecl](mtds)
+                    }
                     methods = -1
                 }
                 si++
