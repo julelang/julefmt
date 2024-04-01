@@ -6,6 +6,7 @@
 
 The official formatter tool for the Jule programming language.
 
+[Manual](https://manual.jule.dev/tools/julefmt) |
 [Contributing](./CONTRIBUTING.md) |
 [Community](https://jule.dev/community)
 
