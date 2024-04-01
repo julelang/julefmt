@@ -557,7 +557,6 @@ impl Formatter {
                 self.write("\n")
             }
             self.write_comments_except(m.token.row)
-            self.write(self.indent)
             self.fn_decl(m)
             self.pop_row_comments(m.token.row)
         }
