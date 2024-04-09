@@ -14,7 +14,7 @@ use utf8 for std::unicode::utf8
 
 struct Field {
     f:     &ast::FieldDecl
-    token: Token
+    token: &Token
     expr:  str
 }
 
@@ -307,7 +307,7 @@ impl Formatter {
         self.write(self.indent)
         self.write(item.ident)
         if !item.auto_expr() {
-            self.write(" = ")
+            self.write(": ")
             self.format_expr(item.expr)
         }
         self.write(",")
