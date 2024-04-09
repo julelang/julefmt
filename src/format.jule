@@ -303,25 +303,36 @@ impl Formatter {
         self.write("]")
     }
 
-    fn enum_item(&self, mut &item: &ast::EnumItemDecl) {
+    fn enum_item[T](&self, mut &item: T) {
         self.write(self.indent)
         self.write(item.ident)
-        if !item.auto_expr() {
+        match type T {
+        | &ast::EnumItemDecl:
+            if !item.auto_expr() {
+                self.write(": ")
+                self.format_expr(item.expr)
+            }
+        | &ast::TypeEnumItemDecl:
             self.write(": ")
-            self.format_expr(item.expr)
+            self.format_type(item.kind)
         }
         self.write(",")
     }
 
-    fn enum_decl(&self, mut d: &ast::EnumDecl) {
+    fn enum_decl[T](&self, mut d: T) {
         if d.public {
             self.write("pub ")
         }
         self.write("enum ")
         self.write(d.ident)
-        if !d.default_typed() {
-            self.write(": ")
-            self.format_type(d.kind)
+        match type T {
+        | &ast::EnumDecl:
+            if !d.default_typed() {
+                self.write(": ")
+                self.format_type(d.kind)
+            }
+        | &ast::TypeEnumDecl:
+            self.write(": type")
         }
         self.write(" {")
         if d.items.len > 0 {
@@ -331,7 +342,12 @@ impl Formatter {
             for i < d.items.len {
                 let old = self.i
                 let item = d.items[i]
-                self.group_decls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.items, i)
+                match type T {
+                | &ast::EnumDecl:
+                    self.group_decls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.items, i)
+                | &ast::TypeEnumDecl:
+                    self.group_decls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.items, i)
+                }
                 if old != i {
                     if i < d.items.len {
                         self.write("\n")
@@ -702,6 +718,7 @@ impl Formatter {
             let mut decl: T = nil
             match type Node {
             | &ast::EnumItemDecl
+            | &ast::TypeEnumItemDecl
             | &ast::VarDecl
             | &ast::FnDecl:
                 decl = nodes[i]
@@ -724,8 +741,9 @@ impl Formatter {
                 self.var_decl(decl)
             | &ast::TypeAliasDecl:
                 self.type_alias_decl(decl)
-            | &ast::EnumItemDecl:
-                self.enum_item(decl)
+            | &ast::EnumItemDecl
+            | &ast::TypeEnumItemDecl:
+                self.enum_item[T](decl)
             | &ast::FnDecl:
                 self.fn_decl(decl)
             }
@@ -864,7 +882,9 @@ impl Formatter {
         }
         match type node.data {
         | &ast::EnumDecl:
-            self.enum_decl((&ast::EnumDecl)(node.data))
+            self.enum_decl[&ast::EnumDecl]((&ast::EnumDecl)(node.data))
+        | &ast::TypeEnumDecl:
+            self.enum_decl[&ast::TypeEnumDecl]((&ast::TypeEnumDecl)(node.data))
         | &ast::TraitDecl:
             self.trait_decl((&ast::TraitDecl)(node.data))
         | &ast::Impl:
@@ -930,12 +950,21 @@ impl TypeFormatter {
         self.generics(id.generics)
     }
 
+    fn sub_ident(self, mut id: &ast::SubIdentTypeDecl) {
+        for i, ident in id.idents {
+            self.write(ident.ident)
+            if id.idents.len - i > 1 {
+                self.write(".")
+            }
+        }
+    }
+
     fn namespace(self, mut ns: &ast::NamespaceTypeDecl) {
         for _, id in ns.idents {
             self.write(id.kind)
             self.write("::")
         }
-        self.ident(ns.kind)
+        self.format(ns.kind.kind)
     }
 
     fn sptr(self, mut sptr: &ast::SptrTypeDecl) {
@@ -1015,6 +1044,8 @@ impl TypeFormatter {
         match type kind {
         | &ast::IdentTypeDecl:
             self.ident((&ast::IdentTypeDecl)(kind))
+        | &ast::SubIdentTypeDecl:
+            self.sub_ident((&ast::SubIdentTypeDecl)(kind))
         | &ast::NamespaceTypeDecl:
             self.namespace((&ast::NamespaceTypeDecl)(kind))
         | &ast::SptrTypeDecl:
