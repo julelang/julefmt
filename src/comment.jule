@@ -34,8 +34,8 @@ impl CommentMap {
                 col: token.column,
                 txt: token.kind,
             })
-            _ = copy(tokens[i:], tokens[i + 1:])
-            tokens = tokens[:tokens.len - 1]
+            _ = copy(tokens[i:], tokens[i+1:])
+            tokens = tokens[:tokens.len-1]
         }
         ret cm
     }

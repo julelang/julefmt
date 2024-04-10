@@ -59,7 +59,7 @@ impl Formatter {
     }
 
     fn done_indent(&self) {
-        self.indent = self.indent[:self.indent.len - 4]
+        self.indent = self.indent[:self.indent.len-4]
     }
 
     fn write_comment(&self, &c: &Comment) {
@@ -74,7 +74,7 @@ impl Formatter {
                 | ' ' | '\t' | '\v' | '\r':
                     continue
                 | '\n':
-                    let cmt = c.txt[:i + 1]
+                    let cmt = c.txt[:i+1]
                     i = strings::find_last(self.buf, "\n")
                     let n = self.buf.len - i - 1
                     self.write(cmt)
@@ -130,7 +130,7 @@ impl Formatter {
             let c = self.cm.map[i]
             if c.row == row && (col == -1 || c.col < col) {
                 f(c)
-                self.cm.map = append(self.cm.map[:i], self.cm.map[i + 1:]...)
+                self.cm.map = append(self.cm.map[:i], self.cm.map[i+1:]...)
                 continue
             } else if c.row > row {
                 break
@@ -572,7 +572,7 @@ impl Formatter {
         self.row = d.token.row
         for (i, mut m) in d.methods {
             self.write("\n")
-            if i > 0 && m.token.row - self.row > 1 {
+            if i > 0 && m.token.row-self.row > 1 {
                 self.write("\n")
             }
             self.write_comments_except(m.token.row)
@@ -725,7 +725,8 @@ impl Formatter {
             | &ast::VarDecl
             | &ast::FnDecl:
                 decl = nodes[i]
-            | ast::Node:
+            | ast::Node
+            | ast::Stmt:
                 let node = nodes[i]
                 match type node.data {
                 | T:
@@ -734,7 +735,7 @@ impl Formatter {
                     break loop
                 }
             }
-            if !all && self.row != -1 && decl.token.row - self.row > 1 {
+            if !all && self.row != -1 && decl.token.row-self.row > 1 {
                 break loop
             }
             self.row = decl.token.row
@@ -905,7 +906,7 @@ impl Formatter {
             self.node(node)
             if old != self.i {
                 self.i--
-                self.buf = self.buf[:self.buf.len - 1] // Remove trailing newline.
+                self.buf = self.buf[:self.buf.len-1] // Remove trailing newline.
             }
         }
         self.write_remaining_comments()
@@ -956,7 +957,7 @@ impl TypeFormatter {
     fn sub_ident(self, mut id: &ast::SubIdentTypeDecl) {
         for i, ident in id.idents {
             self.write(ident.ident)
-            if id.idents.len - i > 1 {
+            if id.idents.len-i > 1 {
                 self.write(".")
             }
         }
@@ -1043,7 +1044,7 @@ impl TypeFormatter {
         self.write(")")
     }
 
-    fn format(self, mut &kind: any) {
+    fn format(self, mut &kind: ast::TypeDeclKind) {
         match type kind {
         | &ast::IdentTypeDecl:
             self.ident((&ast::IdentTypeDecl)(kind))
@@ -1088,7 +1089,7 @@ impl ScopeFormatter {
 
     fn label(&self, l: &ast::LabelSt) {
         // Remove one indentation.
-        self.fmt.buf = self.fmt.buf[:self.fmt.buf.len - self.fmt.indent_len]
+        self.fmt.buf = self.fmt.buf[:self.fmt.buf.len-self.fmt.indent_len]
         self.write(l.ident)
         self.write(":")
     }
@@ -1104,7 +1105,7 @@ impl ScopeFormatter {
 
     fn cont_st(&self, cont: &ast::ContSt) {
         self.write("continue")
-        if cont.label.kind != "" {
+        if cont.label != nil {
             self.write(" ")
             self.write(cont.label.kind)
         }
@@ -1112,7 +1113,7 @@ impl ScopeFormatter {
 
     fn break_st(&self, brk: &ast::BreakSt) {
         self.write("break")
-        if brk.label.kind != "" {
+        if brk.label != nil {
             self.write(" ")
             self.write(brk.label.kind)
         }
@@ -1326,7 +1327,7 @@ impl ScopeFormatter {
         }
     }
 
-    fn format_stmt(&self, mut &stmt: ast::NodeData) {
+    fn format_stmt(&self, mut &stmt: ast::StmtData) {
         match type stmt {
         | &ast::ScopeTree:
             self.format((&ast::ScopeTree)(stmt))
@@ -1389,9 +1390,9 @@ impl ScopeFormatter {
             self.fmt.row = stmt.token.row
             match type stmt.data {
             | &ast::TypeAliasDecl:
-                self.fmt.group_decls[&ast::TypeAliasDecl, ast::Node](scope.stmts, i)
+                self.fmt.group_decls[&ast::TypeAliasDecl, ast::Stmt](scope.stmts, i)
             | &ast::VarDecl:
-                self.fmt.group_decls[&ast::VarDecl, ast::Node](scope.stmts, i)
+                self.fmt.group_decls[&ast::VarDecl, ast::Stmt](scope.stmts, i)
             |:
                 if !inline {
                     self.write(self.fmt.indent)
@@ -1401,13 +1402,13 @@ impl ScopeFormatter {
             }
             if z != i {
                 i--
-                self.fmt.buf = self.fmt.buf[:self.fmt.buf.len - 1]
+                self.fmt.buf = self.fmt.buf[:self.fmt.buf.len-1]
             }
         }
         i = self.fmt.buf.len - 1
         for i >= 0; i-- {
             if self.fmt.buf[i] != '\n' {
-                self.fmt.buf = self.fmt.buf[:i + 1]
+                self.fmt.buf = self.fmt.buf[:i+1]
                 self.write("\n")
                 break
             }
@@ -1450,10 +1451,10 @@ impl ScopeFormatter {
         }
         if inline {
             if scope.stmts.len > 0 {
-                self.fmt.buf[self.fmt.buf.len - 1] = ' '
+                self.fmt.buf[self.fmt.buf.len-1] = ' '
             }
         } else if n == self.fmt.buf.len {
-            self.fmt.buf = self.fmt.buf[:n - 1]
+            self.fmt.buf = self.fmt.buf[:n-1]
         } else {
             self.write(self.fmt.indent)
         }
@@ -1518,11 +1519,6 @@ impl ExprFormatter {
             self.write(" ")
         }
         self.write("}")
-    }
-
-    fn coexpr(&self, mut c: &ast::CoExpr) {
-        self.write("co ")
-        self.format(c.expr)
     }
 
     fn ident(&self, id: &ast::IdentExpr) {
@@ -1857,11 +1853,13 @@ impl ExprFormatter {
         self.write("]")
     }
 
-    fn format_kind(&self, mut &kind: any) {
+    fn format_kind(&self, mut &kind: ast::ExprData) {
         match type kind {
-        | &ast::Expr:
-            let mut expr = (&ast::Expr)(kind)
-            self.format(expr)
+        | &ast::RangeExpr:
+            let mut expr = (&ast::RangeExpr)(kind)
+            self.write("(")
+            self.format_kind(expr.expr.kind)
+            self.write(")")
         | &ast::TypeDecl:
             let mut t = (&ast::TypeDecl)(kind)
             self.fmt.format_type(t)
@@ -1875,8 +1873,6 @@ impl ExprFormatter {
             self.lit((&ast::LitExpr)(kind))
         | &ast::UnsafeExpr:
             self.unsafexpr((&ast::UnsafeExpr)(kind))
-        | &ast::CoExpr:
-            self.coexpr((&ast::CoExpr)(kind))
         | &ast::UnaryExpr:
             self.unary((&ast::UnaryExpr)(kind))
         | &ast::VariadicExpr:
@@ -1913,13 +1909,7 @@ impl ExprFormatter {
             ret
         }
         self.fmt.row = expr.token.row
-        if expr.range {
-            self.write("(")
-        }
         self.format_kind(expr.kind)
-        if expr.range {
-            self.write(")")
-        }
         self.fmt.row = expr.end.row
     }
 }
@@ -2004,14 +1994,14 @@ impl BinaryFormatter {
         self.ef.fmt.done_indent()
     }
 
-    fn is_zip(&self, mut kind: ast::ExprData): bool {
+    fn is_zip(&self, mut &kind: ast::ExprData): bool {
         match type kind {
         | &ast::BinopExpr:
             let mut bin = (&ast::BinopExpr)(kind)
             if BinaryFormatter.is_zip_op(bin) {
                 ret true
             }
-            ret self.is_zip(bin.left) || self.is_zip(bin.right)
+            ret self.is_zip(bin.left.kind) || self.is_zip(bin.right.kind)
         |:
             ret false
         }
@@ -2028,7 +2018,7 @@ impl BinaryFormatter {
             self.zip = true
             ret
         }
-        self.zip = self.is_zip(bin.left) || self.is_zip(bin.right)
+        self.zip = self.is_zip(bin.left.kind) || self.is_zip(bin.right.kind)
         if !self.zip {
             self.zip = BinaryFormatter.is_op(bin)
             self.weak = true
@@ -2077,13 +2067,9 @@ fn is_ranged(&e: &ast::Expr): bool {
     if e == nil {
         ret false
     }
-    if e.range {
-        ret true
-    }
     match type e.kind {
-    | &ast::Expr:
-        let expr = (&ast::Expr)(e.kind)
-        ret is_ranged(expr)
+    | &ast::RangeExpr:
+        ret true
     }
     ret false
 }
