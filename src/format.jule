@@ -305,15 +305,18 @@ impl Formatter {
 
     fn enum_item[T](&self, mut &item: T) {
         self.write(self.indent)
-        self.write(item.ident)
         match type T {
         | &ast::EnumItemDecl:
+            self.write(item.ident)
             if !item.auto_expr() {
                 self.write(": ")
                 self.format_expr(item.expr)
             }
         | &ast::TypeEnumItemDecl:
-            self.write(": ")
+            if item.ident != "" {
+                self.write(item.ident)
+                self.write(": ")
+            }
             self.format_type(item.kind)
         }
         self.write(",")
