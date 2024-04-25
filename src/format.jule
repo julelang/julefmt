@@ -289,13 +289,22 @@ impl Formatter {
         }
     }
 
-    fn generics(&self, &g: []&ast::GenericDecl) {
+    fn generics(&self, mut &g: []&ast::GenericDecl) {
         if g.len == 0 {
             ret
         }
         self.write("[")
-        for i, t in g {
+        for (i, mut t) in g {
             self.write(t.ident)
+            if t.constraint != nil {
+                self.write(": ")
+                for (j, mut c) in t.constraint.mask {
+                    self.format_type(c)
+                    if t.constraint.mask.len - j > 1 {
+                        self.write(" | ")
+                    }
+                }
+            }
             if i+1 < g.len {
                 self.write(", ")
             }
