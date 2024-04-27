@@ -1013,9 +1013,8 @@ impl TypeFormatter {
     fn map(self, mut map: &ast::MapTypeDecl) {
         self.write("[")
         self.format(map.key.kind)
-        self.write(":")
+        self.write("]:")
         self.format(map.val.kind)
-        self.write("]")
     }
 
     fn result(self, mut r: &ast::RetTypeDecl) {
