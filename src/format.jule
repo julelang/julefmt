@@ -1612,10 +1612,6 @@ impl ExprFormatter {
 
     fn fn_call(&self, mut f: &ast::FnCallExpr) {
         self.format(f.expr)
-        let tf = TypeFormatter{
-            fmt: self.fmt,
-        }
-        tf.generics(f.generics)
         self.write("(")
         self.args(f)
         self.write(")")
