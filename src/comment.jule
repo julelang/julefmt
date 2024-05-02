@@ -7,32 +7,32 @@ use std::jule::lex::{
     TokenId,
 }
 
-struct Comment {
+struct comment {
     row: int
     col: int
     txt: str
 }
 
-struct CommentMap {
-    map: []&Comment
+struct commentMap {
+    map: []&comment
 }
 
-impl CommentMap {
-    static fn build(mut &tokens: []&Token): CommentMap {
-        let mut cm = CommentMap{
-            map: make([]&Comment, 0, 1 << 8),
+impl commentMap {
+    static fn build(mut &tokens: []&Token): commentMap {
+        let mut cm = commentMap{
+            map: make([]&comment, 0, 1 << 8),
         }
         let mut i = 0
         for i < tokens.len {
             let token = tokens[i]
-            if token.id != TokenId.Comment {
+            if token.Id != TokenId.Comment {
                 i++
                 continue
             }
-            cm.map = append(cm.map, &Comment{
-                row: token.row,
-                col: token.column,
-                txt: token.kind,
+            cm.map = append(cm.map, &comment{
+                row: token.Row,
+                col: token.Column,
+                txt: token.Kind,
             })
             _ = copy(tokens[i:], tokens[i+1:])
             tokens = tokens[:tokens.len-1]
@@ -40,7 +40,7 @@ impl CommentMap {
         ret cm
     }
 
-    fn first(mut self, row: int): &Comment {
+    fn first(mut self, row: int): &comment {
         if self.map.len == 0 {
             ret nil
         }
@@ -51,11 +51,11 @@ impl CommentMap {
         ret c
     }
 
-    fn drop_first(mut self) {
+    fn dropFirst(mut self) {
         self.map = self.map[1:]
     }
 
-    fn pop(mut self, row: int): &Comment {
+    fn pop(mut self, row: int): &comment {
         if self.map.len == 0 {
             ret nil
         }
@@ -63,7 +63,7 @@ impl CommentMap {
         if c.row > row {
             ret nil
         }
-        self.drop_first()
+        self.dropFirst()
         ret c
     }
 }
