@@ -332,9 +332,6 @@ impl formatter {
     }
 
     fn enumDecl[T](&self, mut d: T) {
-        if d.Public {
-            self.write("pub ")
-        }
         self.write("enum ")
         self.write(d.Ident)
         match type T {
@@ -448,9 +445,6 @@ impl formatter {
             self.directives(d.Directives)
             self.write(self.indent)
         }
-        if d.Public {
-            self.write("pub ")
-        }
         if d.Statically {
             self.write("static ")
         }
@@ -488,10 +482,6 @@ impl formatter {
     // Leading fields used to calculate maximum declaration length of group for padding.
     fn field(&self, mut f: &field, mut max: int) {
         self.write(self.indent)
-        if f.f.Public {
-            self.write("pub ")
-            max -= 4
-        }
         if f.f.Mutable {
             self.write("mut ")
             max -= 4
@@ -540,9 +530,6 @@ impl formatter {
         } else {
             self.writeComments(d.Token.Row)
         }
-        if d.Public {
-            self.write("pub ")
-        }
         if d.CppLinked {
             self.write("cpp ")
         }
@@ -566,9 +553,6 @@ impl formatter {
     }
 
     fn traitDecl(&self, mut d: &ast::TraitDecl) {
-        if d.Public {
-            self.write("pub ")
-        }
         self.write("trait ")
         self.write(d.Ident)
         if d.Methods.len == 0 {
@@ -598,9 +582,6 @@ impl formatter {
 
     fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
         self.write(self.indent)
-        if d.Public {
-            self.write("pub ")
-        }
         if d.CppLinked {
             self.write("cpp ")
         }
@@ -618,9 +599,6 @@ impl formatter {
         if d.CppLinked {
             self.write("cpp let ")
         } else {
-            if d.Public {
-                self.write("pub ")
-            }
             if d.Statically {
                 self.write("static ")
             } else if d.Constant {
@@ -663,9 +641,6 @@ impl formatter {
             }
             self.row = decl.token.Row
             let mut fm = 0
-            if decl.f.Public {
-                fm += "pub ".len
-            }
             if decl.f.Mutable {
                 fm += "mut ".len
             }
