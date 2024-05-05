@@ -14,13 +14,13 @@ struct comment {
 }
 
 struct commentMap {
-    map: []&comment
+    buf: []&comment
 }
 
 impl commentMap {
     static fn build(mut &tokens: []&Token): commentMap {
         let mut cm = commentMap{
-            map: make([]&comment, 0, 1 << 8),
+            buf: make([]&comment, 0, 1 << 8),
         }
         let mut i = 0
         for i < tokens.len {
@@ -29,7 +29,7 @@ impl commentMap {
                 i++
                 continue
             }
-            cm.map = append(cm.map, &comment{
+            cm.buf = append(cm.buf, &comment{
                 row: token.Row,
                 col: token.Column,
                 txt: token.Kind,
@@ -41,10 +41,10 @@ impl commentMap {
     }
 
     fn first(mut self, row: int): &comment {
-        if self.map.len == 0 {
+        if self.buf.len == 0 {
             ret nil
         }
-        let mut c = self.map[0]
+        let mut c = self.buf[0]
         if row != -1 && c.row > row {
             ret nil
         }
@@ -52,14 +52,14 @@ impl commentMap {
     }
 
     fn dropFirst(mut self) {
-        self.map = self.map[1:]
+        self.buf = self.buf[1:]
     }
 
     fn pop(mut self, row: int): &comment {
-        if self.map.len == 0 {
+        if self.buf.len == 0 {
             ret nil
         }
-        let mut c = self.map[0]
+        let mut c = self.buf[0]
         if c.row > row {
             ret nil
         }

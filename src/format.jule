@@ -126,11 +126,11 @@ impl formatter {
 
     fn popRowCommentsByF(&self, row: int, col: int, f: fn(&comment)) {
         let mut i = 0
-        for i < self.cm.map.len {
-            let c = self.cm.map[i]
+        for i < self.cm.buf.len {
+            let c = self.cm.buf[i]
             if c.row == row && (col == -1 || c.col < col) {
                 f(c)
-                self.cm.map = append(self.cm.map[:i], self.cm.map[i+1:]...)
+                self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
                 continue
             } else if c.row > row {
                 break
@@ -985,11 +985,11 @@ impl typeFormatter {
         self.format(arr.Elem.Kind)
     }
 
-    fn map(self, mut map: &ast::MapTypeDecl) {
-        self.write("[")
-        self.format(map.Key.Kind)
-        self.write("]:")
-        self.format(map.Val.Kind)
+    fn mapType(self, mut m: &ast::MapTypeDecl) {
+        self.write("map[")
+        self.format(m.Key.Kind)
+        self.write("]")
+        self.format(m.Val.Kind)
     }
 
     fn result(self, mut r: &ast::RetTypeDecl) {
@@ -1044,7 +1044,7 @@ impl typeFormatter {
         | &ast::ArrTypeDecl:
             self.arr((&ast::ArrTypeDecl)(kind))
         | &ast::MapTypeDecl:
-            self.map((&ast::MapTypeDecl)(kind))
+            self.mapType((&ast::MapTypeDecl)(kind))
         | &ast::FnDecl:
             self.fmt.fnDecl((&ast::FnDecl)(kind))
         }
