@@ -528,7 +528,9 @@ impl formatter {
         if d.Directives.len != 0 {
             self.directives(d.Directives)
         } else {
-            self.writeComments(d.Token.Row)
+            if d.Token.Row-self.writeComments(d.Token.Row) > 1 {
+                self.write("\n")
+            }
         }
         if d.CppLinked {
             self.write("cpp ")
