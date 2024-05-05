@@ -66,4 +66,15 @@ impl commentMap {
         self.dropFirst()
         ret c
     }
+
+    fn find(mut self, row: int): &comment {
+        if self.buf.len == 0 {
+            ret nil
+        }
+        let mut c = self.buf[0]
+        if c.row > row {
+            ret nil
+        }
+        ret c
+    }
 }

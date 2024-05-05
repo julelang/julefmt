@@ -867,6 +867,7 @@ impl formatter {
         | &ast::StructDecl:
             self.structDecl((&ast::StructDecl)(node.Data))
         }
+        let mut commentExist = self.cm.find(node.Token.Row) != nil
         if node.Token.Row-self.writeComments(node.Token.Row) > 1 {
             self.write("\n")
         }
@@ -878,7 +879,33 @@ impl formatter {
         | &ast::TraitDecl:
             self.traitDecl((&ast::TraitDecl)(node.Data))
         | &ast::Impl:
-            self.implDecl((&ast::Impl)(node.Data))
+            let mut imp = (&ast::Impl)(node.Data)
+            let isGroupHeader = imp.Methods.len == 0 && !commentExist
+            self.implDecl(imp)
+            let mut i = self.i
+            if !isGroupHeader {
+                ret
+            }
+            self.i++
+        lookup:
+            for self.i < self.f.Nodes.len; self.i++ {
+                node = self.f.Nodes[self.i]
+                match type node.Data {
+                | &ast::Impl:
+                    imp = (&ast::Impl)(node.Data)
+                    if imp.Methods.len != 0 || self.cm.find(node.Token.Row) != nil {
+                        break lookup
+                    }
+                    self.write("\n")
+                    self.implDecl(imp)
+                |:
+                    break lookup
+                }
+            }
+            if self.i != i {
+                // Add newline to be removed by the [nodes] method.
+                self.write("\n")
+            }
         }
     }
 
