@@ -880,7 +880,7 @@ impl formatter {
             self.traitDecl((&ast::TraitDecl)(node.Data))
         | &ast::Impl:
             let mut imp = (&ast::Impl)(node.Data)
-            let isGroupHeader = imp.Methods.len == 0 && !commentExist
+            let isGroupHeader = !commentExist && isEmptyImpl(imp)
             self.implDecl(imp)
             let mut i = self.i
             if !isGroupHeader {
@@ -893,7 +893,7 @@ impl formatter {
                 match type node.Data {
                 | &ast::Impl:
                     imp = (&ast::Impl)(node.Data)
-                    if imp.Methods.len != 0 || self.cm.find(node.Token.Row) != nil {
+                    if !isEmptyImpl(imp) || self.cm.find(node.Token.Row) != nil {
                         break lookup
                     }
                     self.write("\n")
@@ -2080,4 +2080,8 @@ fn isRanged(&e: &ast::Expr): bool {
         ret true
     }
     ret false
+}
+
+fn isEmptyImpl(&imp: &ast::Impl): bool {
+    ret imp.Methods.len == 0 && imp.Statics.len == 0
 }
