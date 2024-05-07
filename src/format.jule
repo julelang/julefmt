@@ -20,6 +20,7 @@ struct field {
 
 struct rowAlign {
     row: int
+    end: int
     col: int
     max: bool
 }
@@ -1478,6 +1479,11 @@ impl scopeFormatter {
 struct exprFormatter {
     mut fmt: &formatter
     mut bf:  &binaryFormatter
+
+    // Ignore begin comments.
+    // It will skips comments for begin.
+    // Useful for slice literal elements.
+    mut ibc: bool
 }
 
 impl exprFormatter {
@@ -1660,7 +1666,7 @@ impl exprFormatter {
         self.fmt.addIndent()
         for (i, mut expr) in lit.Exprs {
             let diff = lit.Exprs.len - i
-            if newline {
+            if newline && !self.ibc {
                 self.fmt.addGlobalPaddingForComment(expr.Token.Row)
                 self.fmt.writeCommentsExcept(expr.Token.Row)
                 self.write(self.fmt.indent)
@@ -1671,15 +1677,17 @@ impl exprFormatter {
             if newline {
                 self.write(",")
                 if diff < 2 || lit.Exprs[i+1].Token.Row != self.fmt.row {
-                    self.fmt.popRowComments(self.fmt.row)
+                    self.fmt.popRowCommentsByC(self.fmt.row, -1)
                 }
                 self.write("\n")
             } else if diff > 1 {
                 self.write(", ")
             }
         }
-        self.fmt.addGlobalPaddingForComment(lit.End.Row)
-        self.fmt.writeCommentsExcept(lit.End.Row)
+        if !self.ibc {
+            self.fmt.addGlobalPaddingForComment(lit.End.Row)
+            self.fmt.writeCommentsExcept(lit.End.Row)
+        }
         self.fmt.doneIndent()
         if newline {
             self.write(self.fmt.indent)
@@ -1694,6 +1702,10 @@ impl exprFormatter {
         const Cap = 1 << 8
         let mut exprs = make([]str, 0, Cap)
         let mut rows = make([]rowAlign, 0, Cap)
+
+        let old = self.ibc
+        self.ibc = true
+        let mut sibc = !old // self.ibc setted to true by this routine.
 
         let n = self.fmt.buf.len
         let mut max = 0
@@ -1714,6 +1726,7 @@ impl exprFormatter {
                     exprs = append(exprs, line)
                     self.fmt.buf = self.fmt.buf[:n]
                     rows = append(rows, rowAlign{
+                        end: expr.Token.Row,
                         row: self.fmt.row,
                         col: col,
                         max: self.fmt.row == row,
@@ -1738,8 +1751,8 @@ impl exprFormatter {
             }
             exprs = append(exprs, line)
             rows = append(rows, rowAlign{
+                end: row,
                 row: self.fmt.row,
-                col: lit.End.Column,
                 max: self.fmt.row == row,
             })
             self.fmt.buf = self.fmt.buf[:n]
@@ -1755,16 +1768,18 @@ impl exprFormatter {
         self.fmt.row = rows[0].row
         for i, expr in exprs {
             let erow = rows[i]
-            self.fmt.addGlobalPaddingForComment(erow.row)
-            self.fmt.writeCommentsExcept(erow.row)
+            if !self.ibc || sibc {
+                self.fmt.addGlobalPaddingForComment(erow.row)
+                self.fmt.writeCommentsExcept(erow.row)
+            }
             if self.fmt.buf[self.fmt.buf.len-1] == '\n' {
                 self.write(self.fmt.indent)
             }
-            self.write(expr)
             col = erow.col
             if lined {
                 col = -1
             }
+            self.write(expr)
             self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
                 if erow.max {
                     self.write(strings::Repeat(" ", paddingAbs(max - expr.len) + 1))
@@ -1781,12 +1796,16 @@ impl exprFormatter {
         if self.fmt.buf[self.fmt.buf.len-1] != '\n' && lined {
             self.write("\n")
         }
-        self.fmt.addGlobalPaddingForComment(lit.End.Row)
-        self.fmt.writeCommentsExcept(lit.End.Row)
+        if !self.ibc || sibc {
+            self.fmt.addGlobalPaddingForComment(lit.End.Row)
+            self.fmt.writeCommentsExcept(lit.End.Row)
+        }
         self.fmt.doneIndent()
         if lined {
             self.write(self.fmt.indent)
         }
+
+        self.ibc = old
     }
 
     fn braceLit(&self, mut lit: &ast::BraceLit) {
