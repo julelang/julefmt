@@ -90,18 +90,22 @@ impl formatter {
         self.write(c.txt)
     }
 
-    fn writeCommentsExcept(&self, row: int): int {
+    fn writeCommentsExceptL(&self, start: int, row: int): int {
         let mut lrow = row
-        for {
-            let mut c = self.cm.first(row)
-            if c == nil || (row != -1 && c.row == row) {
+        let mut i = 0
+        for i < self.cm.buf.len {
+            let c = self.cm.buf[i]
+            if start != -1 && c.row < start {
+                i++
+                continue
+            } else if row != -1 && c.row >= row  {
                 break
             }
             if c.row-lrow > 1 {
                 self.write("\n")
             }
             lrow = c.row
-            self.cm.dropFirst()
+            self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
             self.write(self.indent)
             self.writeComment(c)
             self.write("\n")
@@ -109,8 +113,25 @@ impl formatter {
         ret lrow
     }
 
+    fn writeCommentsExcept(&self, row: int): int {
+        ret self.writeCommentsExceptL(-1, row)
+    }
+
     fn writeComments(&self, row: int): int {
         ret self.writeCommentsExcept(row + 1)
+    }
+
+    fn addGlobalPaddingForCommentL(&self, start: int, row: int) {
+        let mut i = 0
+        for i < self.cm.buf.len; i++ {
+            let c = self.cm.buf[i]
+            if c.row >= start && c.row <= row {
+                if  c.row-self.row > 1 {
+                    self.write("\n")
+                }
+                break
+            }
+        }
     }
 
     fn addGlobalPaddingForComment(&self, row: int) {
@@ -133,7 +154,7 @@ impl formatter {
                 f(c)
                 self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
                 continue
-            } else if c.row > row {
+            } else if c.row != row {
                 break
             }
             i++
@@ -1768,9 +1789,9 @@ impl exprFormatter {
         self.fmt.row = rows[0].row
         for i, expr in exprs {
             let erow = rows[i]
-            if !self.ibc || sibc {
-                self.fmt.addGlobalPaddingForComment(erow.row)
-                self.fmt.writeCommentsExcept(erow.row)
+            if !self.ibc || sibc || lined {
+                self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, erow.row)
+                self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row)
             }
             if self.fmt.buf[self.fmt.buf.len-1] == '\n' {
                 self.write(self.fmt.indent)
@@ -1796,9 +1817,9 @@ impl exprFormatter {
         if self.fmt.buf[self.fmt.buf.len-1] != '\n' && lined {
             self.write("\n")
         }
-        if !self.ibc || sibc {
-            self.fmt.addGlobalPaddingForComment(lit.End.Row)
-            self.fmt.writeCommentsExcept(lit.End.Row)
+        if !self.ibc || sibc || lined {
+            self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, lit.End.Row)
+            self.fmt.writeCommentsExceptL(lit.Token.Row, lit.End.Row)
         }
         self.fmt.doneIndent()
         if lined {
