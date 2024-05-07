@@ -154,7 +154,7 @@ impl formatter {
                 f(c)
                 self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
                 continue
-            } else if c.row != row {
+            } else if c.row > row {
                 break
             }
             i++
