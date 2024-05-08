@@ -23,7 +23,7 @@ impl commentMap {
             buf: make([]&comment, 0, 1 << 8),
         }
         let mut i = 0
-        for i < tokens.len {
+        for i < len(tokens) {
             let token = tokens[i]
             if token.Id != TokenId.Comment {
                 i++
@@ -35,13 +35,13 @@ impl commentMap {
                 txt: token.Kind,
             })
             _ = copy(tokens[i:], tokens[i+1:])
-            tokens = tokens[:tokens.len-1]
+            tokens = tokens[:len(tokens)-1]
         }
         ret cm
     }
 
     fn first(mut self, row: int): &comment {
-        if self.buf.len == 0 {
+        if len(self.buf) == 0 {
             ret nil
         }
         let mut c = self.buf[0]
@@ -56,7 +56,7 @@ impl commentMap {
     }
 
     fn pop(mut self, row: int): &comment {
-        if self.buf.len == 0 {
+        if len(self.buf) == 0 {
             ret nil
         }
         let mut c = self.buf[0]
@@ -68,7 +68,7 @@ impl commentMap {
     }
 
     fn find(mut self, row: int): &comment {
-        if self.buf.len == 0 {
+        if len(self.buf) == 0 {
             ret nil
         }
         let mut c = self.buf[0]

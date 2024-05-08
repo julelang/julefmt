@@ -21,14 +21,14 @@ fn formatFile(path: str) {
         ret
     })
     let mut errors = lex::Lex(file, lex::LexMode.Comment)
-    if errors.len > 0 {
+    if len(errors) > 0 {
         outln("error: file could not formatted, have error(s): " + path)
         ret
     }
 
     let mut cm = commentMap.build(file.Tokens)
     let mut finfo = parser::ParseFile(file)
-    if finfo.Errors.len > 0 {
+    if len(finfo.Errors) > 0 {
         outln("error: file could not formatted, have error(s): " + path)
         ret
     }
@@ -60,7 +60,7 @@ fn parsePackage(path: str) {
 
 fn main() {
     let args = env::Args()
-    if args.len == 1 {
+    if len(args) == 1 {
         ret
     }
     parsePackage(args[1])
