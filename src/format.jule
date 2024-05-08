@@ -1698,7 +1698,10 @@ impl exprFormatter {
             if newline {
                 self.write(",")
                 if diff < 2 || lit.Exprs[i+1].Token.Row != self.fmt.row {
-                    self.fmt.popRowCommentsByC(self.fmt.row, -1)
+                    self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
+                        self.write(" ")
+                        self.fmt.writeComment(c)
+                    })
                 }
                 self.write("\n")
             } else if diff > 1 {
