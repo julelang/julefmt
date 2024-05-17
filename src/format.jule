@@ -1683,9 +1683,11 @@ impl exprFormatter {
         self.fmt.addIndent()
         for (i, mut expr) in lit.Exprs {
             let diff = len(lit.Exprs) - i
-            if newline && !self.ibc {
-                self.fmt.addGlobalPaddingForComment(expr.Token.Row)
-                self.fmt.writeCommentsExcept(expr.Token.Row)
+            if newline {
+                if !self.ibc {
+                    self.fmt.addGlobalPaddingForComment(expr.Token.Row)
+                    self.fmt.writeCommentsExcept(expr.Token.Row)
+                }
                 self.write(self.fmt.indent)
             }
             self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
