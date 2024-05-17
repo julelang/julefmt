@@ -1116,11 +1116,6 @@ impl scopeFormatter {
         self.fmt.formatExpr(u.Expr)
     }
 
-    fn coExpr(&self, mut expr: &ast::CoExpr) {
-        self.write("co ")
-        self.fmt.formatExpr(expr.Expr)
-    }
-
     fn label(&self, l: &ast::LabelSt) {
         // Remove one indentation.
         self.fmt.buf = self.fmt.buf[:len(self.fmt.buf)-self.fmt.indentLen]
@@ -1368,8 +1363,6 @@ impl scopeFormatter {
         | &ast::Expr:
             let mut expr = (&ast::Expr)(stmt)
             self.fmt.formatExpr(expr)
-        | &ast::CoExpr:
-            self.coExpr((&ast::CoExpr)(stmt))
         | &ast::LabelSt:
             self.label((&ast::LabelSt)(stmt))
         | &ast::GotoSt:
@@ -1641,6 +1634,9 @@ impl exprFormatter {
     }
 
     fn fnCall(&self, mut f: &ast::FnCallExpr) {
+        if f.IsCo {
+            self.write("co ")
+        }
         self.format(f.Expr)
         self.write("(")
         self.args(f)
