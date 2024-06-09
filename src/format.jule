@@ -579,7 +579,7 @@ impl formatter {
     fn traitDecl(&self, mut d: &ast::TraitDecl) {
         self.write("trait ")
         self.write(d.Ident)
-        if len(d.Methods) == 0 {
+        if len(d.Methods) == 0 && len(d.Inherits) == 0 {
             self.write(" {}")
             self.popRowComments(d.End.Row)
             ret
@@ -587,6 +587,22 @@ impl formatter {
         self.write(" {")
         self.addIndent()
         self.row = d.Token.Row
+        for (i, mut ih) in d.Inherits {
+            self.write("\n")
+            if i > 0 && ih.Token.Row-self.row > 1 {
+                self.write("\n")
+            }
+            self.writeCommentsExcept(ih.Token.Row)
+            self.write(self.indent)
+            self.formatType(ih)
+            self.popRowComments(ih.Token.Row)
+            self.row = ih.Token.Row
+        }
+        if len(d.Inherits) > 0 && len(d.Methods) > 0 {
+            if d.Methods[0].Token.Row-self.row > 1 {
+                self.write("\n")
+            }
+        }
         for (i, mut m) in d.Methods {
             self.write("\n")
             if i > 0 && m.Token.Row-self.row > 1 {
