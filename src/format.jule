@@ -967,7 +967,9 @@ impl formatter {
         self.cm = cm
         self.f = f
         self.directives(self.f.TopDirectives)
-        self.buf = self.buf[:len(self.buf)-1] // Remove trailing newline.
+        if len(self.f.TopDirectives) > 0 {
+            self.buf = self.buf[:len(self.buf)-1] // Remove trailing newline.
+        }
         self.useDecls()
         self.nodes()
         self.f = nil
