@@ -292,10 +292,10 @@ impl formatter {
         if len(self.f.UseDecls) == 0 {
             ret
         }
-        let first = self.f.UseDecls[0]
-        if self.cm.first(first.Token.Row) == nil && first.Token.Row-self.row > 1 {
-            self.write("\n")
+        if len(self.f.TopDirectives) > 0 {
+            self.write("\n\n")
         }
+        let first = self.f.UseDecls[0]
         self.addGlobalPaddingForComment(first.Token.Row)
         self.row = self.writeComments(first.Token.Row)
         if first.Token.Row-self.row > 1 {
@@ -967,6 +967,7 @@ impl formatter {
         self.cm = cm
         self.f = f
         self.directives(self.f.TopDirectives)
+        self.buf = self.buf[:len(self.buf)-1] // Remove trailing newline.
         self.useDecls()
         self.nodes()
         self.f = nil
