@@ -9,6 +9,7 @@ use lex for std::jule::lex::{
     Token,
     TokenKind,
 }
+use std::jule::types::{TypeKind}
 use strings for std::strings
 use utf8 for std::unicode::utf8
 
@@ -234,7 +235,7 @@ impl formatter {
     }
 
     fn useDecl(&self, d: &ast::UseDecl) {
-        if d.CppLinked {
+        if d.Binded {
             self.write("cpp ")
         }
         self.write("use ")
@@ -242,7 +243,7 @@ impl formatter {
             self.write(d.Alias)
             self.write(" for ")
         }
-        if d.CppLinked {
+        if d.Binded {
             self.write("\"")
             self.write(d.LinkPath)
             self.write("\"")
@@ -470,7 +471,7 @@ impl formatter {
         if d.Statically {
             self.write("static ")
         }
-        if d.CppLinked {
+        if d.Binded {
             self.write("cpp ")
         }
         if d.Unsafety {
@@ -554,7 +555,7 @@ impl formatter {
                 self.write("\n")
             }
         }
-        if d.CppLinked {
+        if d.Binded {
             self.write("cpp ")
         }
         self.write("struct ")
@@ -622,7 +623,7 @@ impl formatter {
 
     fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
         self.write(self.indent)
-        if d.CppLinked {
+        if d.Binded {
             self.write("cpp ")
         }
         self.write("type ")
@@ -636,7 +637,7 @@ impl formatter {
         if len(d.Directives) != 0 {
             self.directives(d.Directives)
         }
-        if d.CppLinked {
+        if d.Binded {
             self.write("cpp let ")
         } else {
             if d.Statically {
@@ -1001,7 +1002,7 @@ impl typeFormatter {
     }
 
     fn ident(self, mut id: &ast::IdentTypeDecl) {
-        if id.CppLinked {
+        if id.Binded {
             self.write("cpp.")
         }
         self.write(id.Ident)
@@ -1573,7 +1574,7 @@ impl exprFormatter {
     }
 
     fn ident(&self, id: &ast::IdentExpr) {
-        if id.CppLinked {
+        if id.Binded {
             self.write("cpp.")
         }
         self.write(id.Ident)
@@ -2126,7 +2127,23 @@ fn paddingAbs(x: int): int {
 fn isPrimType(&t: &ast::TypeDecl): bool {
     match type t.Kind {
     | &ast::IdentTypeDecl:
-        ret (&ast::IdentTypeDecl)(t.Kind).IsPrim()
+        let itd = (&ast::IdentTypeDecl)(t.Kind)
+        ret itd.Ident == TypeKind.I8 ||
+            itd.Ident == TypeKind.I16 ||
+            itd.Ident == TypeKind.I32 ||
+            itd.Ident == TypeKind.I64 ||
+            itd.Ident == TypeKind.U8 ||
+            itd.Ident == TypeKind.U16 ||
+            itd.Ident == TypeKind.U32 ||
+            itd.Ident == TypeKind.U64 ||
+            itd.Ident == TypeKind.Int ||
+            itd.Ident == TypeKind.Uint ||
+            itd.Ident == TypeKind.Uintptr ||
+            itd.Ident == TypeKind.F32 ||
+            itd.Ident == TypeKind.F64 ||
+            itd.Ident == TypeKind.Bool ||
+            itd.Ident == TypeKind.Str ||
+            itd.Ident == TypeKind.Any
     }
     ret false
 }
