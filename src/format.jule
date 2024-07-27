@@ -67,7 +67,7 @@ impl formatter {
     fn writeComment(&self, &c: &comment) {
         if len(self.indent) > 0 && c.txt[1] == '*' {
             // Range comment should be checked.
-            // Endind is should be padded by indentation.
+            // Ending is should be padded by indentation.
             let mut i = len(c.txt) - 3
         lookup:
             for i > 1; i-- {
