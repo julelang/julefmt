@@ -380,12 +380,11 @@ impl formatter {
                 | &ast::TypeEnumDecl:
                     self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i)
                 }
-                if old != i {
-                    if i < len(d.Items) {
+                if i < len(d.Items) {
+                    if old != i {
                         self.write("\n")
                     }
-                } else {
-                    i++
+                    self.addGlobalPaddingForComment(d.End.Row)
                 }
                 row = item.Token.Row
             }
