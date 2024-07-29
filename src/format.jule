@@ -460,8 +460,8 @@ impl formatter {
     }
 
     fn fnDecl(&self, mut d: &ast::FnDecl) {
-        self.writeCommentsExcept(d.Token.Row)
         if !d.IsAnon() {
+            self.writeCommentsExcept(d.Token.Row)
             self.write(self.indent)
         }
         if len(d.Directives) != 0 {
