@@ -135,11 +135,13 @@ impl formatter {
         }
     }
 
-    fn addGlobalPaddingForComment(&self, row: int) {
+    fn addGlobalPaddingForComment(&self, row: int): bool {
         let c = self.cm.first(row)
         if c != nil && c.row-self.row > 1 {
             self.write("\n")
+            ret true
         }
+        ret false
     }
 
     fn writeRemainingComments(&self) {
@@ -381,10 +383,9 @@ impl formatter {
                     self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i)
                 }
                 if i < len(d.Items) {
-                    if old != i {
+                    if !self.addGlobalPaddingForComment(d.End.Row) && old != i {
                         self.write("\n")
                     }
-                    self.addGlobalPaddingForComment(d.End.Row)
                 }
                 row = item.Token.Row
             }
