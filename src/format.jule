@@ -1339,7 +1339,8 @@ impl scopeFormatter {
     }
 
     fn multiAssign(&self, mut &a: &ast::AssignSt) {
-        if a.Declarative {
+        let letKwUsed = a.Setter.Kind == TokenKind.Eq
+        if a.Declarative && letKwUsed {
             self.write("let (")
         }
         for (i, mut l) in a.Left {
@@ -1358,10 +1359,11 @@ impl scopeFormatter {
                 self.write(", ")
             }
         }
-        if a.Declarative {
-            self.write(")")
+        if a.Declarative && letKwUsed {
+            self.write(") = ")
+        } else {
+            self.write(" := ")
         }
-        self.write(" = ")
         self.fmt.formatExpr(a.Right)
     }
 
