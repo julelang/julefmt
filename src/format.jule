@@ -1369,7 +1369,7 @@ impl scopeFormatter {
 
     fn assign(&self, mut a: &ast::AssignSt) {
         match {
-        | lex::IsPostfixOp(a.Setter.Kind):
+        | lex::IsPostfixOp(a.Setter.Id):
             self.postfix(a)
         | len(a.Left) == 1 && !a.Declarative:
             self.singleAssign(a)
