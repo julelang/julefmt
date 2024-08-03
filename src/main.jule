@@ -37,7 +37,7 @@ fn formatFile(path: str) {
     let fmt = formatter.new()
     let buf = fmt.format(f, cm)
     let fpath = f.File.Path
-    File.Write(fpath, []byte(buf), 0o660) else {
+    File.Write(fpath, buf, 0o660) else {
         outln("error: could not write to file: " + fpath)
         ret
     }

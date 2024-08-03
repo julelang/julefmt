@@ -10,13 +10,14 @@ use lex for std::jule::lex::{
     TokenKind,
 }
 use std::jule::types::{TypeKind}
-use strings for std::strings
+use bytes for std::bytes
+use strings for std::strings::{StrBuilder}
 use utf8 for std::unicode::utf8
 
 struct field {
     f:     &ast::FieldDecl
     token: &Token
-    expr:  str
+    expr:  []byte
 }
 
 struct rowAlign {
@@ -31,9 +32,9 @@ struct formatter {
     indentStr: str = " "
 
     mut i:      int
-    mut buf:    str
+    mut buf:    StrBuilder
     mut f:      &Ast
-    mut indent: str
+    mut indent: []byte
     mut cm:     commentMap
     mut row:    int
 
@@ -51,13 +52,21 @@ impl formatter {
         ret fmt
     }
 
+    fn ubuf(self): []byte {
+        ret unsafe { self.buf.Buf() }
+    }
+
+    fn setBuf(self, mut b: []byte) {
+        unsafe { self.buf.SetBuf(b) }
+    }
+
     fn write(&self, s: str) {
-        self.buf += s
+        self.buf.WriteStr(s)
     }
 
     fn addIndent(&self) {
-        static indent = strings::Repeat(self.indentStr, self.indentLen)
-        self.indent += indent
+        static indent = []byte(strings::Repeat(self.indentStr, self.indentLen))
+        self.indent = append(self.indent, indent...)
     }
 
     fn doneIndent(&self) {
@@ -77,8 +86,8 @@ impl formatter {
                     continue
                 | '\n':
                     let cmt = c.txt[:i+1]
-                    i = strings::FindLast(self.buf, "\n")
-                    let n = len(self.buf) - i - 1
+                    i = bytes::FindLast(self.ubuf(), ['\n'])
+                    let n = self.buf.Len() - i - 1
                     self.write(cmt)
                     self.write(strings::Repeat(" ", n))
                     self.write("*/")
@@ -107,7 +116,7 @@ impl formatter {
             }
             lrow = c.row
             self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
-            self.write(self.indent)
+            self.buf.Write(self.indent)
             self.writeComment(c)
             self.write("\n")
         }
@@ -226,7 +235,7 @@ impl formatter {
         }
         for i, d in dvs {
             if i > 0 {
-                self.write(self.indent)
+                self.buf.Write(self.indent)
             }
             self.writeCommentsExcept(d.Tag.Row)
             self.directive(d)
@@ -274,7 +283,7 @@ impl formatter {
         }
         for i, s in d.Selected {
             if newline {
-                self.write(self.indent)
+                self.buf.Write(self.indent)
             }
             self.write(s.Kind)
             if newline {
@@ -338,7 +347,7 @@ impl formatter {
     }
 
     fn enumItem[T](&self, mut &item: T) {
-        self.write(self.indent)
+        self.buf.Write(self.indent)
         match type T {
         | &ast::EnumItemDecl:
             self.write(item.Ident)
@@ -413,7 +422,7 @@ impl formatter {
                     indented = true
                     self.addIndent()
                 }
-                self.write(self.indent)
+                self.buf.Write(self.indent)
             } else if i > 0 {
                 self.write(" ")
             }
@@ -462,11 +471,11 @@ impl formatter {
     fn fnDecl(&self, mut d: &ast::FnDecl) {
         if !d.IsAnon() {
             self.writeCommentsExcept(d.Token.Row)
-            self.write(self.indent)
+            self.buf.Write(self.indent)
         }
         if len(d.Directives) != 0 {
             self.directives(d.Directives)
-            self.write(self.indent)
+            self.buf.Write(self.indent)
         }
         if d.Statically {
             self.write("static ")
@@ -504,7 +513,7 @@ impl formatter {
     // Only parses last field.
     // Leading fields used to calculate maximum declaration length of group for padding.
     fn field(&self, mut f: &field, mut max: int) {
-        self.write(self.indent)
+        self.buf.Write(self.indent)
         if f.f.Mutable {
             self.write("mut ")
             max -= 4
@@ -516,9 +525,9 @@ impl formatter {
             self.write(strings::Repeat(" ", max))
         }
         self.formatType(f.f.Kind)
-        if f.expr != "" {
+        if len(f.expr) != 0 {
             self.write(" = ")
-            self.write(f.expr)
+            self.buf.Write(f.expr)
         }
     }
 
@@ -594,7 +603,7 @@ impl formatter {
                 self.write("\n")
             }
             self.writeCommentsExcept(ih.Token.Row)
-            self.write(self.indent)
+            self.buf.Write(self.indent)
             self.formatType(ih)
             self.popRowComments(ih.Token.Row)
             self.row = ih.Token.Row
@@ -622,7 +631,7 @@ impl formatter {
     }
 
     fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
-        self.write(self.indent)
+        self.buf.Write(self.indent)
         if d.Binded {
             self.write("cpp ")
         }
@@ -633,7 +642,7 @@ impl formatter {
     }
 
     fn varDecl(&self, mut d: &ast::VarDecl) {
-        self.write(self.indent)
+        self.buf.Write(self.indent)
         if len(d.Directives) != 0 {
             self.directives(d.Directives)
         }
@@ -667,14 +676,14 @@ impl formatter {
 
     fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
         const Cap = 1 << 4
-        let mut lines = make([]str, 0, Cap)
+        let mut lines = make([][]byte, 0, Cap)
         let mut rows = make([]int, 0, Cap)
 
         let mut start = i
         self.row = -1
         let mut max = 0
         let mut fieldMax = 0
-        let n = len(self.buf)
+        let n = self.buf.Len()
         for i < len(fields) {
             let mut decl = fields[i]
             if self.row != -1 && decl.token.Row-1 != self.row {
@@ -691,8 +700,8 @@ impl formatter {
             }
             if decl.f.Default != nil {
                 self.formatExpr(decl.f.Default)
-                decl.expr = self.buf[n:]
-                self.buf = self.buf[:n]
+                decl.expr = clone(self.ubuf()[n:])
+                self.setBuf(self.ubuf()[:n])
             }
             rows = append(rows, self.row)
             i++
@@ -702,19 +711,19 @@ impl formatter {
         for j < i; j++ {
             let mut f = fields[j]
             self.field(f, fieldMax)
-            let line = self.buf[n:]
+            let mut line = clone(self.ubuf()[n:])
             lines = append(lines, line)
-            let diff = utf8::RuneCountStr(line)
+            let diff = utf8::RuneCount(line)
             if max < diff && f.f.Token.Row == rows[j-start] {
                 max = diff
             }
-            self.buf = self.buf[:n]
+            self.setBuf(self.ubuf()[:n])
         }
 
         for k, line in lines {
             let row = rows[k]
             self.writeCommentsExcept(row)
-            self.write(line)
+            self.buf.Write(line)
             self.popRowCommentsByF(row, -1, fn(c: &comment) {
                 self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
                 self.writeComment(c)
@@ -730,7 +739,7 @@ impl formatter {
         }
 
         const Cap = 1 << 4
-        let mut lines = make([]str, 0, Cap)
+        let mut lines = make([][]byte, 0, Cap)
         let mut rows = make([]int, 0, Cap)
 
         let all = i == -1
@@ -740,7 +749,7 @@ impl formatter {
 
         self.row = -1
         let mut max = 0
-        let n = len(self.buf)
+        let n = self.buf.Len()
     loop:
         for i < len(nodes) {
             let mut decl: T = nil
@@ -776,21 +785,21 @@ impl formatter {
             | &ast::FnDecl:
                 self.fnDecl(decl)
             }
-            let line = self.buf[n:]
-            let diff = utf8::RuneCountStr(line)
+            let mut line = clone(self.ubuf()[n:])
+            let diff = utf8::RuneCount(line)
             if max < diff && row == self.row {
                 max = diff
             }
             lines = append(lines, line)
             rows = append(rows, self.row)
-            self.buf = self.buf[:n]
+            self.setBuf(self.ubuf()[:n])
             i++
         }
 
         for j, line in lines {
             let row = rows[j]
             self.writeCommentsExcept(row)
-            self.write(line)
+            self.buf.Write(line)
             self.popRowCommentsByF(row, -1, fn(c: &comment) {
                 self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
                 self.writeComment(c)
@@ -958,23 +967,23 @@ impl formatter {
             self.node(node)
             if old != self.i {
                 self.i--
-                self.buf = self.buf[:len(self.buf)-1] // Remove trailing newline.
+                self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
             }
         }
         self.writeRemainingComments()
     }
 
-    fn format(&self, mut &f: &Ast, mut &cm: commentMap): str {
+    fn format(&self, mut &f: &Ast, mut &cm: commentMap): []byte {
         self.cm = cm
         self.f = f
         self.directives(self.f.TopDirectives)
         if len(self.f.TopDirectives) > 0 {
-            self.buf = self.buf[:len(self.buf)-1] // Remove trailing newline.
+            self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
         }
         self.useDecls()
         self.nodes()
         self.f = nil
-        ret strings::Trim(self.buf, " \n\r\v\t")
+        ret bytes::Trim(self.ubuf(), []byte(" \n\r\v\t"))
     }
 }
 
@@ -984,7 +993,7 @@ struct typeFormatter {
 
 impl typeFormatter {
     fn write(self, s: str) {
-        self.fmt.buf += s
+        self.fmt.buf.WriteStr(s)
     }
 
     fn generics(self, mut g: []&ast::TypeDecl) {
@@ -1128,7 +1137,7 @@ struct scopeFormatter {
 
 impl scopeFormatter {
     fn write(&self, s: str) {
-        self.fmt.buf += s
+        self.fmt.buf.WriteStr(s)
     }
 
     fn usexpr(&self, mut u: &ast::UseExpr) {
@@ -1138,7 +1147,7 @@ impl scopeFormatter {
 
     fn label(&self, l: &ast::LabelSt) {
         // Remove one indentation.
-        self.fmt.buf = self.fmt.buf[:len(self.fmt.buf)-self.fmt.indentLen]
+        self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-self.fmt.indentLen])
         self.write(l.Ident)
         self.write(":")
     }
@@ -1240,7 +1249,7 @@ impl scopeFormatter {
         self.fmt.addIndent()
         self.formatStmts(c.Scope, false)
         self.fmt.doneIndent()
-        self.write(self.fmt.indent)
+        self.fmt.buf.Write(self.fmt.indent)
         self.write("}")
     }
 
@@ -1264,7 +1273,7 @@ impl scopeFormatter {
             self.fmt.addIndent()
             self.formatStmts(c.Default.Scope, false)
             self.fmt.doneIndent()
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
             self.write("}")
         }
     }
@@ -1289,9 +1298,9 @@ impl scopeFormatter {
                 self.fmt.writeCommentsExcept(expr.Token.Row)
                 if row != expr.Token.Row {
                     self.write("\n")
-                    self.write(self.fmt.indent)
+                    self.fmt.buf.Write(self.fmt.indent)
                 } else if i == 0 {
-                    self.write(self.fmt.indent)
+                    self.fmt.buf.Write(self.fmt.indent)
                 } else if i > 0 {
                     self.write(" ")
                 }
@@ -1307,14 +1316,14 @@ impl scopeFormatter {
             self.fmt.doneIndent()
         }
         if mc.Default != nil {
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
             self.write("|:\n")
             self.fmt.addIndent()
             self.formatStmts(mc.Default.Scope, false)
             self.fmt.doneIndent()
         }
         self.fmt.writeCommentsExcept(mc.End.Row)
-        self.write(self.fmt.indent)
+        self.fmt.buf.Write(self.fmt.indent)
         self.fmt.row = mc.End.Row
         self.write("}")
     }
@@ -1444,20 +1453,20 @@ impl scopeFormatter {
                 self.fmt.groupDecls[&ast::VarDecl, ast::Stmt](scope.Stmts, i)
             |:
                 if !inline {
-                    self.write(self.fmt.indent)
+                    self.fmt.buf.Write(self.fmt.indent)
                 }
                 self.formatStmt(stmt.Data)
                 self.fmt.popRowComments(self.fmt.row)
             }
             if z != i {
                 i--
-                self.fmt.buf = self.fmt.buf[:len(self.fmt.buf)-1]
+                self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-1])
             }
         }
-        i = len(self.fmt.buf) - 1
+        i = self.fmt.buf.Len() - 1
         for i >= 0; i-- {
-            if self.fmt.buf[i] != '\n' {
-                self.fmt.buf = self.fmt.buf[:i+1]
+            if self.fmt.ubuf()[i] != '\n' {
+                self.fmt.setBuf(self.fmt.ubuf()[:i+1])
                 self.write("\n")
                 break
             }
@@ -1474,7 +1483,7 @@ impl scopeFormatter {
             self.write("defer ")
         }
         self.write("{")
-        let n = len(self.fmt.buf)
+        let n = self.fmt.buf.Len()
         let comment = false
         let mut commentPtr = unsafe { (&bool)(&comment) }
         self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
@@ -1500,12 +1509,12 @@ impl scopeFormatter {
         }
         if inline {
             if len(scope.Stmts) > 0 {
-                self.fmt.buf[len(self.fmt.buf)-1] = ' '
+                self.fmt.ubuf()[self.fmt.buf.Len()-1] = ' '
             }
-        } else if n == len(self.fmt.buf) {
-            self.fmt.buf = self.fmt.buf[:n-1]
+        } else if n == self.fmt.buf.Len() {
+            self.fmt.setBuf(self.fmt.ubuf()[:n-1])
         } else {
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
         }
         self.write("}")
         self.fmt.popRowComments(scope.End.Row)
@@ -1534,7 +1543,7 @@ impl exprFormatter {
     }
 
     fn write(&self, s: str) {
-        self.fmt.buf += s
+        self.fmt.buf.WriteStr(s)
     }
 
     fn clean(&self) {
@@ -1560,7 +1569,7 @@ impl exprFormatter {
         if line {
             self.fmt.addIndent()
             self.write("\n")
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
         } else {
             self.write(" ")
         }
@@ -1568,7 +1577,7 @@ impl exprFormatter {
         if line {
             self.fmt.doneIndent()
             self.write("\n")
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
         } else {
             self.write(" ")
         }
@@ -1641,7 +1650,7 @@ impl exprFormatter {
                 }
                 self.fmt.popRowComments(self.fmt.row)
                 self.write("\n")
-                self.write(self.fmt.indent)
+                self.fmt.buf.Write(self.fmt.indent)
             } else if i > 0 {
                 self.write(" ")
             }
@@ -1710,7 +1719,7 @@ impl exprFormatter {
                     self.fmt.addGlobalPaddingForComment(expr.Token.Row)
                     self.fmt.writeCommentsExcept(expr.Token.Row)
                 }
-                self.write(self.fmt.indent)
+                self.fmt.buf.Write(self.fmt.indent)
             }
             self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
             self.format(expr)
@@ -1734,7 +1743,7 @@ impl exprFormatter {
         }
         self.fmt.doneIndent()
         if newline {
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
         }
         self.write("}")
     }
@@ -1744,14 +1753,14 @@ impl exprFormatter {
             ret
         }
         const Cap = 1 << 8
-        let mut exprs = make([]str, 0, Cap)
+        let mut exprs = make([][]byte, 0, Cap)
         let mut rows = make([]rowAlign, 0, Cap)
 
         let old = self.ibc
         self.ibc = true
         let mut sibc = !old // self.ibc setted to true by this routine.
 
-        let n = len(self.fmt.buf)
+        let n = self.fmt.buf.Len()
         let mut max = 0
         let mut col = 0
         let mut row = lit.Token.Row
@@ -1761,14 +1770,14 @@ impl exprFormatter {
         for (i, mut expr) in lit.Exprs {
             if row != expr.Token.Row {
                 lined = true
-                let line = self.fmt.buf[n:]
-                let diff = utf8::RuneCountStr(line)
+                let mut line = self.fmt.ubuf()[n:]
+                let diff = utf8::RuneCount(line)
                 if diff > 0 {
                     if max < diff && self.fmt.row == row {
                         max = diff
                     }
                     exprs = append(exprs, line)
-                    self.fmt.buf = self.fmt.buf[:n]
+                    self.fmt.setBuf(self.fmt.ubuf()[:n])
                     rows = append(rows, rowAlign{
                         end: expr.Token.Row,
                         row: self.fmt.row,
@@ -1787,9 +1796,9 @@ impl exprFormatter {
                 self.write(",")
             }
         }
-        if n != len(self.fmt.buf) {
-            let line = self.fmt.buf[n:]
-            let diff = utf8::RuneCountStr(line)
+        if n != self.fmt.buf.Len() {
+            let mut line = self.fmt.ubuf()[n:]
+            let diff = utf8::RuneCount(line)
             if max < diff && self.fmt.row == row {
                 max = diff
             }
@@ -1799,7 +1808,7 @@ impl exprFormatter {
                 row: self.fmt.row,
                 max: self.fmt.row == row,
             })
-            self.fmt.buf = self.fmt.buf[:n]
+            self.fmt.setBuf(self.fmt.ubuf()[:n])
         }
 
         let fmtRow = self.fmt.row
@@ -1816,14 +1825,14 @@ impl exprFormatter {
                 self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, erow.row)
                 self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row)
             }
-            if self.fmt.buf[len(self.fmt.buf)-1] == '\n' {
-                self.write(self.fmt.indent)
+            if self.fmt.ubuf()[self.fmt.buf.Len()-1] == '\n' {
+                self.fmt.buf.Write(self.fmt.indent)
             }
             col = erow.col
             if lined {
                 col = -1
             }
-            self.write(expr)
+            self.fmt.buf.Write(expr)
             self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
                 if erow.max {
                     self.write(strings::Repeat(" ", paddingAbs(max - len(expr)) + 1))
@@ -1837,7 +1846,7 @@ impl exprFormatter {
             }
             self.fmt.row = erow.row
         }
-        if self.fmt.buf[len(self.fmt.buf)-1] != '\n' && lined {
+        if self.fmt.ubuf()[self.fmt.buf.Len()-1] != '\n' && lined {
             self.write("\n")
         }
         if !self.ibc || sibc || lined {
@@ -1846,7 +1855,7 @@ impl exprFormatter {
         }
         self.fmt.doneIndent()
         if lined {
-            self.write(self.fmt.indent)
+            self.fmt.buf.Write(self.fmt.indent)
         }
 
         self.ibc = old
@@ -2049,7 +2058,7 @@ impl binaryFormatter {
         self.ef.fmt.addIndent()
         self.ef.fmt.popRowCommentsBy(bin.Op.Row)
         self.write("\n")
-        self.write(self.ef.fmt.indent)
+        self.ef.fmt.buf.Write(self.ef.fmt.indent)
         self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
         match type bin.Right.Kind {
         | &ast::BinopExpr:
