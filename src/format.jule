@@ -1774,7 +1774,7 @@ impl exprFormatter {
         for (i, mut expr) in lit.Exprs {
             if row != expr.Token.Row {
                 lined = true
-                let mut line = self.fmt.ubuf()[n:]
+                let mut line = cloneBuf(self.fmt.ubuf()[n:])
                 let diff = utf8::RuneCount(line)
                 if diff > 0 {
                     if max < diff && self.fmt.row == row {
@@ -1801,7 +1801,7 @@ impl exprFormatter {
             }
         }
         if n != self.fmt.buf.Len() {
-            let mut line = self.fmt.ubuf()[n:]
+            let mut line = cloneBuf(self.fmt.ubuf()[n:])
             let diff = utf8::RuneCount(line)
             if max < diff && self.fmt.row == row {
                 max = diff
