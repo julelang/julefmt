@@ -15,28 +15,28 @@ use sema for std::jule::sema::{
 use strings for std::strings
 
 fn formatFile(path: str) {
-    let mut file = lex::NewFileSet(path)
+    mut file := lex::NewFileSet(path)
     file.Fill(File.Read(path) else {
         outln("error: file could not read: " + path)
         ret
     })
-    let mut errors = lex::Lex(file, lex::LexMode.Comment)
+    mut errors := lex::Lex(file, lex::LexMode.Comment)
     if len(errors) > 0 {
         outln("error: file could not formatted, have error(s): " + path)
         ret
     }
 
-    let mut cm = commentMap.build(file.Tokens)
-    let mut finfo = parser::ParseFile(file)
+    mut cm := commentMap.build(file.Tokens)
+    mut finfo := parser::ParseFile(file)
     if len(finfo.Errors) > 0 {
         outln("error: file could not formatted, have error(s): " + path)
         ret
     }
 
-    let mut f = finfo.Ast
-    let fmt = formatter.new()
-    let buf = fmt.format(f, cm)
-    let fpath = f.File.Path
+    mut f := finfo.Ast
+    fmt := formatter.new()
+    buf := fmt.format(f, cm)
+    fpath := f.File.Path
     File.Write(fpath, buf, 0o660) else {
         outln("error: could not write to file: " + fpath)
         ret
@@ -44,7 +44,7 @@ fn formatFile(path: str) {
 }
 
 fn parsePackage(path: str) {
-    let mut dirents = Directory.Read(path) else {
+    mut dirents := Directory.Read(path) else {
         outln("error: connot read package directory: " + path)
         ret
     }
@@ -53,13 +53,13 @@ fn parsePackage(path: str) {
         if dirent.Stat.IsDir() || !strings::HasSuffix(dirent.Name, build::Ext) {
             continue
         }
-        let filepath = path::Join(path, dirent.Name)
+        filepath := path::Join(path, dirent.Name)
         formatFile(filepath)
     }
 }
 
 fn main() {
-    let args = env::Args()
+    args := env::Args()
     if len(args) == 1 {
         ret
     }

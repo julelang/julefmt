@@ -19,12 +19,12 @@ struct commentMap {
 
 impl commentMap {
     static fn build(mut &tokens: []&Token): commentMap {
-        let mut cm = commentMap{
+        mut cm := commentMap{
             buf: make([]&comment, 0, 1 << 8),
         }
-        let mut i = 0
+        mut i := 0
         for i < len(tokens) {
-            let token = tokens[i]
+            token := tokens[i]
             if token.Id != TokenId.Comment {
                 i++
                 continue
@@ -44,7 +44,7 @@ impl commentMap {
         if len(self.buf) == 0 {
             ret nil
         }
-        let mut c = self.buf[0]
+        mut c := self.buf[0]
         if row != -1 && c.row > row {
             ret nil
         }
@@ -59,7 +59,7 @@ impl commentMap {
         if len(self.buf) == 0 {
             ret nil
         }
-        let mut c = self.buf[0]
+        mut c := self.buf[0]
         if c.row > row {
             ret nil
         }
@@ -71,7 +71,7 @@ impl commentMap {
         if len(self.buf) == 0 {
             ret nil
         }
-        let mut c = self.buf[0]
+        mut c := self.buf[0]
         if c.row > row {
             ret nil
         }
