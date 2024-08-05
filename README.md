@@ -10,8 +10,6 @@ The official formatter tool for the Jule programming language.
 [Contributing](./CONTRIBUTING.md) |
 [Community](https://jule.dev/community)
 
-[![Jule Community](https://dcbadge.vercel.app/api/server/ReWQgPDnP6?style=flat)](https://discord.gg/XNSUUDuGGQ)
-
 </strong>
 
 </div>
