@@ -1368,10 +1368,14 @@ impl scopeFormatter {
                 self.write(", ")
             }
         }
-        if a.Declarative && letKwUsed {
-            self.write(") = ")
+        if a.Declarative {
+            if letKwUsed {
+               self.write(") = ")
+            } else {
+                self.write(" := ")
+            }
         } else {
-            self.write(" := ")
+            self.write(" = ")
         }
         self.fmt.formatExpr(a.Right)
     }
