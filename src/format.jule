@@ -700,7 +700,7 @@ impl formatter {
             }
             if decl.f.Default != nil {
                 self.formatExpr(decl.f.Default)
-                decl.expr = clone(self.ubuf()[n:])
+                decl.expr = cloneBuf(self.ubuf()[n:])
                 self.setBuf(self.ubuf()[:n])
             }
             rows = append(rows, self.row)
@@ -711,7 +711,7 @@ impl formatter {
         for j < i; j++ {
             let mut f = fields[j]
             self.field(f, fieldMax)
-            let mut line = clone(self.ubuf()[n:])
+            let mut line = cloneBuf(self.ubuf()[n:])
             lines = append(lines, line)
             let diff = utf8::RuneCount(line)
             if max < diff && f.f.Token.Row == rows[j-start] {
@@ -785,7 +785,7 @@ impl formatter {
             | &ast::FnDecl:
                 self.fnDecl(decl)
             }
-            let mut line = clone(self.ubuf()[n:])
+            let mut line = cloneBuf(self.ubuf()[n:])
             let diff = utf8::RuneCount(line)
             if max < diff && row == self.row {
                 max = diff
@@ -2172,4 +2172,10 @@ fn isRanged(&e: &ast::Expr): bool {
 
 fn isEmptyImpl(&imp: &ast::Impl): bool {
     ret len(imp.Methods) == 0 && len(imp.Statics) == 0
+}
+
+fn cloneBuf(b: []byte): []byte {
+    let mut rb = make([]byte, len(b))
+    copy(rb, b)
+    ret rb
 }
