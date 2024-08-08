@@ -1186,6 +1186,9 @@ impl scopeFormatter {
     }
 
     fn iter(&self, mut it: &ast::Iter) {
+        if it.Comptime {
+            self.write("const ")
+        }
         self.write("for ")
         if !it.IsInf() {
             match type it.Kind {
@@ -1279,6 +1282,9 @@ impl scopeFormatter {
     }
 
     fn matchCase(&self, mut mc: &ast::MatchCase) {
+        if mc.Comptime {
+            self.write("const ")
+        }
         self.write("match ")
         if mc.TypeMatch {
             self.write("type ")
