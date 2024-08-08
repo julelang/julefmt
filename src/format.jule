@@ -348,7 +348,7 @@ impl formatter {
 
     fn enumItem[T](&self, mut &item: T) {
         self.buf.Write(self.indent)
-        match type T {
+        const match type T {
         | &ast::EnumItemDecl:
             self.write(item.Ident)
             if !item.AutoExpr() {
@@ -368,7 +368,7 @@ impl formatter {
     fn enumDecl[T](&self, mut d: T) {
         self.write("enum ")
         self.write(d.Ident)
-        match type T {
+        const match type T {
         | &ast::EnumDecl:
             if !d.DefaultTyped() {
                 self.write(": ")
@@ -385,7 +385,7 @@ impl formatter {
             for i < len(d.Items) {
                 old := self.i
                 item := d.Items[i]
-                match type T {
+                const match type T {
                 | &ast::EnumDecl:
                     self.groupDecls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.Items, i)
                 | &ast::TypeEnumDecl:
@@ -753,7 +753,7 @@ impl formatter {
     loop:
         for i < len(nodes) {
             let mut decl: T = nil
-            match type Node {
+            const match type Node {
             | &ast::EnumItemDecl
             | &ast::TypeEnumItemDecl
             | &ast::VarDecl
@@ -774,7 +774,7 @@ impl formatter {
             }
             self.row = decl.Token.Row
             row := self.row
-            match type T {
+            const match type T {
             | &ast::VarDecl:
                 self.varDecl(decl)
             | &ast::TypeAliasDecl:
@@ -886,7 +886,7 @@ impl formatter {
 
     fn groupNode[T](&self, &node: ast::Node) {
         mut row := node.Token.Row
-        match type T {
+        const match type T {
         | &ast::TypeAliasDecl:
             break
         |:
