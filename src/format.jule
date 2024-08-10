@@ -1638,7 +1638,7 @@ impl exprFormatter {
         self.write(si.Ident.Kind)
     }
 
-    fn binary(&self, mut bin: &ast::BinopExpr) {
+    fn binary(&self, mut bin: &ast::BinaryExpr) {
         self.bf.new(bin)
         self.bf.binary(bin)
     }
@@ -1915,13 +1915,13 @@ impl exprFormatter {
         rr := isRanged(i.To)
         if !lr && i.Start != nil {
             match type i.Start.Kind {
-            | &ast::BinopExpr:
+            | &ast::BinaryExpr:
                 lb = true
             }
         }
         if !rr && i.To != nil {
             match type i.To.Kind {
-            | &ast::BinopExpr:
+            | &ast::BinaryExpr:
                 rb = true
             }
         }
@@ -1973,8 +1973,8 @@ impl exprFormatter {
             self.nselect((&ast::NsSelectionExpr)(kind))
         | &ast::SubIdentExpr:
             self.subIdent((&ast::SubIdentExpr)(kind))
-        | &ast::BinopExpr:
-            self.binary((&ast::BinopExpr)(kind))
+        | &ast::BinaryExpr:
+            self.binary((&ast::BinaryExpr)(kind))
         | &ast::FnCallExpr:
             self.fnCall((&ast::FnCallExpr)(kind))
         | &ast::FieldExprPair:
@@ -2009,23 +2009,23 @@ struct binaryFormatter {
     mut zip:    bool
     mut strict: bool
     mut op:     bool
-    mut bin:    &ast::BinopExpr
+    mut bin:    &ast::BinaryExpr
     mut weak:   bool
 }
 
 impl binaryFormatter {
-    static fn isOp(&bin: &ast::BinopExpr): bool {
+    static fn isOp(&bin: &ast::BinaryExpr): bool {
         ret bin.Op.Kind == TokenKind.DblVline ||
             bin.Op.Kind == TokenKind.DblAmper ||
             bin.Op.Kind == TokenKind.Gt ||
             bin.Op.Kind == TokenKind.Lt ||
-            bin.Op.Kind == TokenKind.LessEq ||
-            bin.Op.Kind == TokenKind.GreatEq ||
+            bin.Op.Kind == TokenKind.LtEq ||
+            bin.Op.Kind == TokenKind.GtEq ||
             bin.Op.Kind == TokenKind.Eqs ||
             bin.Op.Kind == TokenKind.NotEq
     }
 
-    static fn isZipOp(&bin: &ast::BinopExpr): bool {
+    static fn isZipOp(&bin: &ast::BinaryExpr): bool {
         ret bin.Op.Kind == TokenKind.DblVline ||
             bin.Op.Kind == TokenKind.DblAmper
     }
@@ -2042,7 +2042,7 @@ impl binaryFormatter {
         self.strict = false
     }
 
-    fn head(&self, mut &bin: &ast::BinopExpr) {
+    fn head(&self, mut &bin: &ast::BinaryExpr) {
         self.ef.fmt.popRowCommentsByC(bin.Left.Token.Row, bin.Left.Token.Column)
         self.format(bin.Left)
         self.op = binaryFormatter.isOp(bin)
@@ -2053,7 +2053,7 @@ impl binaryFormatter {
         self.write(bin.Op.Kind)
     }
 
-    fn binary(&self, mut &bin: &ast::BinopExpr) {
+    fn binary(&self, mut &bin: &ast::BinaryExpr) {
         self.bin = bin
         self.head(bin)
     rep:
@@ -2071,8 +2071,8 @@ impl binaryFormatter {
         self.ef.fmt.buf.Write(self.ef.fmt.indent)
         self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
         match type bin.Right.Kind {
-        | &ast::BinopExpr:
-            bin = (&ast::BinopExpr)(bin.Right.Kind)
+        | &ast::BinaryExpr:
+            bin = (&ast::BinaryExpr)(bin.Right.Kind)
             self.head(bin)
             self.ef.fmt.doneIndent()
             goto rep
@@ -2086,8 +2086,8 @@ impl binaryFormatter {
 
     fn isZip(&self, mut &kind: ast::ExprData): bool {
         match type kind {
-        | &ast::BinopExpr:
-            mut bin := (&ast::BinopExpr)(kind)
+        | &ast::BinaryExpr:
+            mut bin := (&ast::BinaryExpr)(kind)
             if binaryFormatter.isZipOp(bin) {
                 ret true
             }
@@ -2097,7 +2097,7 @@ impl binaryFormatter {
         }
     }
 
-    fn new(&self, mut &bin: &ast::BinopExpr) {
+    fn new(&self, mut &bin: &ast::BinaryExpr) {
         if self.strict {
             ret
         }
