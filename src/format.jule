@@ -158,6 +158,19 @@ impl formatter {
         self.writeCommentsExcept(-1)
     }
 
+    fn isPopsRowCommentsByF(self, row: int, col: int): bool {
+        mut i := 0
+        for i < len(self.cm.buf); i++ {
+            c := self.cm.buf[i]
+            if c.row == row && (col == -1 || c.col < col) {
+                ret true
+            } else if c.row > row {
+                ret false
+            }
+        }
+        ret false
+    }
+
     fn popRowCommentsByF(&self, row: int, col: int, f: fn(&comment)) {
         mut i := 0
         for i < len(self.cm.buf) {
@@ -674,6 +687,24 @@ impl formatter {
         }
     }
 
+    fn getMax(self, lines: [][]byte, rows: []int): (max: int, n: int) {
+        if !self.isPopsRowCommentsByF(rows[0], -1) {
+            ret
+        }
+        max = utf8::RuneCount(lines[0])
+        n = 1
+        for n < len(lines); n++ {
+            if rows[n-1] == rows[n] || !self.isPopsRowCommentsByF(rows[n], -1) {
+                break
+            }
+            diff := utf8::RuneCount(lines[n])
+            if max < diff {
+                max = diff
+            }
+        }
+        ret
+    }
+
     fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
         const Cap = 1 << 4
         mut lines := make([][]byte, 0, Cap)
@@ -681,9 +712,8 @@ impl formatter {
 
         mut start := i
         self.row = -1
-        mut max := 0
         mut fieldMax := 0
-        n := self.buf.Len()
+        mut n := self.buf.Len()
         for i < len(fields) {
             mut decl := fields[i]
             if self.row != -1 && decl.token.Row-1 != self.row {
@@ -713,21 +743,30 @@ impl formatter {
             self.field(f, fieldMax)
             mut line := cloneBuf(self.ubuf()[n:])
             lines = append(lines, line)
-            diff := utf8::RuneCount(line)
-            if max < diff && f.f.Token.Row == rows[j-start] {
-                max = diff
-            }
             self.setBuf(self.ubuf()[:n])
         }
 
+        n = 0
+        mut max := 0
         for k, line in lines {
             row := rows[k]
             self.writeCommentsExcept(row)
             self.buf.Write(line)
-            self.popRowCommentsByF(row, -1, fn(c: &comment) {
-                self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
-                self.writeComment(c)
-            })
+            // Handle comments if same-line condition is not appear or
+            // current row is not same as next row. So, we can move line comments
+            // to last statement of inline statements.
+            if len(lines)-k < 2 || rows[k] != rows[k+1] {
+                if n == 0 {
+                    max, n = self.getMax(lines[k:], rows[k:])
+                }
+                if n > 0 {
+                    self.popRowCommentsByF(row, -1, fn(c: &comment) {
+                        self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
+                        self.writeComment(c)
+                    })
+                    n--
+                }
+            }
             self.write("\n")
             start++
         }
@@ -748,8 +787,7 @@ impl formatter {
         }
 
         self.row = -1
-        mut max := 0
-        n := self.buf.Len()
+        mut n := self.buf.Len()
     loop:
         for i < len(nodes) {
             let mut decl: T = nil
@@ -773,7 +811,6 @@ impl formatter {
                 break loop
             }
             self.row = decl.Token.Row
-            row := self.row
             const match type T {
             | &ast::VarDecl:
                 self.varDecl(decl)
@@ -786,24 +823,33 @@ impl formatter {
                 self.fnDecl(decl)
             }
             mut line := cloneBuf(self.ubuf()[n:])
-            diff := utf8::RuneCount(line)
-            if max < diff && row == self.row {
-                max = diff
-            }
             lines = append(lines, line)
             rows = append(rows, self.row)
             self.setBuf(self.ubuf()[:n])
             i++
         }
 
+        n = 0
+        mut max := 0
         for j, line in lines {
             row := rows[j]
             self.writeCommentsExcept(row)
             self.buf.Write(line)
-            self.popRowCommentsByF(row, -1, fn(c: &comment) {
-                self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
-                self.writeComment(c)
-            })
+            // Handle comments if same-line condition is not appear or
+            // current row is not same as next row. So, we can move line comments
+            // to last statement of inline statements.
+            if len(lines)-j < 2 || rows[j] != rows[j+1] {
+                if n == 0 {
+                    max, n = self.getMax(lines[j:], rows[j:])
+                }
+                if n > 0 {
+                    self.popRowCommentsByF(row, -1, fn(c: &comment) {
+                        self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
+                        self.writeComment(c)
+                    })
+                    n--
+                }
+            }
             self.write("\n")
         }
     }
