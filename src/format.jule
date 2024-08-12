@@ -78,7 +78,7 @@ impl formatter {
         if len(self.indent) > 0 && c.txt[1] == '*' {
             // Range comment should be checked.
             // Ending is should be padded by indentation.
-            mut i := len(c.txt) - 3
+            mut i := utf8::RuneCountStr(c.txt) - 3
         lookup:
             for i > 1; i-- {
                 b := c.txt[i]
@@ -88,7 +88,7 @@ impl formatter {
                 | '\n':
                     cmt := c.txt[:i+1]
                     i = bytes::FindLast(self.ubuf(), ['\n'])
-                    n := self.buf.Len() - i - 1
+                    n := utf8::RuneCount(unsafe { self.buf.Buf() }) - i - 1
                     self.write(cmt)
                     self.write(strings::Repeat(" ", n))
                     self.write("*/")
@@ -533,7 +533,7 @@ impl formatter {
             max -= 4
         }
         self.write(f.f.Ident)
-        max -= len(f.f.Ident)
+        max -= utf8::RuneCountStr(f.f.Ident)
         self.write(": ")
         if max > 0 {
             self.write(strings::Repeat(" ", max))
@@ -727,7 +727,7 @@ impl formatter {
             if decl.f.Mutable {
                 fm += len("mut ")
             }
-            fm += len(decl.f.Ident)
+            fm += utf8::RuneCountStr(decl.f.Ident)
             if fm > fieldMax {
                 fieldMax = fm
             }
@@ -764,7 +764,7 @@ impl formatter {
                 }
                 if n > 0 {
                     self.popRowCommentsByF(row, -1, fn(c: &comment) {
-                        self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
+                        self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
                         self.writeComment(c)
                     })
                     n--
@@ -847,7 +847,7 @@ impl formatter {
                 }
                 if n > 0 {
                     self.popRowCommentsByF(row, -1, fn(c: &comment) {
-                        self.write(strings::Repeat(" ", paddingAbs(max - len(line)) + 1))
+                        self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
                         self.writeComment(c)
                     })
                     n--
@@ -1894,7 +1894,7 @@ impl exprFormatter {
             self.fmt.buf.Write(expr)
             self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
                 if erow.max {
-                    self.write(strings::Repeat(" ", paddingAbs(max - len(expr)) + 1))
+                    self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(expr)) + 1))
                 } else {
                     self.write(" ")
                 }
