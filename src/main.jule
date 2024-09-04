@@ -10,58 +10,58 @@ use build for std::jule::build
 use lex for std::jule::lex
 use parser for std::jule::parser
 use sema for std::jule::sema::{
-    SemaFlag,
+	SemaFlag,
 }
 use strings for std::strings
 
 fn formatFile(path: str) {
-    mut file := lex::NewFileSet(path)
-    file.Fill(File.Read(path) else {
-        outln("error: file could not read: " + path)
-        ret
-    })
-    mut errors := lex::Lex(file, lex::LexMode.Comment)
-    if len(errors) > 0 {
-        outln("error: file could not formatted, have error(s): " + path)
-        ret
-    }
+	mut file := lex::NewFileSet(path)
+	file.Fill(File.Read(path) else {
+		outln("error: file could not read: " + path)
+		ret
+	})
+	mut errors := lex::Lex(file, lex::LexMode.Comment)
+	if len(errors) > 0 {
+		outln("error: file could not formatted, have error(s): " + path)
+		ret
+	}
 
-    mut cm := commentMap.build(file.Tokens)
-    mut finfo := parser::ParseFile(file)
-    if len(finfo.Errors) > 0 {
-        outln("error: file could not formatted, have error(s): " + path)
-        ret
-    }
+	mut cm := commentMap.build(file.Tokens)
+	mut finfo := parser::ParseFile(file)
+	if len(finfo.Errors) > 0 {
+		outln("error: file could not formatted, have error(s): " + path)
+		ret
+	}
 
-    mut f := finfo.Ast
-    fmt := formatter.new()
-    buf := fmt.format(f, cm)
-    fpath := f.File.Path
-    File.Write(fpath, buf, 0o660) else {
-        outln("error: could not write to file: " + fpath)
-        ret
-    }
+	mut f := finfo.Ast
+	fmt := formatter.new()
+	buf := fmt.format(f, cm)
+	fpath := f.File.Path
+	File.Write(fpath, buf, 0o660) else {
+		outln("error: could not write to file: " + fpath)
+		ret
+	}
 }
 
 fn parsePackage(path: str) {
-    mut dirents := Directory.Read(path) else {
-        outln("error: connot read package directory: " + path)
-        ret
-    }
-    for _, dirent in dirents {
-        // Skip directories, and non-jule files.
-        if dirent.Stat.IsDir() || !strings::HasSuffix(dirent.Name, build::Ext) {
-            continue
-        }
-        filepath := path::Join(path, dirent.Name)
-        formatFile(filepath)
-    }
+	mut dirents := Directory.Read(path) else {
+		outln("error: connot read package directory: " + path)
+		ret
+	}
+	for _, dirent in dirents {
+		// Skip directories, and non-jule files.
+		if dirent.Stat.IsDir() || !strings::HasSuffix(dirent.Name, build::Ext) {
+			continue
+		}
+		filepath := path::Join(path, dirent.Name)
+		formatFile(filepath)
+	}
 }
 
 fn main() {
-    args := env::Args()
-    if len(args) == 1 {
-        ret
-    }
-    parsePackage(args[1])
+	args := env::Args()
+	if len(args) == 1 {
+		ret
+	}
+	parsePackage(args[1])
 }

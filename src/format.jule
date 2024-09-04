@@ -3,12 +3,12 @@
 // license that can be found in the LICENSE file.
 
 use ast for std::jule::ast::{
-    Ast,
+	Ast,
 }
 use lex for std::jule::lex::{
-    Token,
-    TokenId,
-    TokenKind,
+	Token,
+	TokenId,
+	TokenKind,
 }
 use std::jule::types::{TypeKind}
 use bytes for std::bytes
@@ -16,2225 +16,2225 @@ use strings for std::strings::{StrBuilder}
 use utf8 for std::unicode::utf8
 
 struct field {
-    f:     &ast::FieldDecl
-    token: &Token
-    expr:  []byte
+	f:     &ast::FieldDecl
+	token: &Token
+	expr:  []byte
 }
 
 struct rowAlign {
-    row: int
-    end: int
-    col: int
-    max: bool
+	row: int
+	end: int
+	col: int
+	max: bool
 }
 
 struct formatter {
-    indentLen: int = 1
-    indentStr: str = "\t"
+	indentLen: int = 1
+	indentStr: str = "\t"
 
-    mut i:      int
-    mut buf:    StrBuilder
-    mut f:      &Ast
-    mut indent: []byte
-    mut cm:     commentMap
-    mut row:    int
+	mut i:      int
+	mut buf:    StrBuilder
+	mut f:      &Ast
+	mut indent: []byte
+	mut cm:     commentMap
+	mut row:    int
 
-    mut ef: &exprFormatter
-    mut sf: &scopeFormatter
-    mut tf: &typeFormatter
+	mut ef: &exprFormatter
+	mut sf: &scopeFormatter
+	mut tf: &typeFormatter
 }
 
 impl formatter {
-    static fn new(): &formatter {
-        mut fmt := new(formatter)
-        fmt.ef = exprFormatter.new(fmt)
-        fmt.sf = &scopeFormatter{fmt: fmt}
-        fmt.tf = &typeFormatter{fmt: fmt}
-        ret fmt
-    }
+	static fn new(): &formatter {
+		mut fmt := new(formatter)
+		fmt.ef = exprFormatter.new(fmt)
+		fmt.sf = &scopeFormatter{fmt: fmt}
+		fmt.tf = &typeFormatter{fmt: fmt}
+		ret fmt
+	}
 
-    fn ubuf(self): []byte {
-        ret unsafe { self.buf.Buf() }
-    }
+	fn ubuf(self): []byte {
+		ret unsafe { self.buf.Buf() }
+	}
 
-    fn setBuf(self, mut b: []byte) {
-        unsafe { self.buf.SetBuf(b) }
-    }
+	fn setBuf(self, mut b: []byte) {
+		unsafe { self.buf.SetBuf(b) }
+	}
 
-    fn write(&self, s: str) {
-        self.buf.WriteStr(s)
-    }
+	fn write(&self, s: str) {
+		self.buf.WriteStr(s)
+	}
 
-    fn addIndent(&self) {
-        static indent = []byte(strings::Repeat(self.indentStr, self.indentLen))
-        self.indent = append(self.indent, indent...)
-    }
+	fn addIndent(&self) {
+		static indent = []byte(strings::Repeat(self.indentStr, self.indentLen))
+		self.indent = append(self.indent, indent...)
+	}
 
-    fn doneIndent(&self) {
-        self.indent = self.indent[:len(self.indent)-self.indentLen]
-    }
+	fn doneIndent(&self) {
+		self.indent = self.indent[:len(self.indent)-self.indentLen]
+	}
 
-    fn writeComment(&self, &c: &comment) {
-        if len(self.indent) > 0 && c.txt[1] == '*' {
-            // Range comment should be checked.
-            // Ending is should be padded by indentation.
-            mut i := utf8::RuneCountStr(c.txt) - 3
-        lookup:
-            for i > 1; i-- {
-                b := c.txt[i]
-                match b {
-                | ' ' | '\t' | '\v' | '\r':
-                    continue
-                | '\n':
-                    cmt := c.txt[:i+1]
-                    i = bytes::FindLast(self.ubuf(), ['\n'])
-                    n := utf8::RuneCount(unsafe { self.buf.Buf() }) - i - 1
-                    self.write(cmt)
-                    self.write(strings::Repeat(" ", n))
-                    self.write("*/")
-                    ret
-                |:
-                    break lookup
-                }
-            }
-        }
-        self.write(c.txt)
-    }
+	fn writeComment(&self, &c: &comment) {
+		if len(self.indent) > 0 && c.txt[1] == '*' {
+			// Range comment should be checked.
+			// Ending is should be padded by indentation.
+			mut i := utf8::RuneCountStr(c.txt) - 3
+		lookup:
+			for i > 1; i-- {
+				b := c.txt[i]
+				match b {
+				| ' ' | '\t' | '\v' | '\r':
+					continue
+				| '\n':
+					cmt := c.txt[:i+1]
+					i = bytes::FindLast(self.ubuf(), ['\n'])
+					n := utf8::RuneCount(unsafe { self.buf.Buf() }) - i - 1
+					self.write(cmt)
+					self.write(strings::Repeat(" ", n))
+					self.write("*/")
+					ret
+				|:
+					break lookup
+				}
+			}
+		}
+		self.write(c.txt)
+	}
 
-    fn writeCommentsExceptL(&self, start: int, row: int): int {
-        mut lrow := row
-        mut i := 0
-        for i < len(self.cm.buf) {
-            c := self.cm.buf[i]
-            if start != -1 && c.row < start {
-                i++
-                continue
-            } else if row != -1 && c.row >= row {
-                break
-            }
-            if c.row-lrow > 1 {
-                self.write("\n")
-            }
-            lrow = c.row
-            self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
-            self.buf.Write(self.indent)
-            self.writeComment(c)
-            self.write("\n")
-        }
-        ret lrow
-    }
+	fn writeCommentsExceptL(&self, start: int, row: int): int {
+		mut lrow := row
+		mut i := 0
+		for i < len(self.cm.buf) {
+			c := self.cm.buf[i]
+			if start != -1 && c.row < start {
+				i++
+				continue
+			} else if row != -1 && c.row >= row {
+				break
+			}
+			if c.row-lrow > 1 {
+				self.write("\n")
+			}
+			lrow = c.row
+			self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+			self.buf.Write(self.indent)
+			self.writeComment(c)
+			self.write("\n")
+		}
+		ret lrow
+	}
 
-    fn writeCommentsExcept(&self, row: int): int {
-        ret self.writeCommentsExceptL(-1, row)
-    }
+	fn writeCommentsExcept(&self, row: int): int {
+		ret self.writeCommentsExceptL(-1, row)
+	}
 
-    fn writeComments(&self, row: int): int {
-        ret self.writeCommentsExcept(row + 1)
-    }
+	fn writeComments(&self, row: int): int {
+		ret self.writeCommentsExcept(row + 1)
+	}
 
-    fn addGlobalPaddingForCommentL(&self, start: int, row: int) {
-        mut i := 0
-        for i < len(self.cm.buf); i++ {
-            c := self.cm.buf[i]
-            if c.row >= start && c.row <= row {
-                if c.row-self.row > 1 {
-                    self.write("\n")
-                }
-                break
-            }
-        }
-    }
+	fn addGlobalPaddingForCommentL(&self, start: int, row: int) {
+		mut i := 0
+		for i < len(self.cm.buf); i++ {
+			c := self.cm.buf[i]
+			if c.row >= start && c.row <= row {
+				if c.row-self.row > 1 {
+					self.write("\n")
+				}
+				break
+			}
+		}
+	}
 
-    fn addGlobalPaddingForComment(&self, row: int): bool {
-        c := self.cm.first(row)
-        if c != nil && c.row-self.row > 1 {
-            self.write("\n")
-            ret true
-        }
-        ret false
-    }
+	fn addGlobalPaddingForComment(&self, row: int): bool {
+		c := self.cm.first(row)
+		if c != nil && c.row-self.row > 1 {
+			self.write("\n")
+			ret true
+		}
+		ret false
+	}
 
-    fn writeRemainingComments(&self) {
-        self.addGlobalPaddingForComment(-1)
-        self.writeCommentsExcept(-1)
-    }
+	fn writeRemainingComments(&self) {
+		self.addGlobalPaddingForComment(-1)
+		self.writeCommentsExcept(-1)
+	}
 
-    fn isPopsRowCommentsByF(self, row: int, col: int): bool {
-        mut i := 0
-        for i < len(self.cm.buf); i++ {
-            c := self.cm.buf[i]
-            if c.row == row && (col == -1 || c.col < col) {
-                ret true
-            } else if c.row > row {
-                ret false
-            }
-        }
-        ret false
-    }
+	fn isPopsRowCommentsByF(self, row: int, col: int): bool {
+		mut i := 0
+		for i < len(self.cm.buf); i++ {
+			c := self.cm.buf[i]
+			if c.row == row && (col == -1 || c.col < col) {
+				ret true
+			} else if c.row > row {
+				ret false
+			}
+		}
+		ret false
+	}
 
-    fn popRowCommentsByF(&self, row: int, col: int, f: fn(&comment)) {
-        mut i := 0
-        for i < len(self.cm.buf) {
-            c := self.cm.buf[i]
-            if c.row == row && (col == -1 || c.col < col) {
-                f(c)
-                self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
-                continue
-            } else if c.row > row {
-                break
-            }
-            i++
-        }
-    }
+	fn popRowCommentsByF(&self, row: int, col: int, f: fn(&comment)) {
+		mut i := 0
+		for i < len(self.cm.buf) {
+			c := self.cm.buf[i]
+			if c.row == row && (col == -1 || c.col < col) {
+				f(c)
+				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+				continue
+			} else if c.row > row {
+				break
+			}
+			i++
+		}
+	}
 
-    fn popRowCommentsBy(&self, row: int) {
-        self.popRowCommentsByF(row, -1, fn(c: &comment) {
-            self.write(" ")
-            self.writeComment(c)
-        })
-    }
+	fn popRowCommentsBy(&self, row: int) {
+		self.popRowCommentsByF(row, -1, fn(c: &comment) {
+			self.write(" ")
+			self.writeComment(c)
+		})
+	}
 
-    fn popRowCommentsByC(&self, row: int, col: int) {
-        self.popRowCommentsByF(row, col, fn(c: &comment) {
-            self.write(c.txt)
-            self.write(" ")
-        })
-    }
+	fn popRowCommentsByC(&self, row: int, col: int) {
+		self.popRowCommentsByF(row, col, fn(c: &comment) {
+			self.write(c.txt)
+			self.write(" ")
+		})
+	}
 
-    fn popRowComments(&self, row: int) {
-        for {
-            c := self.cm.pop(row)
-            if c == nil {
-                break
-            }
-            self.write(" ")
-            self.writeComment(c)
-        }
-    }
+	fn popRowComments(&self, row: int) {
+		for {
+			c := self.cm.pop(row)
+			if c == nil {
+				break
+			}
+			self.write(" ")
+			self.writeComment(c)
+		}
+	}
 
-    fn formatExpr(&self, mut &expr: &ast::Expr) {
-        self.ef.format(expr)
-        self.ef.clean()
-    }
+	fn formatExpr(&self, mut &expr: &ast::Expr) {
+		self.ef.format(expr)
+		self.ef.clean()
+	}
 
-    fn formatType(&self, mut &expr: &ast::TypeDecl) {
-        self.tf.format(expr.Kind)
-    }
+	fn formatType(&self, mut &expr: &ast::TypeDecl) {
+		self.tf.format(expr.Kind)
+	}
 
-    fn formatScope(&self, mut &scope: &ast::ScopeTree) {
-        self.sf.format(scope)
-    }
+	fn formatScope(&self, mut &scope: &ast::ScopeTree) {
+		self.sf.format(scope)
+	}
 
-    fn directive(&self, &d: &ast::Directive) {
-        self.write("#")
-        self.write(d.Tag.Kind)
-        for i, arg in d.Args {
-            match {
-            | i == 0:
-                self.write(" ")
-            | arg.Kind != TokenKind.RParent && d.Args[i-1].Kind != TokenKind.LParent:
-                self.write(" ")
-            }
-            self.write(arg.Kind)
-        }
-    }
+	fn directive(&self, &d: &ast::Directive) {
+		self.write("#")
+		self.write(d.Tag.Kind)
+		for i, arg in d.Args {
+			match {
+			| i == 0:
+				self.write(" ")
+			| arg.Kind != TokenKind.RParent && d.Args[i-1].Kind != TokenKind.LParent:
+				self.write(" ")
+			}
+			self.write(arg.Kind)
+		}
+	}
 
-    fn directives(&self, dvs: []&ast::Directive) {
-        if len(dvs) == 0 {
-            ret
-        }
-        first := dvs[0]
-        if first.Tag.Row-self.writeCommentsExcept(first.Tag.Row) > 1 {
-            self.write("\n")
-        }
-        for i, d in dvs {
-            if i > 0 {
-                self.buf.Write(self.indent)
-            }
-            self.writeCommentsExcept(d.Tag.Row)
-            self.directive(d)
-            self.popRowComments(d.Tag.Row)
-            self.write("\n")
-            self.row = d.Tag.Row
-        }
-    }
+	fn directives(&self, dvs: []&ast::Directive) {
+		if len(dvs) == 0 {
+			ret
+		}
+		first := dvs[0]
+		if first.Tag.Row-self.writeCommentsExcept(first.Tag.Row) > 1 {
+			self.write("\n")
+		}
+		for i, d in dvs {
+			if i > 0 {
+				self.buf.Write(self.indent)
+			}
+			self.writeCommentsExcept(d.Tag.Row)
+			self.directive(d)
+			self.popRowComments(d.Tag.Row)
+			self.write("\n")
+			self.row = d.Tag.Row
+		}
+	}
 
-    fn useDecl(&self, d: &ast::UseDecl) {
-        if d.Binded {
-            self.write("cpp ")
-        }
-        self.write("use ")
-        if d.Alias != "" {
-            self.write(d.Alias)
-            self.write(" for ")
-        }
-        if d.Binded {
-            self.write("\"")
-            self.write(d.LinkPath)
-            self.write("\"")
-        } else {
-            self.write(d.LinkPath)
-        }
-        if d.Full {
-            self.write("::*")
-            ret
-        }
-        if len(d.Selected) == 0 {
-            ret
-        }
-        mut newline := false
-        mut row := d.Token.Row
-        for _, s in d.Selected {
-            if row != s.Row {
-                newline = true
-                break
-            }
-        }
-        self.write("::{")
-        if newline {
-            self.addIndent()
-            self.write("\n")
-        }
-        for i, s in d.Selected {
-            if newline {
-                self.buf.Write(self.indent)
-            }
-            self.write(s.Kind)
-            if newline {
-                self.write(",")
-                self.popRowCommentsBy(s.Row)
-                self.write("\n")
-            } else if len(d.Selected)-i > 1 {
-                self.write(", ")
-            }
-        }
-        if newline {
-            self.doneIndent()
-        }
-        self.write("}")
-    }
+	fn useDecl(&self, d: &ast::UseDecl) {
+		if d.Binded {
+			self.write("cpp ")
+		}
+		self.write("use ")
+		if d.Alias != "" {
+			self.write(d.Alias)
+			self.write(" for ")
+		}
+		if d.Binded {
+			self.write("\"")
+			self.write(d.LinkPath)
+			self.write("\"")
+		} else {
+			self.write(d.LinkPath)
+		}
+		if d.Full {
+			self.write("::*")
+			ret
+		}
+		if len(d.Selected) == 0 {
+			ret
+		}
+		mut newline := false
+		mut row := d.Token.Row
+		for _, s in d.Selected {
+			if row != s.Row {
+				newline = true
+				break
+			}
+		}
+		self.write("::{")
+		if newline {
+			self.addIndent()
+			self.write("\n")
+		}
+		for i, s in d.Selected {
+			if newline {
+				self.buf.Write(self.indent)
+			}
+			self.write(s.Kind)
+			if newline {
+				self.write(",")
+				self.popRowCommentsBy(s.Row)
+				self.write("\n")
+			} else if len(d.Selected)-i > 1 {
+				self.write(", ")
+			}
+		}
+		if newline {
+			self.doneIndent()
+		}
+		self.write("}")
+	}
 
-    fn useDecls(&self) {
-        if len(self.f.UseDecls) == 0 {
-            ret
-        }
-        if len(self.f.TopDirectives) > 0 {
-            self.write("\n\n")
-        }
-        first := self.f.UseDecls[0]
-        self.addGlobalPaddingForComment(first.Token.Row)
-        self.row = self.writeComments(first.Token.Row)
-        if first.Token.Row-self.row > 1 {
-            self.write("\n")
-        }
-        for i, decl in self.f.UseDecls {
-            self.row = decl.Token.Row
-            self.writeComments(self.row)
-            self.useDecl(decl)
-            if len(self.f.UseDecls)-i > 1 {
-                self.write("\n")
-            }
-        }
-    }
+	fn useDecls(&self) {
+		if len(self.f.UseDecls) == 0 {
+			ret
+		}
+		if len(self.f.TopDirectives) > 0 {
+			self.write("\n\n")
+		}
+		first := self.f.UseDecls[0]
+		self.addGlobalPaddingForComment(first.Token.Row)
+		self.row = self.writeComments(first.Token.Row)
+		if first.Token.Row-self.row > 1 {
+			self.write("\n")
+		}
+		for i, decl in self.f.UseDecls {
+			self.row = decl.Token.Row
+			self.writeComments(self.row)
+			self.useDecl(decl)
+			if len(self.f.UseDecls)-i > 1 {
+				self.write("\n")
+			}
+		}
+	}
 
-    fn generics(&self, mut &g: []&ast::GenericDecl) {
-        if len(g) == 0 {
-            ret
-        }
-        self.write("[")
-        for (i, mut t) in g {
-            self.write(t.Ident)
-            if t.Constraint != nil {
-                self.write(": ")
-                for (j, mut c) in t.Constraint.Mask {
-                    self.formatType(c)
-                    if len(t.Constraint.Mask)-j > 1 {
-                        self.write(" | ")
-                    }
-                }
-            }
-            if i+1 < len(g) {
-                self.write(", ")
-            }
-        }
-        self.write("]")
-    }
+	fn generics(&self, mut &g: []&ast::GenericDecl) {
+		if len(g) == 0 {
+			ret
+		}
+		self.write("[")
+		for (i, mut t) in g {
+			self.write(t.Ident)
+			if t.Constraint != nil {
+				self.write(": ")
+				for (j, mut c) in t.Constraint.Mask {
+					self.formatType(c)
+					if len(t.Constraint.Mask)-j > 1 {
+						self.write(" | ")
+					}
+				}
+			}
+			if i+1 < len(g) {
+				self.write(", ")
+			}
+		}
+		self.write("]")
+	}
 
-    fn enumItem[T](&self, mut &item: T) {
-        self.buf.Write(self.indent)
-        const match type T {
-        | &ast::EnumItemDecl:
-            self.write(item.Ident)
-            if !item.AutoExpr() {
-                self.write(": ")
-                self.formatExpr(item.Expr)
-            }
-        | &ast::TypeEnumItemDecl:
-            if item.Ident != "" {
-                self.write(item.Ident)
-                self.write(": ")
-            }
-            self.formatType(item.Kind)
-        }
-        self.write(",")
-    }
+	fn enumItem[T](&self, mut &item: T) {
+		self.buf.Write(self.indent)
+		const match type T {
+		| &ast::EnumItemDecl:
+			self.write(item.Ident)
+			if !item.AutoExpr() {
+				self.write(": ")
+				self.formatExpr(item.Expr)
+			}
+		| &ast::TypeEnumItemDecl:
+			if item.Ident != "" {
+				self.write(item.Ident)
+				self.write(": ")
+			}
+			self.formatType(item.Kind)
+		}
+		self.write(",")
+	}
 
-    fn enumDecl[T](&self, mut d: T) {
-        self.write("enum ")
-        self.write(d.Ident)
-        const match type T {
-        | &ast::EnumDecl:
-            if !d.DefaultTyped() {
-                self.write(": ")
-                self.formatType(d.Kind)
-            }
-        | &ast::TypeEnumDecl:
-            self.write(": type")
-        }
-        self.write(" {")
-        if len(d.Items) > 0 {
-            self.write("\n")
-            self.addIndent()
-            mut i, mut row := 0, 0
-            for i < len(d.Items) {
-                old := self.i
-                item := d.Items[i]
-                const match type T {
-                | &ast::EnumDecl:
-                    self.groupDecls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.Items, i)
-                | &ast::TypeEnumDecl:
-                    self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i)
-                }
-                if i < len(d.Items) {
-                    if !self.addGlobalPaddingForComment(d.End.Row) && old != i {
-                        self.write("\n")
-                    }
-                }
-                row = item.Token.Row
-            }
-            self.addGlobalPaddingForComment(d.End.Row)
-            self.writeCommentsExcept(d.End.Row)
-            self.doneIndent()
-        }
-        self.write("}")
-        self.popRowComments(d.End.Row)
-        self.row = d.End.Row
-    }
+	fn enumDecl[T](&self, mut d: T) {
+		self.write("enum ")
+		self.write(d.Ident)
+		const match type T {
+		| &ast::EnumDecl:
+			if !d.DefaultTyped() {
+				self.write(": ")
+				self.formatType(d.Kind)
+			}
+		| &ast::TypeEnumDecl:
+			self.write(": type")
+		}
+		self.write(" {")
+		if len(d.Items) > 0 {
+			self.write("\n")
+			self.addIndent()
+			mut i, mut row := 0, 0
+			for i < len(d.Items) {
+				old := self.i
+				item := d.Items[i]
+				const match type T {
+				| &ast::EnumDecl:
+					self.groupDecls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.Items, i)
+				| &ast::TypeEnumDecl:
+					self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i)
+				}
+				if i < len(d.Items) {
+					if !self.addGlobalPaddingForComment(d.End.Row) && old != i {
+						self.write("\n")
+					}
+				}
+				row = item.Token.Row
+			}
+			self.addGlobalPaddingForComment(d.End.Row)
+			self.writeCommentsExcept(d.End.Row)
+			self.doneIndent()
+		}
+		self.write("}")
+		self.popRowComments(d.End.Row)
+		self.row = d.End.Row
+	}
 
-    fn params(&self, mut &f: &ast::FnDecl) {
-        if len(f.Params) == 0 {
-            self.write("()")
-            ret
-        }
-        self.write("(")
-        mut indented := false
-        self.row = f.Token.Row
-        for (i, mut p) in f.Params {
-            if self.row != p.Token.Row {
-                self.write("\n")
-                if !indented {
-                    indented = true
-                    self.addIndent()
-                }
-                self.buf.Write(self.indent)
-            } else if i > 0 {
-                self.write(" ")
-            }
-            self.popRowCommentsByC(p.Token.Row, p.Token.Column)
-            if p.Mutable {
-                self.write("mut ")
-            }
-            if p.Reference {
-                self.write("&")
-            }
-            if p.IsSelf() {
-                if p.IsRef() {
-                    self.write("&")
-                }
-                self.write("self")
-            } else {
-                if !lex::IsAnonIdent(p.Ident) {
-                    self.write(p.Ident)
-                    self.write(": ")
-                } else if p.Reference {
-                    self.write("_: ")
-                }
-                self.popRowCommentsByC(p.Kind.Token.Row, p.Kind.Token.Column)
-                if p.Variadic {
-                    self.write("...")
-                }
-                self.formatType(p.Kind)
-            }
-            if i+1 < len(f.Params) {
-                self.write(",")
-                if f.Params[i+1].Token.Row != p.Token.Row {
-                    self.popRowCommentsByF(p.Token.Row, -1, fn(c: &comment) {
-                        self.write(" ")
-                        self.writeComment(c)
-                    })
-                }
-            }
-            self.row = p.Token.Row
-        }
-        if indented {
-            self.doneIndent()
-        }
-        self.write(")")
-    }
+	fn params(&self, mut &f: &ast::FnDecl) {
+		if len(f.Params) == 0 {
+			self.write("()")
+			ret
+		}
+		self.write("(")
+		mut indented := false
+		self.row = f.Token.Row
+		for (i, mut p) in f.Params {
+			if self.row != p.Token.Row {
+				self.write("\n")
+				if !indented {
+					indented = true
+					self.addIndent()
+				}
+				self.buf.Write(self.indent)
+			} else if i > 0 {
+				self.write(" ")
+			}
+			self.popRowCommentsByC(p.Token.Row, p.Token.Column)
+			if p.Mutable {
+				self.write("mut ")
+			}
+			if p.Reference {
+				self.write("&")
+			}
+			if p.IsSelf() {
+				if p.IsRef() {
+					self.write("&")
+				}
+				self.write("self")
+			} else {
+				if !lex::IsAnonIdent(p.Ident) {
+					self.write(p.Ident)
+					self.write(": ")
+				} else if p.Reference {
+					self.write("_: ")
+				}
+				self.popRowCommentsByC(p.Kind.Token.Row, p.Kind.Token.Column)
+				if p.Variadic {
+					self.write("...")
+				}
+				self.formatType(p.Kind)
+			}
+			if i+1 < len(f.Params) {
+				self.write(",")
+				if f.Params[i+1].Token.Row != p.Token.Row {
+					self.popRowCommentsByF(p.Token.Row, -1, fn(c: &comment) {
+						self.write(" ")
+						self.writeComment(c)
+					})
+				}
+			}
+			self.row = p.Token.Row
+		}
+		if indented {
+			self.doneIndent()
+		}
+		self.write(")")
+	}
 
-    fn fnDecl(&self, mut d: &ast::FnDecl) {
-        if !d.IsAnon() {
-            self.writeCommentsExcept(d.Token.Row)
-            self.buf.Write(self.indent)
-        }
-        if len(d.Directives) != 0 {
-            self.directives(d.Directives)
-            self.buf.Write(self.indent)
-        }
-        if d.Statically {
-            self.write("static ")
-        }
-        if d.Binded {
-            self.write("cpp ")
-        }
-        if d.Unsafety {
-            self.write("unsafe ")
-        }
-        self.write("fn")
-        if !lex::IsAnonIdent(d.Ident) {
-            self.write(" ")
-            self.write(d.Ident)
-        }
-        self.generics(d.Generics)
-        self.params(d)
-        if d.Exceptional {
-            self.write("!")
-        }
-        if d.Result.Kind != nil {
-            self.write(": ")
-            self.tf.result(d.Result)
-        }
-        if d.Scope != nil {
-            self.write(" ")
-            unsafety := d.Unsafety
-            d.Scope.Unsafety = false // Avoid unsafe keyword beginning of scope.
-            self.formatScope(d.Scope)
-            d.Scope.Unsafety = unsafety
-            self.row = d.Scope.End.Row
-        }
-    }
+	fn fnDecl(&self, mut d: &ast::FnDecl) {
+		if !d.IsAnon() {
+			self.writeCommentsExcept(d.Token.Row)
+			self.buf.Write(self.indent)
+		}
+		if len(d.Directives) != 0 {
+			self.directives(d.Directives)
+			self.buf.Write(self.indent)
+		}
+		if d.Statically {
+			self.write("static ")
+		}
+		if d.Binded {
+			self.write("cpp ")
+		}
+		if d.Unsafety {
+			self.write("unsafe ")
+		}
+		self.write("fn")
+		if !lex::IsAnonIdent(d.Ident) {
+			self.write(" ")
+			self.write(d.Ident)
+		}
+		self.generics(d.Generics)
+		self.params(d)
+		if d.Exceptional {
+			self.write("!")
+		}
+		if d.Result.Kind != nil {
+			self.write(": ")
+			self.tf.result(d.Result)
+		}
+		if d.Scope != nil {
+			self.write(" ")
+			unsafety := d.Unsafety
+			d.Scope.Unsafety = false // Avoid unsafe keyword beginning of scope.
+			self.formatScope(d.Scope)
+			d.Scope.Unsafety = unsafety
+			self.row = d.Scope.End.Row
+		}
+	}
 
-    // Only parses last field.
-    // Leading fields used to calculate maximum declaration length of group for padding.
-    fn field(&self, mut f: &field, mut max: int) {
-        self.buf.Write(self.indent)
-        if f.f.Mutable {
-            self.write("mut ")
-            max -= 4
-        }
-        self.write(f.f.Ident)
-        max -= utf8::RuneCountStr(f.f.Ident)
-        self.write(": ")
-        if max > 0 {
-            self.write(strings::Repeat(" ", max))
-        }
-        self.formatType(f.f.Kind)
-        if len(f.expr) != 0 {
-            self.write(" = ")
-            self.buf.Write(f.expr)
-        }
-    }
+	// Only parses last field.
+	// Leading fields used to calculate maximum declaration length of group for padding.
+	fn field(&self, mut f: &field, mut max: int) {
+		self.buf.Write(self.indent)
+		if f.f.Mutable {
+			self.write("mut ")
+			max -= 4
+		}
+		self.write(f.f.Ident)
+		max -= utf8::RuneCountStr(f.f.Ident)
+		self.write(": ")
+		if max > 0 {
+			self.write(strings::Repeat(" ", max))
+		}
+		self.formatType(f.f.Kind)
+		if len(f.expr) != 0 {
+			self.write(" = ")
+			self.buf.Write(f.expr)
+		}
+	}
 
-    fn fields(&self, mut &fields: []&ast::FieldDecl) {
-        if len(fields) == 0 {
-            ret
-        }
-        mut flds := make([]&field, 0, len(fields))
-        for (_, mut f) in fields {
-            flds = append(flds, &field{
-                f: f,
-                token: f.Token,
-            })
-        }
-        mut i := 0
-        for i < len(flds) {
-            old := i
-            self.fieldGroupDecls(flds, i)
-            if old != i {
-                if i < len(flds) {
-                    self.write("\n")
-                }
-            } else {
-                i++
-            }
-        }
-    }
+	fn fields(&self, mut &fields: []&ast::FieldDecl) {
+		if len(fields) == 0 {
+			ret
+		}
+		mut flds := make([]&field, 0, len(fields))
+		for (_, mut f) in fields {
+			flds = append(flds, &field{
+				f: f,
+				token: f.Token,
+			})
+		}
+		mut i := 0
+		for i < len(flds) {
+			old := i
+			self.fieldGroupDecls(flds, i)
+			if old != i {
+				if i < len(flds) {
+					self.write("\n")
+				}
+			} else {
+				i++
+			}
+		}
+	}
 
-    fn structDecl(&self, mut d: &ast::StructDecl) {
-        if len(d.Directives) != 0 {
-            self.directives(d.Directives)
-        } else {
-            if d.Token.Row-self.writeComments(d.Token.Row) > 1 {
-                self.write("\n")
-            }
-        }
-        if d.Binded {
-            self.write("cpp ")
-        }
-        self.write("struct ")
-        self.write(d.Ident)
-        self.generics(d.Generics)
-        if len(d.Fields) == 0 {
-            self.write(" {}")
-            self.popRowComments(d.End.Row)
-            ret
-        }
-        self.write(" {\n")
-        self.addIndent()
-        self.fields(d.Fields)
-        self.addGlobalPaddingForComment(d.End.Row)
-        self.writeCommentsExcept(d.End.Row)
-        self.doneIndent()
-        self.write("}")
-        self.popRowComments(d.End.Row)
-        self.row = d.End.Row
-    }
+	fn structDecl(&self, mut d: &ast::StructDecl) {
+		if len(d.Directives) != 0 {
+			self.directives(d.Directives)
+		} else {
+			if d.Token.Row-self.writeComments(d.Token.Row) > 1 {
+				self.write("\n")
+			}
+		}
+		if d.Binded {
+			self.write("cpp ")
+		}
+		self.write("struct ")
+		self.write(d.Ident)
+		self.generics(d.Generics)
+		if len(d.Fields) == 0 {
+			self.write(" {}")
+			self.popRowComments(d.End.Row)
+			ret
+		}
+		self.write(" {\n")
+		self.addIndent()
+		self.fields(d.Fields)
+		self.addGlobalPaddingForComment(d.End.Row)
+		self.writeCommentsExcept(d.End.Row)
+		self.doneIndent()
+		self.write("}")
+		self.popRowComments(d.End.Row)
+		self.row = d.End.Row
+	}
 
-    fn traitDecl(&self, mut d: &ast::TraitDecl) {
-        self.write("trait ")
-        self.write(d.Ident)
-        if len(d.Methods) == 0 && len(d.Inherits) == 0 {
-            self.write(" {}")
-            self.popRowComments(d.End.Row)
-            ret
-        }
-        self.write(" {")
-        self.addIndent()
-        self.row = d.Token.Row
-        for (i, mut ih) in d.Inherits {
-            self.write("\n")
-            if i > 0 && ih.Token.Row-self.row > 1 {
-                self.write("\n")
-            }
-            self.writeCommentsExcept(ih.Token.Row)
-            self.buf.Write(self.indent)
-            self.formatType(ih)
-            self.popRowComments(ih.Token.Row)
-            self.row = ih.Token.Row
-        }
-        if len(d.Inherits) > 0 && len(d.Methods) > 0 {
-            if d.Methods[0].Token.Row-self.row > 1 {
-                self.write("\n")
-            }
-        }
-        for (i, mut m) in d.Methods {
-            self.write("\n")
-            if i > 0 && m.Token.Row-self.row > 1 {
-                self.write("\n")
-            }
-            self.writeCommentsExcept(m.Token.Row)
-            self.fnDecl(m)
-            self.popRowComments(m.Token.Row)
-        }
-        self.addGlobalPaddingForComment(d.End.Row)
-        self.writeCommentsExcept(d.End.Row)
-        self.doneIndent()
-        self.write("\n}")
-        self.popRowComments(d.End.Row)
-        self.row = d.End.Row
-    }
+	fn traitDecl(&self, mut d: &ast::TraitDecl) {
+		self.write("trait ")
+		self.write(d.Ident)
+		if len(d.Methods) == 0 && len(d.Inherits) == 0 {
+			self.write(" {}")
+			self.popRowComments(d.End.Row)
+			ret
+		}
+		self.write(" {")
+		self.addIndent()
+		self.row = d.Token.Row
+		for (i, mut ih) in d.Inherits {
+			self.write("\n")
+			if i > 0 && ih.Token.Row-self.row > 1 {
+				self.write("\n")
+			}
+			self.writeCommentsExcept(ih.Token.Row)
+			self.buf.Write(self.indent)
+			self.formatType(ih)
+			self.popRowComments(ih.Token.Row)
+			self.row = ih.Token.Row
+		}
+		if len(d.Inherits) > 0 && len(d.Methods) > 0 {
+			if d.Methods[0].Token.Row-self.row > 1 {
+				self.write("\n")
+			}
+		}
+		for (i, mut m) in d.Methods {
+			self.write("\n")
+			if i > 0 && m.Token.Row-self.row > 1 {
+				self.write("\n")
+			}
+			self.writeCommentsExcept(m.Token.Row)
+			self.fnDecl(m)
+			self.popRowComments(m.Token.Row)
+		}
+		self.addGlobalPaddingForComment(d.End.Row)
+		self.writeCommentsExcept(d.End.Row)
+		self.doneIndent()
+		self.write("\n}")
+		self.popRowComments(d.End.Row)
+		self.row = d.End.Row
+	}
 
-    fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
-        self.buf.Write(self.indent)
-        if d.Binded {
-            self.write("cpp ")
-        }
-        self.write("type ")
-        self.write(d.Ident)
-        self.write(": ")
-        self.formatType(d.Kind)
-    }
+	fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
+		self.buf.Write(self.indent)
+		if d.Binded {
+			self.write("cpp ")
+		}
+		self.write("type ")
+		self.write(d.Ident)
+		self.write(": ")
+		self.formatType(d.Kind)
+	}
 
-    fn varDecl(&self, mut d: &ast::VarDecl) {
-        self.buf.Write(self.indent)
-        if len(d.Directives) != 0 {
-            self.directives(d.Directives)
-        }
-        if d.Binded {
-            self.write("cpp let ")
-        } else {
-            if d.Statically {
-                self.write("static ")
-            } else if d.Constant {
-                self.write("const ")
-            } else if d.Setter == nil || d.Setter.Id == TokenId.Eq {
-                self.write("let ")
-            }
-        }
-        if d.Mutable {
-            self.write("mut ")
-        }
-        if d.Reference {
-            self.write("&")
-        }
-        self.write(d.Ident)
-        if d.Kind != nil {
-            self.write(": ")
-            self.formatType(d.Kind)
-        }
-        if d.Expr != nil {
-            self.write(" ")
-            self.write(d.Setter.Kind)
-            self.write(" ")
-            self.formatExpr(d.Expr)
-        }
-    }
+	fn varDecl(&self, mut d: &ast::VarDecl) {
+		self.buf.Write(self.indent)
+		if len(d.Directives) != 0 {
+			self.directives(d.Directives)
+		}
+		if d.Binded {
+			self.write("cpp let ")
+		} else {
+			if d.Statically {
+				self.write("static ")
+			} else if d.Constant {
+				self.write("const ")
+			} else if d.Setter == nil || d.Setter.Id == TokenId.Eq {
+				self.write("let ")
+			}
+		}
+		if d.Mutable {
+			self.write("mut ")
+		}
+		if d.Reference {
+			self.write("&")
+		}
+		self.write(d.Ident)
+		if d.Kind != nil {
+			self.write(": ")
+			self.formatType(d.Kind)
+		}
+		if d.Expr != nil {
+			self.write(" ")
+			self.write(d.Setter.Kind)
+			self.write(" ")
+			self.formatExpr(d.Expr)
+		}
+	}
 
-    fn getMax(self, lines: [][]byte, rows: []int): (max: int, n: int) {
-        if !self.isPopsRowCommentsByF(rows[0], -1) {
-            ret
-        }
-        max = utf8::RuneCount(lines[0])
-        n = 1
-        for n < len(lines); n++ {
-            if rows[n-1] == rows[n] || !self.isPopsRowCommentsByF(rows[n], -1) {
-                break
-            }
-            diff := utf8::RuneCount(lines[n])
-            if max < diff {
-                max = diff
-            }
-        }
-        ret
-    }
+	fn getMax(self, lines: [][]byte, rows: []int): (max: int, n: int) {
+		if !self.isPopsRowCommentsByF(rows[0], -1) {
+			ret
+		}
+		max = utf8::RuneCount(lines[0])
+		n = 1
+		for n < len(lines); n++ {
+			if rows[n-1] == rows[n] || !self.isPopsRowCommentsByF(rows[n], -1) {
+				break
+			}
+			diff := utf8::RuneCount(lines[n])
+			if max < diff {
+				max = diff
+			}
+		}
+		ret
+	}
 
-    fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
-        const Cap = 1 << 4
-        mut lines := make([][]byte, 0, Cap)
-        mut rows := make([]int, 0, Cap)
+	fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
+		const Cap = 1 << 4
+		mut lines := make([][]byte, 0, Cap)
+		mut rows := make([]int, 0, Cap)
 
-        mut start := i
-        self.row = -1
-        mut fieldMax := 0
-        mut n := self.buf.Len()
-        for i < len(fields) {
-            mut decl := fields[i]
-            if self.row != -1 && decl.token.Row-1 != self.row {
-                break
-            }
-            self.row = decl.token.Row
-            mut fm := 0
-            if decl.f.Mutable {
-                fm += len("mut ")
-            }
-            fm += utf8::RuneCountStr(decl.f.Ident)
-            if fm > fieldMax {
-                fieldMax = fm
-            }
-            if decl.f.Default != nil {
-                self.formatExpr(decl.f.Default)
-                decl.expr = cloneBuf(self.ubuf()[n:])
-                self.setBuf(self.ubuf()[:n])
-            }
-            rows = append(rows, self.row)
-            i++
-        }
+		mut start := i
+		self.row = -1
+		mut fieldMax := 0
+		mut n := self.buf.Len()
+		for i < len(fields) {
+			mut decl := fields[i]
+			if self.row != -1 && decl.token.Row-1 != self.row {
+				break
+			}
+			self.row = decl.token.Row
+			mut fm := 0
+			if decl.f.Mutable {
+				fm += len("mut ")
+			}
+			fm += utf8::RuneCountStr(decl.f.Ident)
+			if fm > fieldMax {
+				fieldMax = fm
+			}
+			if decl.f.Default != nil {
+				self.formatExpr(decl.f.Default)
+				decl.expr = cloneBuf(self.ubuf()[n:])
+				self.setBuf(self.ubuf()[:n])
+			}
+			rows = append(rows, self.row)
+			i++
+		}
 
-        mut j := start
-        for j < i; j++ {
-            mut f := fields[j]
-            self.field(f, fieldMax)
-            mut line := cloneBuf(self.ubuf()[n:])
-            lines = append(lines, line)
-            self.setBuf(self.ubuf()[:n])
-        }
+		mut j := start
+		for j < i; j++ {
+			mut f := fields[j]
+			self.field(f, fieldMax)
+			mut line := cloneBuf(self.ubuf()[n:])
+			lines = append(lines, line)
+			self.setBuf(self.ubuf()[:n])
+		}
 
-        n = 0
-        mut max := 0
-        for k, line in lines {
-            row := rows[k]
-            self.writeCommentsExcept(row)
-            self.buf.Write(line)
-            // Handle comments if same-line condition is not appear or
-            // current row is not same as next row. So, we can move line comments
-            // to last statement of inline statements.
-            if len(lines)-k < 2 || rows[k] != rows[k+1] {
-                if n == 0 {
-                    max, n = self.getMax(lines[k:], rows[k:])
-                }
-                if n > 0 {
-                    self.popRowCommentsByF(row, -1, fn(c: &comment) {
-                        self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
-                        self.writeComment(c)
-                    })
-                    n--
-                }
-            }
-            self.write("\n")
-            start++
-        }
-    }
+		n = 0
+		mut max := 0
+		for k, line in lines {
+			row := rows[k]
+			self.writeCommentsExcept(row)
+			self.buf.Write(line)
+			// Handle comments if same-line condition is not appear or
+			// current row is not same as next row. So, we can move line comments
+			// to last statement of inline statements.
+			if len(lines)-k < 2 || rows[k] != rows[k+1] {
+				if n == 0 {
+					max, n = self.getMax(lines[k:], rows[k:])
+				}
+				if n > 0 {
+					self.popRowCommentsByF(row, -1, fn(c: &comment) {
+						self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
+						self.writeComment(c)
+					})
+					n--
+				}
+			}
+			self.write("\n")
+			start++
+		}
+	}
 
-    fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int) {
-        if len(nodes) == 0 {
-            ret
-        }
+	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int) {
+		if len(nodes) == 0 {
+			ret
+		}
 
-        const Cap = 1 << 4
-        mut lines := make([][]byte, 0, Cap)
-        mut rows := make([]int, 0, Cap)
+		const Cap = 1 << 4
+		mut lines := make([][]byte, 0, Cap)
+		mut rows := make([]int, 0, Cap)
 
-        all := i == -1
-        if all {
-            i = 0
-        }
+		all := i == -1
+		if all {
+			i = 0
+		}
 
-        self.row = -1
-        mut n := self.buf.Len()
-    loop:
-        for i < len(nodes) {
-            let mut decl: T = nil
-            const match type Node {
-            | &ast::EnumItemDecl
-            | &ast::TypeEnumItemDecl
-            | &ast::VarDecl
-            | &ast::FnDecl:
-                decl = nodes[i]
-            | ast::Node
-            | ast::Stmt:
-                node := nodes[i]
-                match type node.Data {
-                | T:
-                    decl = (T)(nodes[i].Data)
-                |:
-                    break loop
-                }
-            }
-            if !all && self.row != -1 && decl.Token.Row-self.row > 1 {
-                break loop
-            }
-            self.row = decl.Token.Row
-            const match type T {
-            | &ast::VarDecl:
-                self.varDecl(decl)
-            | &ast::TypeAliasDecl:
-                self.typeAliasDecl(decl)
-            | &ast::EnumItemDecl
-            | &ast::TypeEnumItemDecl:
-                self.enumItem[T](decl)
-            | &ast::FnDecl:
-                self.fnDecl(decl)
-            }
-            mut line := cloneBuf(self.ubuf()[n:])
-            lines = append(lines, line)
-            rows = append(rows, self.row)
-            self.setBuf(self.ubuf()[:n])
-            i++
-        }
+		self.row = -1
+		mut n := self.buf.Len()
+	loop:
+		for i < len(nodes) {
+			let mut decl: T = nil
+			const match type Node {
+			| &ast::EnumItemDecl
+			| &ast::TypeEnumItemDecl
+			| &ast::VarDecl
+			| &ast::FnDecl:
+				decl = nodes[i]
+			| ast::Node
+			| ast::Stmt:
+				node := nodes[i]
+				match type node.Data {
+				| T:
+					decl = (T)(nodes[i].Data)
+				|:
+					break loop
+				}
+			}
+			if !all && self.row != -1 && decl.Token.Row-self.row > 1 {
+				break loop
+			}
+			self.row = decl.Token.Row
+			const match type T {
+			| &ast::VarDecl:
+				self.varDecl(decl)
+			| &ast::TypeAliasDecl:
+				self.typeAliasDecl(decl)
+			| &ast::EnumItemDecl
+			| &ast::TypeEnumItemDecl:
+				self.enumItem[T](decl)
+			| &ast::FnDecl:
+				self.fnDecl(decl)
+			}
+			mut line := cloneBuf(self.ubuf()[n:])
+			lines = append(lines, line)
+			rows = append(rows, self.row)
+			self.setBuf(self.ubuf()[:n])
+			i++
+		}
 
-        n = 0
-        mut max := 0
-        for j, line in lines {
-            row := rows[j]
-            self.writeCommentsExcept(row)
-            self.buf.Write(line)
-            // Handle comments if same-line condition is not appear or
-            // current row is not same as next row. So, we can move line comments
-            // to last statement of inline statements.
-            if len(lines)-j < 2 || rows[j] != rows[j+1] {
-                if n == 0 {
-                    max, n = self.getMax(lines[j:], rows[j:])
-                }
-                if n > 0 {
-                    self.popRowCommentsByF(row, -1, fn(c: &comment) {
-                        self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
-                        self.writeComment(c)
-                    })
-                    n--
-                }
-            }
-            self.write("\n")
-        }
-    }
+		n = 0
+		mut max := 0
+		for j, line in lines {
+			row := rows[j]
+			self.writeCommentsExcept(row)
+			self.buf.Write(line)
+			// Handle comments if same-line condition is not appear or
+			// current row is not same as next row. So, we can move line comments
+			// to last statement of inline statements.
+			if len(lines)-j < 2 || rows[j] != rows[j+1] {
+				if n == 0 {
+					max, n = self.getMax(lines[j:], rows[j:])
+				}
+				if n > 0 {
+					self.popRowCommentsByF(row, -1, fn(c: &comment) {
+						self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
+						self.writeComment(c)
+					})
+					n--
+				}
+			}
+			self.write("\n")
+		}
+	}
 
-    fn writeImplNodes[T](&self, mut &nodes: []T) {
-        self.write("\n")
-        mut j := 0
-        for j < len(nodes) {
-            self.groupDecls[T, T](nodes, j)
-            if j < len(nodes) {
-                self.write("\n")
-            }
-        }
-    }
+	fn writeImplNodes[T](&self, mut &nodes: []T) {
+		self.write("\n")
+		mut j := 0
+		for j < len(nodes) {
+			self.groupDecls[T, T](nodes, j)
+			if j < len(nodes) {
+				self.write("\n")
+			}
+		}
+	}
 
-    fn implDecl(&self, mut d: &ast::Impl) {
-        self.write("impl ")
-        if d.IsTraitImpl() {
-            self.formatType(d.Base)
-            self.write(" for ")
-        }
-        self.formatType(d.Dest)
-        if len(d.Methods) == 0 && len(d.Statics) == 0 {
-            self.write(" {}")
-            self.popRowComments(d.End.Row)
-            ret
-        }
+	fn implDecl(&self, mut d: &ast::Impl) {
+		self.write("impl ")
+		if d.IsTraitImpl() {
+			self.formatType(d.Base)
+			self.write(" for ")
+		}
+		self.formatType(d.Dest)
+		if len(d.Methods) == 0 && len(d.Statics) == 0 {
+			self.write(" {}")
+			self.popRowComments(d.End.Row)
+			ret
+		}
 
-        self.write(" {")
-        self.addIndent()
-        mut si, mut mi, mut statics, mut methods := 0, 0, -1, -1
-        for {
-            let mut s: &ast::VarDecl = nil
-            let mut m: &ast::FnDecl = nil
-            if si < len(d.Statics) {
-                s = d.Statics[si]
-            }
-            if mi < len(d.Methods) {
-                m = d.Methods[mi]
-            }
-            if s == nil && m == nil {
-                break
-            }
-            if s != nil && (m == nil || s.Token.Row < m.Token.Row) {
-                if statics == -1 {
-                    statics = si
-                    if methods != -1 {
-                        mut mtds := d.Methods[methods:mi]
-                        self.writeImplNodes[&ast::FnDecl](mtds)
-                    }
-                    methods = -1
-                }
-                si++
-                continue
-            }
-            if statics != -1 {
-                mut vars := d.Statics[statics:si]
-                self.writeImplNodes[&ast::VarDecl](vars)
-                statics = -1
-            }
-            if methods == -1 {
-                methods = mi
-            }
-            mi++
-        }
-        if statics != -1 {
-            mut vars := d.Statics[statics:si]
-            self.writeImplNodes[&ast::VarDecl](vars)
-        }
-        if methods != -1 {
-            mut mtds := d.Methods[methods:mi]
-            self.writeImplNodes[&ast::FnDecl](mtds)
-        }
-        self.addGlobalPaddingForComment(d.End.Row)
-        self.writeCommentsExcept(d.End.Row)
-        self.doneIndent()
-        self.write("}")
-        self.popRowComments(d.End.Row)
-    }
+		self.write(" {")
+		self.addIndent()
+		mut si, mut mi, mut statics, mut methods := 0, 0, -1, -1
+		for {
+			let mut s: &ast::VarDecl = nil
+			let mut m: &ast::FnDecl = nil
+			if si < len(d.Statics) {
+				s = d.Statics[si]
+			}
+			if mi < len(d.Methods) {
+				m = d.Methods[mi]
+			}
+			if s == nil && m == nil {
+				break
+			}
+			if s != nil && (m == nil || s.Token.Row < m.Token.Row) {
+				if statics == -1 {
+					statics = si
+					if methods != -1 {
+						mut mtds := d.Methods[methods:mi]
+						self.writeImplNodes[&ast::FnDecl](mtds)
+					}
+					methods = -1
+				}
+				si++
+				continue
+			}
+			if statics != -1 {
+				mut vars := d.Statics[statics:si]
+				self.writeImplNodes[&ast::VarDecl](vars)
+				statics = -1
+			}
+			if methods == -1 {
+				methods = mi
+			}
+			mi++
+		}
+		if statics != -1 {
+			mut vars := d.Statics[statics:si]
+			self.writeImplNodes[&ast::VarDecl](vars)
+		}
+		if methods != -1 {
+			mut mtds := d.Methods[methods:mi]
+			self.writeImplNodes[&ast::FnDecl](mtds)
+		}
+		self.addGlobalPaddingForComment(d.End.Row)
+		self.writeCommentsExcept(d.End.Row)
+		self.doneIndent()
+		self.write("}")
+		self.popRowComments(d.End.Row)
+	}
 
-    fn groupNode[T](&self, &node: ast::Node) {
-        mut row := node.Token.Row
-        const match type T {
-        | &ast::TypeAliasDecl:
-            break
-        |:
-            data := (T)(node.Data)
-            if len(data.Directives) > 0 {
-                row = data.Directives[0].Tag.Row
-            }
-        }
-        if row-self.writeCommentsExcept(row) > 1 {
-            self.write("\n")
-        }
-        self.groupDecls[T, ast::Node](self.f.Nodes, self.i)
-    }
+	fn groupNode[T](&self, &node: ast::Node) {
+		mut row := node.Token.Row
+		const match type T {
+		| &ast::TypeAliasDecl:
+			break
+		|:
+			data := (T)(node.Data)
+			if len(data.Directives) > 0 {
+				row = data.Directives[0].Tag.Row
+			}
+		}
+		if row-self.writeCommentsExcept(row) > 1 {
+			self.write("\n")
+		}
+		self.groupDecls[T, ast::Node](self.f.Nodes, self.i)
+	}
 
-    fn node(&self, mut &node: ast::Node) {
-        match type node.Data {
-        | &ast::TypeAliasDecl:
-            self.groupNode[&ast::TypeAliasDecl](node)
-            ret
-        | &ast::VarDecl:
-            self.groupNode[&ast::VarDecl](node)
-            ret
-        | &ast::FnDecl:
-            self.groupNode[&ast::FnDecl](node)
-            ret
-        | &ast::StructDecl:
-            self.structDecl((&ast::StructDecl)(node.Data))
-        }
-        mut commentExist := self.cm.find(node.Token.Row) != nil
-        if node.Token.Row-self.writeComments(node.Token.Row) > 1 {
-            self.write("\n")
-        }
-        match type node.Data {
-        | &ast::EnumDecl:
-            self.enumDecl[&ast::EnumDecl]((&ast::EnumDecl)(node.Data))
-        | &ast::TypeEnumDecl:
-            self.enumDecl[&ast::TypeEnumDecl]((&ast::TypeEnumDecl)(node.Data))
-        | &ast::TraitDecl:
-            self.traitDecl((&ast::TraitDecl)(node.Data))
-        | &ast::Impl:
-            mut imp := (&ast::Impl)(node.Data)
-            isGroupHeader := !commentExist && isEmptyImpl(imp)
-            self.implDecl(imp)
-            mut i := self.i
-            if !isGroupHeader {
-                ret
-            }
-            self.i++
-        lookup:
-            for self.i < len(self.f.Nodes); self.i++ {
-                node = self.f.Nodes[self.i]
-                match type node.Data {
-                | &ast::Impl:
-                    imp = (&ast::Impl)(node.Data)
-                    if !isEmptyImpl(imp) || self.cm.find(node.Token.Row) != nil {
-                        break lookup
-                    }
-                    self.write("\n")
-                    self.implDecl(imp)
-                |:
-                    break lookup
-                }
-            }
-            if self.i != i {
-                // Add newline to be removed by the [nodes] method.
-                self.write("\n")
-            }
-        }
-    }
+	fn node(&self, mut &node: ast::Node) {
+		match type node.Data {
+		| &ast::TypeAliasDecl:
+			self.groupNode[&ast::TypeAliasDecl](node)
+			ret
+		| &ast::VarDecl:
+			self.groupNode[&ast::VarDecl](node)
+			ret
+		| &ast::FnDecl:
+			self.groupNode[&ast::FnDecl](node)
+			ret
+		| &ast::StructDecl:
+			self.structDecl((&ast::StructDecl)(node.Data))
+		}
+		mut commentExist := self.cm.find(node.Token.Row) != nil
+		if node.Token.Row-self.writeComments(node.Token.Row) > 1 {
+			self.write("\n")
+		}
+		match type node.Data {
+		| &ast::EnumDecl:
+			self.enumDecl[&ast::EnumDecl]((&ast::EnumDecl)(node.Data))
+		| &ast::TypeEnumDecl:
+			self.enumDecl[&ast::TypeEnumDecl]((&ast::TypeEnumDecl)(node.Data))
+		| &ast::TraitDecl:
+			self.traitDecl((&ast::TraitDecl)(node.Data))
+		| &ast::Impl:
+			mut imp := (&ast::Impl)(node.Data)
+			isGroupHeader := !commentExist && isEmptyImpl(imp)
+			self.implDecl(imp)
+			mut i := self.i
+			if !isGroupHeader {
+				ret
+			}
+			self.i++
+		lookup:
+			for self.i < len(self.f.Nodes); self.i++ {
+				node = self.f.Nodes[self.i]
+				match type node.Data {
+				| &ast::Impl:
+					imp = (&ast::Impl)(node.Data)
+					if !isEmptyImpl(imp) || self.cm.find(node.Token.Row) != nil {
+						break lookup
+					}
+					self.write("\n")
+					self.implDecl(imp)
+				|:
+					break lookup
+				}
+			}
+			if self.i != i {
+				// Add newline to be removed by the [nodes] method.
+				self.write("\n")
+			}
+		}
+	}
 
-    fn nodes(&self) {
-        self.i = 0
-        self.row = 0
-        for self.i < len(self.f.Nodes); self.i++ {
-            mut node := self.f.Nodes[self.i]
-            old := self.i
-            self.write("\n\n")
-            self.node(node)
-            if old != self.i {
-                self.i--
-                self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
-            }
-        }
-        self.writeRemainingComments()
-    }
+	fn nodes(&self) {
+		self.i = 0
+		self.row = 0
+		for self.i < len(self.f.Nodes); self.i++ {
+			mut node := self.f.Nodes[self.i]
+			old := self.i
+			self.write("\n\n")
+			self.node(node)
+			if old != self.i {
+				self.i--
+				self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
+			}
+		}
+		self.writeRemainingComments()
+	}
 
-    fn format(&self, mut &f: &Ast, mut &cm: commentMap): []byte {
-        self.cm = cm
-        self.f = f
-        self.directives(self.f.TopDirectives)
-        if len(self.f.TopDirectives) > 0 {
-            self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
-        }
-        self.useDecls()
-        self.nodes()
-        self.f = nil
-        ret bytes::Trim(self.ubuf(), []byte(" \n\r\v\t"))
-    }
+	fn format(&self, mut &f: &Ast, mut &cm: commentMap): []byte {
+		self.cm = cm
+		self.f = f
+		self.directives(self.f.TopDirectives)
+		if len(self.f.TopDirectives) > 0 {
+			self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
+		}
+		self.useDecls()
+		self.nodes()
+		self.f = nil
+		ret bytes::Trim(self.ubuf(), []byte(" \n\r\v\t"))
+	}
 }
 
 struct typeFormatter {
-    mut fmt: &formatter
+	mut fmt: &formatter
 }
 
 impl typeFormatter {
-    fn write(self, s: str) {
-        self.fmt.buf.WriteStr(s)
-    }
+	fn write(self, s: str) {
+		self.fmt.buf.WriteStr(s)
+	}
 
-    fn generics(self, mut g: []&ast::TypeDecl) {
-        if len(g) == 0 {
-            ret
-        }
-        self.write("[")
-        for (i, mut t) in g {
-            self.format(t.Kind)
-            if i+1 < len(g) {
-                self.write(", ")
-            }
-        }
-        self.write("]")
-    }
+	fn generics(self, mut g: []&ast::TypeDecl) {
+		if len(g) == 0 {
+			ret
+		}
+		self.write("[")
+		for (i, mut t) in g {
+			self.format(t.Kind)
+			if i+1 < len(g) {
+				self.write(", ")
+			}
+		}
+		self.write("]")
+	}
 
-    fn ident(self, mut id: &ast::IdentTypeDecl) {
-        if id.Binded {
-            self.write("cpp.")
-        }
-        self.write(id.Ident)
-        self.generics(id.Generics)
-    }
+	fn ident(self, mut id: &ast::IdentTypeDecl) {
+		if id.Binded {
+			self.write("cpp.")
+		}
+		self.write(id.Ident)
+		self.generics(id.Generics)
+	}
 
-    fn subIdent(self, mut id: &ast::SubIdentTypeDecl) {
-        for i, ident in id.Idents {
-            self.write(ident.Ident)
-            if len(id.Idents)-i > 1 {
-                self.write(".")
-            }
-        }
-    }
+	fn subIdent(self, mut id: &ast::SubIdentTypeDecl) {
+		for i, ident in id.Idents {
+			self.write(ident.Ident)
+			if len(id.Idents)-i > 1 {
+				self.write(".")
+			}
+		}
+	}
 
-    fn namespace(self, mut ns: &ast::NamespaceTypeDecl) {
-        for _, id in ns.Idents {
-            self.write(id.Kind)
-            self.write("::")
-        }
-        self.format(ns.Kind.Kind)
-    }
+	fn namespace(self, mut ns: &ast::NamespaceTypeDecl) {
+		for _, id in ns.Idents {
+			self.write(id.Kind)
+			self.write("::")
+		}
+		self.format(ns.Kind.Kind)
+	}
 
-    fn sptr(self, mut sptr: &ast::SptrTypeDecl) {
-        self.write("&")
-        self.format(sptr.Elem.Kind)
-    }
+	fn sptr(self, mut sptr: &ast::SptrTypeDecl) {
+		self.write("&")
+		self.format(sptr.Elem.Kind)
+	}
 
-    fn slc(self, mut slc: &ast::SlcTypeDecl) {
-        self.write("[]")
-        self.format(slc.Elem.Kind)
-    }
+	fn slc(self, mut slc: &ast::SlcTypeDecl) {
+		self.write("[]")
+		self.format(slc.Elem.Kind)
+	}
 
-    fn ptr(self, mut ptr: &ast::PtrTypeDecl) {
-        self.write("*")
-        if ptr.IsUnsafe() {
-            self.write("unsafe")
-            ret
-        }
-        self.format(ptr.Elem.Kind)
-    }
+	fn ptr(self, mut ptr: &ast::PtrTypeDecl) {
+		self.write("*")
+		if ptr.IsUnsafe() {
+			self.write("unsafe")
+			ret
+		}
+		self.format(ptr.Elem.Kind)
+	}
 
-    fn arr(self, mut arr: &ast::ArrTypeDecl) {
-        self.write("[")
-        if arr.AutoSized() {
-            self.write("...")
-        } else {
-            self.fmt.formatExpr(arr.Size)
-        }
-        self.write("]")
-        self.format(arr.Elem.Kind)
-    }
+	fn arr(self, mut arr: &ast::ArrTypeDecl) {
+		self.write("[")
+		if arr.AutoSized() {
+			self.write("...")
+		} else {
+			self.fmt.formatExpr(arr.Size)
+		}
+		self.write("]")
+		self.format(arr.Elem.Kind)
+	}
 
-    fn mapType(self, mut m: &ast::MapTypeDecl) {
-        self.write("map[")
-        self.format(m.Key.Kind)
-        self.write("]")
-        self.format(m.Val.Kind)
-    }
+	fn mapType(self, mut m: &ast::MapTypeDecl) {
+		self.write("map[")
+		self.format(m.Key.Kind)
+		self.write("]")
+		self.format(m.Val.Kind)
+	}
 
-    fn result(self, mut r: &ast::RetTypeDecl) {
-        if len(r.Idents) == 0 {
-            self.format(r.Kind.Kind)
-            ret
-        }
-        if len(r.Idents) == 1 {
-            if lex::IsAnonIdent(r.Idents[0].Kind) {
-                self.format(r.Kind.Kind)
-                ret
-            }
-            self.write("(")
-            self.write(r.Idents[0].Kind)
-            self.write(": ")
-            self.format(r.Kind.Kind)
-            self.write(")")
-            ret
-        }
-        mut types := (&ast::TupleTypeDecl)(r.Kind.Kind).Types
-        self.write("(")
-        for (i, mut t) in types {
-            ident := r.Idents[i]
-            if lex::IsAnonIdent(ident.Kind) {
-                self.format(t.Kind)
-            } else {
-                self.write(ident.Kind)
-                self.write(": ")
-                self.format(t.Kind)
-            }
-            if len(types)-i > 1 {
-                self.write(", ")
-            }
-        }
-        self.write(")")
-    }
+	fn result(self, mut r: &ast::RetTypeDecl) {
+		if len(r.Idents) == 0 {
+			self.format(r.Kind.Kind)
+			ret
+		}
+		if len(r.Idents) == 1 {
+			if lex::IsAnonIdent(r.Idents[0].Kind) {
+				self.format(r.Kind.Kind)
+				ret
+			}
+			self.write("(")
+			self.write(r.Idents[0].Kind)
+			self.write(": ")
+			self.format(r.Kind.Kind)
+			self.write(")")
+			ret
+		}
+		mut types := (&ast::TupleTypeDecl)(r.Kind.Kind).Types
+		self.write("(")
+		for (i, mut t) in types {
+			ident := r.Idents[i]
+			if lex::IsAnonIdent(ident.Kind) {
+				self.format(t.Kind)
+			} else {
+				self.write(ident.Kind)
+				self.write(": ")
+				self.format(t.Kind)
+			}
+			if len(types)-i > 1 {
+				self.write(", ")
+			}
+		}
+		self.write(")")
+	}
 
-    fn format(self, mut &kind: ast::TypeDeclKind) {
-        match type kind {
-        | &ast::IdentTypeDecl:
-            self.ident((&ast::IdentTypeDecl)(kind))
-        | &ast::SubIdentTypeDecl:
-            self.subIdent((&ast::SubIdentTypeDecl)(kind))
-        | &ast::NamespaceTypeDecl:
-            self.namespace((&ast::NamespaceTypeDecl)(kind))
-        | &ast::SptrTypeDecl:
-            self.sptr((&ast::SptrTypeDecl)(kind))
-        | &ast::SlcTypeDecl:
-            self.slc((&ast::SlcTypeDecl)(kind))
-        | &ast::PtrTypeDecl:
-            self.ptr((&ast::PtrTypeDecl)(kind))
-        | &ast::ArrTypeDecl:
-            self.arr((&ast::ArrTypeDecl)(kind))
-        | &ast::MapTypeDecl:
-            self.mapType((&ast::MapTypeDecl)(kind))
-        | &ast::FnDecl:
-            self.fmt.fnDecl((&ast::FnDecl)(kind))
-        }
-    }
+	fn format(self, mut &kind: ast::TypeDeclKind) {
+		match type kind {
+		| &ast::IdentTypeDecl:
+			self.ident((&ast::IdentTypeDecl)(kind))
+		| &ast::SubIdentTypeDecl:
+			self.subIdent((&ast::SubIdentTypeDecl)(kind))
+		| &ast::NamespaceTypeDecl:
+			self.namespace((&ast::NamespaceTypeDecl)(kind))
+		| &ast::SptrTypeDecl:
+			self.sptr((&ast::SptrTypeDecl)(kind))
+		| &ast::SlcTypeDecl:
+			self.slc((&ast::SlcTypeDecl)(kind))
+		| &ast::PtrTypeDecl:
+			self.ptr((&ast::PtrTypeDecl)(kind))
+		| &ast::ArrTypeDecl:
+			self.arr((&ast::ArrTypeDecl)(kind))
+		| &ast::MapTypeDecl:
+			self.mapType((&ast::MapTypeDecl)(kind))
+		| &ast::FnDecl:
+			self.fmt.fnDecl((&ast::FnDecl)(kind))
+		}
+	}
 }
 
 struct scopeFormatter {
-    mut fmt: &formatter
+	mut fmt: &formatter
 }
 
 impl scopeFormatter {
-    fn write(&self, s: str) {
-        self.fmt.buf.WriteStr(s)
-    }
+	fn write(&self, s: str) {
+		self.fmt.buf.WriteStr(s)
+	}
 
-    fn usexpr(&self, mut u: &ast::UseExpr) {
-        self.write("use ")
-        self.fmt.formatExpr(u.Expr)
-    }
+	fn usexpr(&self, mut u: &ast::UseExpr) {
+		self.write("use ")
+		self.fmt.formatExpr(u.Expr)
+	}
 
-    fn label(&self, l: &ast::LabelSt) {
-        // Remove one indentation.
-        self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-self.fmt.indentLen])
-        self.write(l.Ident)
-        self.write(":")
-    }
+	fn label(&self, l: &ast::LabelSt) {
+		// Remove one indentation.
+		self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-self.fmt.indentLen])
+		self.write(l.Ident)
+		self.write(":")
+	}
 
-    fn gotoSt(&self, g: &ast::GotoSt) {
-        self.write("goto ")
-        self.write(g.Label.Kind)
-    }
+	fn gotoSt(&self, g: &ast::GotoSt) {
+		self.write("goto ")
+		self.write(g.Label.Kind)
+	}
 
-    fn fallSt(&self, fll: &ast::FallSt) {
-        self.write("fall")
-    }
+	fn fallSt(&self, fll: &ast::FallSt) {
+		self.write("fall")
+	}
 
-    fn contSt(&self, cont: &ast::ContSt) {
-        self.write("continue")
-        if cont.Label != nil {
-            self.write(" ")
-            self.write(cont.Label.Kind)
-        }
-    }
+	fn contSt(&self, cont: &ast::ContSt) {
+		self.write("continue")
+		if cont.Label != nil {
+			self.write(" ")
+			self.write(cont.Label.Kind)
+		}
+	}
 
-    fn breakSt(&self, brk: &ast::BreakSt) {
-        self.write("break")
-        if brk.Label != nil {
-            self.write(" ")
-            self.write(brk.Label.Kind)
-        }
-    }
+	fn breakSt(&self, brk: &ast::BreakSt) {
+		self.write("break")
+		if brk.Label != nil {
+			self.write(" ")
+			self.write(brk.Label.Kind)
+		}
+	}
 
-    fn retSt(&self, mut r: &ast::RetSt) {
-        self.write("ret")
-        if r.Expr != nil {
-            self.write(" ")
-            self.fmt.formatExpr(r.Expr)
-        }
-    }
+	fn retSt(&self, mut r: &ast::RetSt) {
+		self.write("ret")
+		if r.Expr != nil {
+			self.write(" ")
+			self.fmt.formatExpr(r.Expr)
+		}
+	}
 
-    fn iter(&self, mut it: &ast::Iter) {
-        if it.Comptime {
-            self.write("const ")
-        }
-        self.write("for ")
-        if !it.IsInf() {
-            match type it.Kind {
-            | &ast::WhileKind:
-                mut wk := (&ast::WhileKind)(it.Kind)
-                if wk.Expr != nil {
-                    self.fmt.popRowCommentsByC(wk.Expr.Token.Row, wk.Expr.Token.Column)
-                    self.fmt.formatExpr(wk.Expr)
-                }
-                if wk.Next != nil {
-                    self.write("; ")
-                    self.formatStmt(wk.Next)
-                }
-                self.write(" ")
-            | &ast::RangeKind:
-                mut rk := (&ast::RangeKind)(it.Kind)
-                p := (rk.KeyA != nil && rk.KeyA.Mutable) || (rk.KeyB != nil && rk.KeyB.Mutable)
-                if p {
-                    self.write("(")
-                }
-                if rk.KeyA != nil {
-                    self.fmt.popRowCommentsByC(rk.KeyA.Token.Row, rk.KeyA.Token.Column)
-                    if rk.KeyA.Mutable {
-                        self.write("mut ")
-                    }
-                    self.write(rk.KeyA.Ident)
-                }
-                if rk.KeyB != nil {
-                    self.write(", ")
-                    self.fmt.popRowCommentsByC(rk.KeyB.Token.Row, rk.KeyB.Token.Column)
-                    if rk.KeyB.Mutable {
-                        self.write("mut ")
-                    }
-                    self.write(rk.KeyB.Ident)
-                }
-                if p {
-                    self.write(") ")
-                } else if rk.KeyA != nil || rk.KeyB != nil {
-                    self.write(" ")
-                }
-                self.fmt.popRowCommentsByC(rk.InToken.Row, rk.InToken.Column)
-                self.write("in ")
-                self.fmt.popRowCommentsByC(rk.Expr.Token.Row, rk.Expr.Token.Column)
-                self.fmt.formatExpr(rk.Expr)
-                self.write(" ")
-            }
-        }
-        self.format(it.Scope)
-    }
+	fn iter(&self, mut it: &ast::Iter) {
+		if it.Comptime {
+			self.write("const ")
+		}
+		self.write("for ")
+		if !it.IsInf() {
+			match type it.Kind {
+			| &ast::WhileKind:
+				mut wk := (&ast::WhileKind)(it.Kind)
+				if wk.Expr != nil {
+					self.fmt.popRowCommentsByC(wk.Expr.Token.Row, wk.Expr.Token.Column)
+					self.fmt.formatExpr(wk.Expr)
+				}
+				if wk.Next != nil {
+					self.write("; ")
+					self.formatStmt(wk.Next)
+				}
+				self.write(" ")
+			| &ast::RangeKind:
+				mut rk := (&ast::RangeKind)(it.Kind)
+				p := (rk.KeyA != nil && rk.KeyA.Mutable) || (rk.KeyB != nil && rk.KeyB.Mutable)
+				if p {
+					self.write("(")
+				}
+				if rk.KeyA != nil {
+					self.fmt.popRowCommentsByC(rk.KeyA.Token.Row, rk.KeyA.Token.Column)
+					if rk.KeyA.Mutable {
+						self.write("mut ")
+					}
+					self.write(rk.KeyA.Ident)
+				}
+				if rk.KeyB != nil {
+					self.write(", ")
+					self.fmt.popRowCommentsByC(rk.KeyB.Token.Row, rk.KeyB.Token.Column)
+					if rk.KeyB.Mutable {
+						self.write("mut ")
+					}
+					self.write(rk.KeyB.Ident)
+				}
+				if p {
+					self.write(") ")
+				} else if rk.KeyA != nil || rk.KeyB != nil {
+					self.write(" ")
+				}
+				self.fmt.popRowCommentsByC(rk.InToken.Row, rk.InToken.Column)
+				self.write("in ")
+				self.fmt.popRowCommentsByC(rk.Expr.Token.Row, rk.Expr.Token.Column)
+				self.fmt.formatExpr(rk.Expr)
+				self.write(" ")
+			}
+		}
+		self.format(it.Scope)
+	}
 
-    fn conditionalCase(&self, mut c: &ast::If) {
-        self.write("if ")
-        self.fmt.popRowCommentsByC(c.Expr.Token.Row, c.Expr.Token.Column)
-        self.fmt.formatExpr(c.Expr)
-        self.write(" {")
-        self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
-            self.write(" ")
-            self.fmt.writeComment(c)
-        })
-        self.write("\n")
-        self.fmt.addIndent()
-        self.formatStmts(c.Scope, false)
-        self.fmt.doneIndent()
-        self.fmt.buf.Write(self.fmt.indent)
-        self.write("}")
-    }
+	fn conditionalCase(&self, mut c: &ast::If) {
+		self.write("if ")
+		self.fmt.popRowCommentsByC(c.Expr.Token.Row, c.Expr.Token.Column)
+		self.fmt.formatExpr(c.Expr)
+		self.write(" {")
+		self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
+			self.write(" ")
+			self.fmt.writeComment(c)
+		})
+		self.write("\n")
+		self.fmt.addIndent()
+		self.formatStmts(c.Scope, false)
+		self.fmt.doneIndent()
+		self.fmt.buf.Write(self.fmt.indent)
+		self.write("}")
+	}
 
-    fn conditional(&self, mut c: &ast::Conditional) {
-        self.conditionalCase(c.Head)
-        for (_, mut t) in c.Tail {
-            self.write(" ")
-            self.fmt.popRowCommentsByC(t.Expr.Token.Row, t.Expr.Token.Column)
-            self.write("else ")
-            self.conditionalCase(t)
-        }
-        if c.Default != nil {
-            self.write(" ")
-            self.fmt.popRowCommentsByC(c.Default.Token.Row, c.Default.Token.Column)
-            self.write("else {")
-            self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
-                self.write(" ")
-                self.fmt.writeComment(c)
-            })
-            self.write("\n")
-            self.fmt.addIndent()
-            self.formatStmts(c.Default.Scope, false)
-            self.fmt.doneIndent()
-            self.fmt.buf.Write(self.fmt.indent)
-            self.write("}")
-        }
-    }
+	fn conditional(&self, mut c: &ast::Conditional) {
+		self.conditionalCase(c.Head)
+		for (_, mut t) in c.Tail {
+			self.write(" ")
+			self.fmt.popRowCommentsByC(t.Expr.Token.Row, t.Expr.Token.Column)
+			self.write("else ")
+			self.conditionalCase(t)
+		}
+		if c.Default != nil {
+			self.write(" ")
+			self.fmt.popRowCommentsByC(c.Default.Token.Row, c.Default.Token.Column)
+			self.write("else {")
+			self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
+				self.write(" ")
+				self.fmt.writeComment(c)
+			})
+			self.write("\n")
+			self.fmt.addIndent()
+			self.formatStmts(c.Default.Scope, false)
+			self.fmt.doneIndent()
+			self.fmt.buf.Write(self.fmt.indent)
+			self.write("}")
+		}
+	}
 
-    fn matchCase(&self, mut mc: &ast::MatchCase) {
-        if mc.Comptime {
-            self.write("const ")
-        }
-        self.write("match ")
-        if mc.TypeMatch {
-            self.write("type ")
-        }
-        if mc.Expr != nil {
-            self.fmt.popRowCommentsByC(mc.Expr.Token.Row, mc.Expr.Token.Column)
-            self.fmt.formatExpr(mc.Expr)
-            self.write(" ")
-        }
-        self.write("{\n")
-        for (_, mut c) in mc.Cases {
-            mut row := c.Exprs[0].Token.Row
-            for (i, mut expr) in c.Exprs {
-                if row != expr.Token.Row {
-                    self.fmt.popRowComments(row)
-                }
-                self.fmt.writeCommentsExcept(expr.Token.Row)
-                if row != expr.Token.Row {
-                    self.write("\n")
-                    self.fmt.buf.Write(self.fmt.indent)
-                } else if i == 0 {
-                    self.fmt.buf.Write(self.fmt.indent)
-                } else if i > 0 {
-                    self.write(" ")
-                }
-                row = expr.Token.Row
-                self.write("| ")
-                self.fmt.formatExpr(expr)
-            }
-            self.write(":")
-            self.fmt.popRowComments(self.fmt.row)
-            self.write("\n")
-            self.fmt.addIndent()
-            self.formatStmts(c.Scope, false)
-            self.fmt.doneIndent()
-        }
-        if mc.Default != nil {
-            self.fmt.buf.Write(self.fmt.indent)
-            self.write("|:\n")
-            self.fmt.addIndent()
-            self.formatStmts(mc.Default.Scope, false)
-            self.fmt.doneIndent()
-        }
-        self.fmt.writeCommentsExcept(mc.End.Row)
-        self.fmt.buf.Write(self.fmt.indent)
-        self.fmt.row = mc.End.Row
-        self.write("}")
-    }
+	fn matchCase(&self, mut mc: &ast::MatchCase) {
+		if mc.Comptime {
+			self.write("const ")
+		}
+		self.write("match ")
+		if mc.TypeMatch {
+			self.write("type ")
+		}
+		if mc.Expr != nil {
+			self.fmt.popRowCommentsByC(mc.Expr.Token.Row, mc.Expr.Token.Column)
+			self.fmt.formatExpr(mc.Expr)
+			self.write(" ")
+		}
+		self.write("{\n")
+		for (_, mut c) in mc.Cases {
+			mut row := c.Exprs[0].Token.Row
+			for (i, mut expr) in c.Exprs {
+				if row != expr.Token.Row {
+					self.fmt.popRowComments(row)
+				}
+				self.fmt.writeCommentsExcept(expr.Token.Row)
+				if row != expr.Token.Row {
+					self.write("\n")
+					self.fmt.buf.Write(self.fmt.indent)
+				} else if i == 0 {
+					self.fmt.buf.Write(self.fmt.indent)
+				} else if i > 0 {
+					self.write(" ")
+				}
+				row = expr.Token.Row
+				self.write("| ")
+				self.fmt.formatExpr(expr)
+			}
+			self.write(":")
+			self.fmt.popRowComments(self.fmt.row)
+			self.write("\n")
+			self.fmt.addIndent()
+			self.formatStmts(c.Scope, false)
+			self.fmt.doneIndent()
+		}
+		if mc.Default != nil {
+			self.fmt.buf.Write(self.fmt.indent)
+			self.write("|:\n")
+			self.fmt.addIndent()
+			self.formatStmts(mc.Default.Scope, false)
+			self.fmt.doneIndent()
+		}
+		self.fmt.writeCommentsExcept(mc.End.Row)
+		self.fmt.buf.Write(self.fmt.indent)
+		self.fmt.row = mc.End.Row
+		self.write("}")
+	}
 
-    fn postfix(&self, mut &a: &ast::AssignSt) {
-        mut expr := a.Left[0].Expr
-        self.fmt.formatExpr(expr)
-        self.write(a.Setter.Kind)
-    }
+	fn postfix(&self, mut &a: &ast::AssignSt) {
+		mut expr := a.Left[0].Expr
+		self.fmt.formatExpr(expr)
+		self.write(a.Setter.Kind)
+	}
 
-    fn singleAssign(&self, mut &a: &ast::AssignSt) {
-        if lex::IsIgnoreIdent(a.Left[0].Ident) {
-            self.write("_ ")
-        } else {
-            mut expr := a.Left[0].Expr
-            self.fmt.formatExpr(expr)
-            self.write(" ")
-        }
-        self.write(a.Setter.Kind)
-        self.write(" ")
-        self.fmt.formatExpr(a.Right)
-    }
+	fn singleAssign(&self, mut &a: &ast::AssignSt) {
+		if lex::IsIgnoreIdent(a.Left[0].Ident) {
+			self.write("_ ")
+		} else {
+			mut expr := a.Left[0].Expr
+			self.fmt.formatExpr(expr)
+			self.write(" ")
+		}
+		self.write(a.Setter.Kind)
+		self.write(" ")
+		self.fmt.formatExpr(a.Right)
+	}
 
-    fn multiAssign(&self, mut &a: &ast::AssignSt) {
-        letKwUsed := a.Setter.Kind == TokenKind.Eq
-        if a.Declarative && letKwUsed {
-            self.write("let (")
-        }
-        for (i, mut l) in a.Left {
-            if l.Ident != "" {
-                if l.Mutable {
-                    self.write("mut ")
-                }
-                if l.Reference {
-                    self.write("&")
-                }
-            }
-            // Do not write range parentheses for expression parts.
-            // Expression formatter will add.
-            self.fmt.formatExpr(l.Expr)
-            if len(a.Left)-i > 1 {
-                self.write(", ")
-            }
-        }
-        if a.Declarative {
-            if letKwUsed {
-                self.write(") = ")
-            } else {
-                self.write(" := ")
-            }
-        } else {
-            self.write(" = ")
-        }
-        self.fmt.formatExpr(a.Right)
-    }
+	fn multiAssign(&self, mut &a: &ast::AssignSt) {
+		letKwUsed := a.Setter.Kind == TokenKind.Eq
+		if a.Declarative && letKwUsed {
+			self.write("let (")
+		}
+		for (i, mut l) in a.Left {
+			if l.Ident != "" {
+				if l.Mutable {
+					self.write("mut ")
+				}
+				if l.Reference {
+					self.write("&")
+				}
+			}
+			// Do not write range parentheses for expression parts.
+			// Expression formatter will add.
+			self.fmt.formatExpr(l.Expr)
+			if len(a.Left)-i > 1 {
+				self.write(", ")
+			}
+		}
+		if a.Declarative {
+			if letKwUsed {
+				self.write(") = ")
+			} else {
+				self.write(" := ")
+			}
+		} else {
+			self.write(" = ")
+		}
+		self.fmt.formatExpr(a.Right)
+	}
 
-    fn assign(&self, mut a: &ast::AssignSt) {
-        match {
-        | lex::IsPostfixOp(a.Setter.Id):
-            self.postfix(a)
-        | len(a.Left) == 1 && !a.Declarative:
-            self.singleAssign(a)
-        |:
-            self.multiAssign(a)
-        }
-    }
+	fn assign(&self, mut a: &ast::AssignSt) {
+		match {
+		| lex::IsPostfixOp(a.Setter.Id):
+			self.postfix(a)
+		| len(a.Left) == 1 && !a.Declarative:
+			self.singleAssign(a)
+		|:
+			self.multiAssign(a)
+		}
+	}
 
-    fn formatStmt(&self, mut &stmt: ast::StmtData) {
-        match type stmt {
-        | &ast::ScopeTree:
-            self.format((&ast::ScopeTree)(stmt))
-        | &ast::Expr:
-            mut expr := (&ast::Expr)(stmt)
-            self.fmt.formatExpr(expr)
-        | &ast::LabelSt:
-            self.label((&ast::LabelSt)(stmt))
-        | &ast::GotoSt:
-            self.gotoSt((&ast::GotoSt)(stmt))
-        | &ast::UseExpr:
-            self.usexpr((&ast::UseExpr)(stmt))
-        | &ast::FallSt:
-            self.fallSt((&ast::FallSt)(stmt))
-        | &ast::ContSt:
-            self.contSt((&ast::ContSt)(stmt))
-        | &ast::BreakSt:
-            self.breakSt((&ast::BreakSt)(stmt))
-        | &ast::RetSt:
-            self.retSt((&ast::RetSt)(stmt))
-        | &ast::Iter:
-            self.iter((&ast::Iter)(stmt))
-        | &ast::Conditional:
-            self.conditional((&ast::Conditional)(stmt))
-        | &ast::MatchCase:
-            self.matchCase((&ast::MatchCase)(stmt))
-        | &ast::AssignSt:
-            self.assign((&ast::AssignSt)(stmt))
-        }
-    }
+	fn formatStmt(&self, mut &stmt: ast::StmtData) {
+		match type stmt {
+		| &ast::ScopeTree:
+			self.format((&ast::ScopeTree)(stmt))
+		| &ast::Expr:
+			mut expr := (&ast::Expr)(stmt)
+			self.fmt.formatExpr(expr)
+		| &ast::LabelSt:
+			self.label((&ast::LabelSt)(stmt))
+		| &ast::GotoSt:
+			self.gotoSt((&ast::GotoSt)(stmt))
+		| &ast::UseExpr:
+			self.usexpr((&ast::UseExpr)(stmt))
+		| &ast::FallSt:
+			self.fallSt((&ast::FallSt)(stmt))
+		| &ast::ContSt:
+			self.contSt((&ast::ContSt)(stmt))
+		| &ast::BreakSt:
+			self.breakSt((&ast::BreakSt)(stmt))
+		| &ast::RetSt:
+			self.retSt((&ast::RetSt)(stmt))
+		| &ast::Iter:
+			self.iter((&ast::Iter)(stmt))
+		| &ast::Conditional:
+			self.conditional((&ast::Conditional)(stmt))
+		| &ast::MatchCase:
+			self.matchCase((&ast::MatchCase)(stmt))
+		| &ast::AssignSt:
+			self.assign((&ast::AssignSt)(stmt))
+		}
+	}
 
-    fn formatStmts(&self, mut &scope: &ast::ScopeTree, inline: bool) {
-        defer {
-            self.fmt.row = scope.End.Row
-        }
-        if len(scope.Stmts) == 0 {
-            self.fmt.writeCommentsExcept(scope.End.Row)
-            ret
-        }
-        mut i := 0
-        self.fmt.row = scope.Stmts[0].Token.Row
-        mut z := i
-        for i < len(scope.Stmts); i++ {
-            mut stmt := scope.Stmts[i]
-            if i > 0 {
-                self.write("\n")
-            }
-            z = self.fmt.row
-            self.fmt.addGlobalPaddingForComment(stmt.Token.Row - 1) // Use -1 row for avoid inline comments.
-            self.fmt.row = self.fmt.writeCommentsExcept(stmt.Token.Row)
-            if stmt.Token.Row-self.fmt.row == 0 {
-                self.fmt.row = z
-            }
-            if stmt.Token.Row-self.fmt.row > 1 {
-                self.write("\n")
-            }
-            z = i
-            self.fmt.row = stmt.Token.Row
-            match type stmt.Data {
-            | &ast::TypeAliasDecl:
-                self.fmt.groupDecls[&ast::TypeAliasDecl, ast::Stmt](scope.Stmts, i)
-            | &ast::VarDecl:
-                self.fmt.groupDecls[&ast::VarDecl, ast::Stmt](scope.Stmts, i)
-            |:
-                if !inline {
-                    self.fmt.buf.Write(self.fmt.indent)
-                }
-                self.formatStmt(stmt.Data)
-                self.fmt.popRowComments(self.fmt.row)
-            }
-            if z != i {
-                i--
-                self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-1])
-            }
-        }
-        i = self.fmt.buf.Len() - 1
-        for i >= 0; i-- {
-            if self.fmt.ubuf()[i] != '\n' {
-                self.fmt.setBuf(self.fmt.ubuf()[:i+1])
-                self.write("\n")
-                break
-            }
-        }
+	fn formatStmts(&self, mut &scope: &ast::ScopeTree, inline: bool) {
+		defer {
+			self.fmt.row = scope.End.Row
+		}
+		if len(scope.Stmts) == 0 {
+			self.fmt.writeCommentsExcept(scope.End.Row)
+			ret
+		}
+		mut i := 0
+		self.fmt.row = scope.Stmts[0].Token.Row
+		mut z := i
+		for i < len(scope.Stmts); i++ {
+			mut stmt := scope.Stmts[i]
+			if i > 0 {
+				self.write("\n")
+			}
+			z = self.fmt.row
+			self.fmt.addGlobalPaddingForComment(stmt.Token.Row - 1) // Use -1 row for avoid inline comments.
+			self.fmt.row = self.fmt.writeCommentsExcept(stmt.Token.Row)
+			if stmt.Token.Row-self.fmt.row == 0 {
+				self.fmt.row = z
+			}
+			if stmt.Token.Row-self.fmt.row > 1 {
+				self.write("\n")
+			}
+			z = i
+			self.fmt.row = stmt.Token.Row
+			match type stmt.Data {
+			| &ast::TypeAliasDecl:
+				self.fmt.groupDecls[&ast::TypeAliasDecl, ast::Stmt](scope.Stmts, i)
+			| &ast::VarDecl:
+				self.fmt.groupDecls[&ast::VarDecl, ast::Stmt](scope.Stmts, i)
+			|:
+				if !inline {
+					self.fmt.buf.Write(self.fmt.indent)
+				}
+				self.formatStmt(stmt.Data)
+				self.fmt.popRowComments(self.fmt.row)
+			}
+			if z != i {
+				i--
+				self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-1])
+			}
+		}
+		i = self.fmt.buf.Len() - 1
+		for i >= 0; i-- {
+			if self.fmt.ubuf()[i] != '\n' {
+				self.fmt.setBuf(self.fmt.ubuf()[:i+1])
+				self.write("\n")
+				break
+			}
+		}
 
-        self.fmt.writeCommentsExcept(scope.End.Row)
-    }
+		self.fmt.writeCommentsExcept(scope.End.Row)
+	}
 
-    fn format(&self, mut scope: &ast::ScopeTree) {
-        if scope.Unsafety {
-            self.write("unsafe ")
-        }
-        if scope.Deferred {
-            self.write("defer ")
-        }
-        self.write("{")
-        n := self.fmt.buf.Len()
-        comment := false
-        mut commentPtr := unsafe { (&bool)(&comment) }
-        self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
-            self.write(" ")
-            self.fmt.writeComment(c)
-            *commentPtr = true
-        })
-        inline := (len(scope.Stmts) == 0 && !*commentPtr) ||
-            (len(scope.Stmts) == 1 &&
-                self.fmt.row == scope.End.Row &&
-                scope.Stmts[0].Token.Row == scope.End.Row)
-        if inline {
-            if len(scope.Stmts) > 0 {
-                self.write(" ")
-            }
-        } else {
-            self.write("\n")
-            self.fmt.addIndent()
-        }
-        self.formatStmts(scope, inline)
-        if !inline {
-            self.fmt.doneIndent()
-        }
-        if inline {
-            if len(scope.Stmts) > 0 {
-                self.fmt.ubuf()[self.fmt.buf.Len()-1] = ' '
-            }
-        } else if n == self.fmt.buf.Len() {
-            self.fmt.setBuf(self.fmt.ubuf()[:n-1])
-        } else {
-            self.fmt.buf.Write(self.fmt.indent)
-        }
-        self.write("}")
-        self.fmt.popRowComments(scope.End.Row)
-    }
+	fn format(&self, mut scope: &ast::ScopeTree) {
+		if scope.Unsafety {
+			self.write("unsafe ")
+		}
+		if scope.Deferred {
+			self.write("defer ")
+		}
+		self.write("{")
+		n := self.fmt.buf.Len()
+		comment := false
+		mut commentPtr := unsafe { (&bool)(&comment) }
+		self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
+			self.write(" ")
+			self.fmt.writeComment(c)
+			*commentPtr = true
+		})
+		inline := (len(scope.Stmts) == 0 && !*commentPtr) ||
+			(len(scope.Stmts) == 1 &&
+				self.fmt.row == scope.End.Row &&
+				scope.Stmts[0].Token.Row == scope.End.Row)
+		if inline {
+			if len(scope.Stmts) > 0 {
+				self.write(" ")
+			}
+		} else {
+			self.write("\n")
+			self.fmt.addIndent()
+		}
+		self.formatStmts(scope, inline)
+		if !inline {
+			self.fmt.doneIndent()
+		}
+		if inline {
+			if len(scope.Stmts) > 0 {
+				self.fmt.ubuf()[self.fmt.buf.Len()-1] = ' '
+			}
+		} else if n == self.fmt.buf.Len() {
+			self.fmt.setBuf(self.fmt.ubuf()[:n-1])
+		} else {
+			self.fmt.buf.Write(self.fmt.indent)
+		}
+		self.write("}")
+		self.fmt.popRowComments(scope.End.Row)
+	}
 }
 
 struct exprFormatter {
-    mut fmt: &formatter
-    mut bf:  &binaryFormatter
+	mut fmt: &formatter
+	mut bf:  &binaryFormatter
 
-    // Ignore begin comments.
-    // It will skips comments for begin.
-    // Useful for slice literal elements.
-    mut ibc: bool
+	// Ignore begin comments.
+	// It will skips comments for begin.
+	// Useful for slice literal elements.
+	mut ibc: bool
 }
 
 impl exprFormatter {
-    static fn new(&fmt: &formatter): &exprFormatter {
-        mut ef := &exprFormatter{
-            fmt: unsafe { *(&fmt) },
-        }
-        ef.bf = &binaryFormatter{
-            ef: ef,
-        }
-        ret ef
-    }
+	static fn new(&fmt: &formatter): &exprFormatter {
+		mut ef := &exprFormatter{
+			fmt: unsafe { *(&fmt) },
+		}
+		ef.bf = &binaryFormatter{
+			ef: ef,
+		}
+		ret ef
+	}
 
-    fn write(&self, s: str) {
-        self.fmt.buf.WriteStr(s)
-    }
+	fn write(&self, s: str) {
+		self.fmt.buf.WriteStr(s)
+	}
 
-    fn clean(&self) {
-        self.bf.clean()
-    }
+	fn clean(&self) {
+		self.bf.clean()
+	}
 
-    fn tuple(&self, mut tup: &ast::TupleExpr) {
-        for (i, mut expr) in tup.Expr {
-            self.format(expr)
-            if i+1 < len(tup.Expr) {
-                self.write(", ")
-            }
-        }
-    }
+	fn tuple(&self, mut tup: &ast::TupleExpr) {
+		for (i, mut expr) in tup.Expr {
+			self.format(expr)
+			if i+1 < len(tup.Expr) {
+				self.write(", ")
+			}
+		}
+	}
 
-    fn lit(&self, l: &ast::LitExpr) {
-        self.write(l.Value)
-    }
+	fn lit(&self, l: &ast::LitExpr) {
+		self.write(l.Value)
+	}
 
-    fn unsafexpr(&self, mut u: &ast::UnsafeExpr) {
-        self.write("unsafe {")
-        line := u.Expr.Token.Row != u.Expr.End.Row
-        if line {
-            self.fmt.addIndent()
-            self.write("\n")
-            self.fmt.buf.Write(self.fmt.indent)
-        } else {
-            self.write(" ")
-        }
-        self.format(u.Expr)
-        if line {
-            self.fmt.doneIndent()
-            self.write("\n")
-            self.fmt.buf.Write(self.fmt.indent)
-        } else {
-            self.write(" ")
-        }
-        self.write("}")
-    }
+	fn unsafexpr(&self, mut u: &ast::UnsafeExpr) {
+		self.write("unsafe {")
+		line := u.Expr.Token.Row != u.Expr.End.Row
+		if line {
+			self.fmt.addIndent()
+			self.write("\n")
+			self.fmt.buf.Write(self.fmt.indent)
+		} else {
+			self.write(" ")
+		}
+		self.format(u.Expr)
+		if line {
+			self.fmt.doneIndent()
+			self.write("\n")
+			self.fmt.buf.Write(self.fmt.indent)
+		} else {
+			self.write(" ")
+		}
+		self.write("}")
+	}
 
-    fn ident(&self, id: &ast::IdentExpr) {
-        if id.Binded {
-            self.write("cpp.")
-        }
-        self.write(id.Ident)
-    }
+	fn ident(&self, id: &ast::IdentExpr) {
+		if id.Binded {
+			self.write("cpp.")
+		}
+		self.write(id.Ident)
+	}
 
-    fn unary(&self, mut u: &ast::UnaryExpr) {
-        self.write(u.Op.Kind)
-        self.format(u.Expr)
-    }
+	fn unary(&self, mut u: &ast::UnaryExpr) {
+		self.write(u.Op.Kind)
+		self.format(u.Expr)
+	}
 
-    fn variadic(&self, mut v: &ast::VariadicExpr) {
-        self.format(v.Expr)
-        self.write("...")
-    }
+	fn variadic(&self, mut v: &ast::VariadicExpr) {
+		self.format(v.Expr)
+		self.write("...")
+	}
 
-    fn cast(&self, mut c: &ast::CastExpr) {
-        if isPrimType(c.Kind) {
-            self.fmt.formatType(c.Kind)
-        } else {
-            self.write("(")
-            self.fmt.formatType(c.Kind)
-            self.write(")")
-        }
-        // Do not write parentheses for expression.
-        // Expression formatter will add.
-        self.format(c.Expr)
-    }
+	fn cast(&self, mut c: &ast::CastExpr) {
+		if isPrimType(c.Kind) {
+			self.fmt.formatType(c.Kind)
+		} else {
+			self.write("(")
+			self.fmt.formatType(c.Kind)
+			self.write(")")
+		}
+		// Do not write parentheses for expression.
+		// Expression formatter will add.
+		self.format(c.Expr)
+	}
 
-    fn nselect(&self, ns: &ast::NsSelectionExpr) {
-        for _, s in ns.Ns {
-            self.write(s.Kind)
-            self.write("::")
-        }
-        self.write(ns.Ident.Kind)
-    }
+	fn nselect(&self, ns: &ast::NsSelectionExpr) {
+		for _, s in ns.Ns {
+			self.write(s.Kind)
+			self.write("::")
+		}
+		self.write(ns.Ident.Kind)
+	}
 
-    fn subIdent(&self, mut si: &ast::SubIdentExpr) {
-        self.format(si.Expr)
-        self.write(".")
-        self.write(si.Ident.Kind)
-    }
+	fn subIdent(&self, mut si: &ast::SubIdentExpr) {
+		self.format(si.Expr)
+		self.write(".")
+		self.write(si.Ident.Kind)
+	}
 
-    fn binary(&self, mut bin: &ast::BinaryExpr) {
-        self.bf.new(bin)
-        self.bf.binary(bin)
-    }
+	fn binary(&self, mut bin: &ast::BinaryExpr) {
+		self.bf.new(bin)
+		self.bf.binary(bin)
+	}
 
-    fn args(&self, mut &f: &ast::FnCallExpr) {
-        if len(f.Args) == 0 {
-            ret
-        }
-        mut row := f.Token.Row
-        mut indented := false
-        for (i, mut arg) in f.Args {
-            if i > 0 {
-                self.write(",")
-            }
-            if row != arg.Token.Row {
-                if !indented {
-                    indented = true
-                    self.fmt.addIndent()
-                }
-                self.fmt.popRowComments(self.fmt.row)
-                self.write("\n")
-                self.fmt.buf.Write(self.fmt.indent)
-            } else if i > 0 {
-                self.write(" ")
-            }
-            self.fmt.popRowCommentsByC(arg.Token.Row, arg.Token.Column)
-            self.format(arg)
-            self.fmt.popRowCommentsByC(arg.Token.Row, arg.Token.Column)
-            row = self.fmt.row
-        }
-        if indented {
-            self.fmt.doneIndent()
-        }
-    }
+	fn args(&self, mut &f: &ast::FnCallExpr) {
+		if len(f.Args) == 0 {
+			ret
+		}
+		mut row := f.Token.Row
+		mut indented := false
+		for (i, mut arg) in f.Args {
+			if i > 0 {
+				self.write(",")
+			}
+			if row != arg.Token.Row {
+				if !indented {
+					indented = true
+					self.fmt.addIndent()
+				}
+				self.fmt.popRowComments(self.fmt.row)
+				self.write("\n")
+				self.fmt.buf.Write(self.fmt.indent)
+			} else if i > 0 {
+				self.write(" ")
+			}
+			self.fmt.popRowCommentsByC(arg.Token.Row, arg.Token.Column)
+			self.format(arg)
+			self.fmt.popRowCommentsByC(arg.Token.Row, arg.Token.Column)
+			row = self.fmt.row
+		}
+		if indented {
+			self.fmt.doneIndent()
+		}
+	}
 
-    fn fnCall(&self, mut f: &ast::FnCallExpr) {
-        if f.IsCo {
-            self.write("co ")
-        }
-        self.format(f.Expr)
-        self.write("(")
-        self.args(f)
-        self.write(")")
-        if f.Ignored() {
-            self.write("!")
-        } else if f.Exception != nil {
-            self.write(" else ")
-            self.fmt.formatScope(f.Exception)
-            self.fmt.row = f.Exception.End.Row
-        }
-    }
+	fn fnCall(&self, mut f: &ast::FnCallExpr) {
+		if f.IsCo {
+			self.write("co ")
+		}
+		self.format(f.Expr)
+		self.write("(")
+		self.args(f)
+		self.write(")")
+		if f.Ignored() {
+			self.write("!")
+		} else if f.Exception != nil {
+			self.write(" else ")
+			self.fmt.formatScope(f.Exception)
+			self.fmt.row = f.Exception.End.Row
+		}
+	}
 
-    fn fieldExprPair(&self, mut pair: &ast::FieldExprPair) {
-        if pair.IsTargeted() {
-            self.write(pair.Field.Kind)
-            self.write(": ")
-        }
-        self.format(pair.Expr)
-    }
+	fn fieldExprPair(&self, mut pair: &ast::FieldExprPair) {
+		if pair.IsTargeted() {
+			self.write(pair.Field.Kind)
+			self.write(": ")
+		}
+		self.format(pair.Expr)
+	}
 
-    fn structLit(&self, mut lit: &ast::StructLit) {
-        defer {
-            self.fmt.row = lit.End.Row
-        }
-        self.fmt.formatType(lit.Kind)
-        if len(lit.Exprs) == 0 {
-            self.write("{}")
-            ret
-        }
-        mut newline := false
-        for _, expr in lit.Exprs {
-            // Compare with kind row. Because kind and brace should be same line.
-            // Therefore, kind row also means brace row.
-            if expr.Token.Row != lit.Kind.Token.Row {
-                newline = true
-                break
-            }
-        }
-        self.write("{")
-        if newline {
-            self.write("\n")
-        }
-        self.fmt.addIndent()
-        for (i, mut expr) in lit.Exprs {
-            diff := len(lit.Exprs) - i
-            if newline {
-                if !self.ibc {
-                    self.fmt.addGlobalPaddingForComment(expr.Token.Row)
-                    self.fmt.writeCommentsExcept(expr.Token.Row)
-                }
-                self.fmt.buf.Write(self.fmt.indent)
-            }
-            self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
-            self.format(expr)
-            self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
-            if newline {
-                self.write(",")
-                if diff < 2 || lit.Exprs[i+1].Token.Row != self.fmt.row {
-                    self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
-                        self.write(" ")
-                        self.fmt.writeComment(c)
-                    })
-                }
-                self.write("\n")
-            } else if diff > 1 {
-                self.write(", ")
-            }
-        }
-        if !self.ibc {
-            self.fmt.addGlobalPaddingForComment(lit.End.Row)
-            self.fmt.writeCommentsExcept(lit.End.Row)
-        }
-        self.fmt.doneIndent()
-        if newline {
-            self.fmt.buf.Write(self.fmt.indent)
-        }
-        self.write("}")
-    }
+	fn structLit(&self, mut lit: &ast::StructLit) {
+		defer {
+			self.fmt.row = lit.End.Row
+		}
+		self.fmt.formatType(lit.Kind)
+		if len(lit.Exprs) == 0 {
+			self.write("{}")
+			ret
+		}
+		mut newline := false
+		for _, expr in lit.Exprs {
+			// Compare with kind row. Because kind and brace should be same line.
+			// Therefore, kind row also means brace row.
+			if expr.Token.Row != lit.Kind.Token.Row {
+				newline = true
+				break
+			}
+		}
+		self.write("{")
+		if newline {
+			self.write("\n")
+		}
+		self.fmt.addIndent()
+		for (i, mut expr) in lit.Exprs {
+			diff := len(lit.Exprs) - i
+			if newline {
+				if !self.ibc {
+					self.fmt.addGlobalPaddingForComment(expr.Token.Row)
+					self.fmt.writeCommentsExcept(expr.Token.Row)
+				}
+				self.fmt.buf.Write(self.fmt.indent)
+			}
+			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
+			self.format(expr)
+			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
+			if newline {
+				self.write(",")
+				if diff < 2 || lit.Exprs[i+1].Token.Row != self.fmt.row {
+					self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
+						self.write(" ")
+						self.fmt.writeComment(c)
+					})
+				}
+				self.write("\n")
+			} else if diff > 1 {
+				self.write(", ")
+			}
+		}
+		if !self.ibc {
+			self.fmt.addGlobalPaddingForComment(lit.End.Row)
+			self.fmt.writeCommentsExcept(lit.End.Row)
+		}
+		self.fmt.doneIndent()
+		if newline {
+			self.fmt.buf.Write(self.fmt.indent)
+		}
+		self.write("}")
+	}
 
-    fn responsiveExprs[T](&self, mut &lit: T) {
-        if len(lit.Exprs) == 0 {
-            ret
-        }
-        const Cap = 1 << 8
-        mut exprs := make([][]byte, 0, Cap)
-        mut rows := make([]rowAlign, 0, Cap)
+	fn responsiveExprs[T](&self, mut &lit: T) {
+		if len(lit.Exprs) == 0 {
+			ret
+		}
+		const Cap = 1 << 8
+		mut exprs := make([][]byte, 0, Cap)
+		mut rows := make([]rowAlign, 0, Cap)
 
-        old := self.ibc
-        self.ibc = true
-        mut sibc := !old // self.ibc setted to true by this routine.
+		old := self.ibc
+		self.ibc = true
+		mut sibc := !old // self.ibc setted to true by this routine.
 
-        n := self.fmt.buf.Len()
-        mut max := 0
-        mut col := 0
-        mut row := lit.Token.Row
-        mut lined := false
+		n := self.fmt.buf.Len()
+		mut max := 0
+		mut col := 0
+		mut row := lit.Token.Row
+		mut lined := false
 
-        self.fmt.addIndent()
-        for (i, mut expr) in lit.Exprs {
-            if row != expr.Token.Row {
-                lined = true
-                mut line := cloneBuf(self.fmt.ubuf()[n:])
-                diff := utf8::RuneCount(line)
-                if diff > 0 {
-                    if max < diff && self.fmt.row == row {
-                        max = diff
-                    }
-                    exprs = append(exprs, line)
-                    self.fmt.setBuf(self.fmt.ubuf()[:n])
-                    rows = append(rows, rowAlign{
-                        end: expr.Token.Row,
-                        row: self.fmt.row,
-                        col: col,
-                        max: self.fmt.row == row,
-                    })
-                }
-            } else if i > 0 {
-                self.write(" ")
-            }
-            self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
-            self.format(expr)
-            row = expr.Token.Row
-            col = expr.End.Column
-            if lined || len(lit.Exprs)-i > 1 {
-                self.write(",")
-            }
-        }
-        if n != self.fmt.buf.Len() {
-            mut line := cloneBuf(self.fmt.ubuf()[n:])
-            diff := utf8::RuneCount(line)
-            if max < diff && self.fmt.row == row {
-                max = diff
-            }
-            exprs = append(exprs, line)
-            rows = append(rows, rowAlign{
-                end: row,
-                row: self.fmt.row,
-                max: self.fmt.row == row,
-            })
-            self.fmt.setBuf(self.fmt.ubuf()[:n])
-        }
+		self.fmt.addIndent()
+		for (i, mut expr) in lit.Exprs {
+			if row != expr.Token.Row {
+				lined = true
+				mut line := cloneBuf(self.fmt.ubuf()[n:])
+				diff := utf8::RuneCount(line)
+				if diff > 0 {
+					if max < diff && self.fmt.row == row {
+						max = diff
+					}
+					exprs = append(exprs, line)
+					self.fmt.setBuf(self.fmt.ubuf()[:n])
+					rows = append(rows, rowAlign{
+						end: expr.Token.Row,
+						row: self.fmt.row,
+						col: col,
+						max: self.fmt.row == row,
+					})
+				}
+			} else if i > 0 {
+				self.write(" ")
+			}
+			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
+			self.format(expr)
+			row = expr.Token.Row
+			col = expr.End.Column
+			if lined || len(lit.Exprs)-i > 1 {
+				self.write(",")
+			}
+		}
+		if n != self.fmt.buf.Len() {
+			mut line := cloneBuf(self.fmt.ubuf()[n:])
+			diff := utf8::RuneCount(line)
+			if max < diff && self.fmt.row == row {
+				max = diff
+			}
+			exprs = append(exprs, line)
+			rows = append(rows, rowAlign{
+				end: row,
+				row: self.fmt.row,
+				max: self.fmt.row == row,
+			})
+			self.fmt.setBuf(self.fmt.ubuf()[:n])
+		}
 
-        fmtRow := self.fmt.row
-        defer {
-            self.fmt.row = fmtRow
-        }
-        if lit.Token.Row != lit.Exprs[0].Token.Row {
-            self.write("\n")
-        }
-        self.fmt.row = rows[0].row
-        for i, expr in exprs {
-            erow := rows[i]
-            if !self.ibc || sibc || lined {
-                self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, erow.row)
-                self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row)
-            }
-            if self.fmt.ubuf()[self.fmt.buf.Len()-1] == '\n' {
-                self.fmt.buf.Write(self.fmt.indent)
-            }
-            col = erow.col
-            if lined {
-                col = -1
-            }
-            self.fmt.buf.Write(expr)
-            self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
-                if erow.max {
-                    self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(expr)) + 1))
-                } else {
-                    self.write(" ")
-                }
-                self.fmt.writeComment(c)
-            })
-            if len(exprs)-i > 1 {
-                self.write("\n")
-            }
-            self.fmt.row = erow.row
-        }
-        if self.fmt.ubuf()[self.fmt.buf.Len()-1] != '\n' && lined {
-            self.write("\n")
-        }
-        if !self.ibc || sibc || lined {
-            self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, lit.End.Row)
-            self.fmt.writeCommentsExceptL(lit.Token.Row, lit.End.Row)
-        }
-        self.fmt.doneIndent()
-        if lined {
-            self.fmt.buf.Write(self.fmt.indent)
-        }
+		fmtRow := self.fmt.row
+		defer {
+			self.fmt.row = fmtRow
+		}
+		if lit.Token.Row != lit.Exprs[0].Token.Row {
+			self.write("\n")
+		}
+		self.fmt.row = rows[0].row
+		for i, expr in exprs {
+			erow := rows[i]
+			if !self.ibc || sibc || lined {
+				self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, erow.row)
+				self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row)
+			}
+			if self.fmt.ubuf()[self.fmt.buf.Len()-1] == '\n' {
+				self.fmt.buf.Write(self.fmt.indent)
+			}
+			col = erow.col
+			if lined {
+				col = -1
+			}
+			self.fmt.buf.Write(expr)
+			self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
+				if erow.max {
+					self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(expr)) + 1))
+				} else {
+					self.write(" ")
+				}
+				self.fmt.writeComment(c)
+			})
+			if len(exprs)-i > 1 {
+				self.write("\n")
+			}
+			self.fmt.row = erow.row
+		}
+		if self.fmt.ubuf()[self.fmt.buf.Len()-1] != '\n' && lined {
+			self.write("\n")
+		}
+		if !self.ibc || sibc || lined {
+			self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, lit.End.Row)
+			self.fmt.writeCommentsExceptL(lit.Token.Row, lit.End.Row)
+		}
+		self.fmt.doneIndent()
+		if lined {
+			self.fmt.buf.Write(self.fmt.indent)
+		}
 
-        self.ibc = old
-    }
+		self.ibc = old
+	}
 
-    fn braceLit(&self, mut lit: &ast::BraceLit) {
-        self.write("{")
-        self.responsiveExprs[&ast::BraceLit](lit)
-        self.write("}")
-    }
+	fn braceLit(&self, mut lit: &ast::BraceLit) {
+		self.write("{")
+		self.responsiveExprs[&ast::BraceLit](lit)
+		self.write("}")
+	}
 
-    fn keyValPair(&self, mut pair: &ast::KeyValPair) {
-        self.format(pair.Key)
-        self.write(": ")
-        self.format(pair.Val)
-    }
+	fn keyValPair(&self, mut pair: &ast::KeyValPair) {
+		self.format(pair.Key)
+		self.write(": ")
+		self.format(pair.Val)
+	}
 
-    fn slice(&self, mut s: &ast::SliceExpr) {
-        self.write("[")
-        self.responsiveExprs[&ast::SliceExpr](s)
-        self.write("]")
-    }
+	fn slice(&self, mut s: &ast::SliceExpr) {
+		self.write("[")
+		self.responsiveExprs[&ast::SliceExpr](s)
+		self.write("]")
+	}
 
-    fn indexing(&self, mut i: &ast::IndexingExpr) {
-        self.format(i.Expr)
-        self.write("[")
+	fn indexing(&self, mut i: &ast::IndexingExpr) {
+		self.format(i.Expr)
+		self.write("[")
 
-        zip := self.bf.zip
-        strict := self.bf.strict
-        self.bf.zip = true
-        self.bf.strict = true
-        self.format(i.Index)
-        self.bf.zip = zip
-        self.bf.strict = strict
+		zip := self.bf.zip
+		strict := self.bf.strict
+		self.bf.zip = true
+		self.bf.strict = true
+		self.format(i.Index)
+		self.bf.zip = zip
+		self.bf.strict = strict
 
-        self.write("]")
-    }
+		self.write("]")
+	}
 
-    fn slicing(&self, mut i: &ast::SlicingExpr) {
-        zip := self.bf.zip
-        defer {
-            self.bf.zip = zip
-        }
+	fn slicing(&self, mut i: &ast::SlicingExpr) {
+		zip := self.bf.zip
+		defer {
+			self.bf.zip = zip
+		}
 
-        mut lb, mut rb := false, false
-        lr := isRanged(i.Start)
-        rr := isRanged(i.To)
-        if !lr && i.Start != nil {
-            match type i.Start.Kind {
-            | &ast::BinaryExpr:
-                lb = true
-            }
-        }
-        if !rr && i.To != nil {
-            match type i.To.Kind {
-            | &ast::BinaryExpr:
-                rb = true
-            }
-        }
+		mut lb, mut rb := false, false
+		lr := isRanged(i.Start)
+		rr := isRanged(i.To)
+		if !lr && i.Start != nil {
+			match type i.Start.Kind {
+			| &ast::BinaryExpr:
+				lb = true
+			}
+		}
+		if !rr && i.To != nil {
+			match type i.To.Kind {
+			| &ast::BinaryExpr:
+				rb = true
+			}
+		}
 
-        self.format(i.Expr)
-        self.write("[")
+		self.format(i.Expr)
+		self.write("[")
 
-        self.bf.zip = zip || !lr
-        self.format(i.Start)
+		self.bf.zip = zip || !lr
+		self.format(i.Start)
 
-        if lb && rb {
-            self.write(" : ")
-        } else {
-            self.write(":")
-        }
+		if lb && rb {
+			self.write(" : ")
+		} else {
+			self.write(":")
+		}
 
-        self.bf.zip = zip || !rr
-        self.format(i.To)
-        self.write("]")
-    }
+		self.bf.zip = zip || !rr
+		self.format(i.To)
+		self.write("]")
+	}
 
-    fn formatKind(&self, mut &kind: ast::ExprData) {
-        match type kind {
-        | &ast::RangeExpr:
-            mut expr := (&ast::RangeExpr)(kind)
-            self.write("(")
-            self.formatKind(expr.Expr.Kind)
-            self.write(")")
-        | &ast::TypeDecl:
-            mut t := (&ast::TypeDecl)(kind)
-            self.fmt.formatType(t)
-        | &ast::FnDecl:
-            self.fmt.fnDecl((&ast::FnDecl)(kind))
-        | &ast::IdentExpr:
-            self.ident((&ast::IdentExpr)(kind))
-        | &ast::TupleExpr:
-            self.tuple((&ast::TupleExpr)(kind))
-        | &ast::LitExpr:
-            self.lit((&ast::LitExpr)(kind))
-        | &ast::UnsafeExpr:
-            self.unsafexpr((&ast::UnsafeExpr)(kind))
-        | &ast::UnaryExpr:
-            self.unary((&ast::UnaryExpr)(kind))
-        | &ast::VariadicExpr:
-            self.variadic((&ast::VariadicExpr)(kind))
-        | &ast::CastExpr:
-            self.cast((&ast::CastExpr)(kind))
-        | &ast::NsSelectionExpr:
-            self.nselect((&ast::NsSelectionExpr)(kind))
-        | &ast::SubIdentExpr:
-            self.subIdent((&ast::SubIdentExpr)(kind))
-        | &ast::BinaryExpr:
-            self.binary((&ast::BinaryExpr)(kind))
-        | &ast::FnCallExpr:
-            self.fnCall((&ast::FnCallExpr)(kind))
-        | &ast::FieldExprPair:
-            self.fieldExprPair((&ast::FieldExprPair)(kind))
-        | &ast::StructLit:
-            self.structLit((&ast::StructLit)(kind))
-        | &ast::BraceLit:
-            self.braceLit((&ast::BraceLit)(kind))
-        | &ast::KeyValPair:
-            self.keyValPair((&ast::KeyValPair)(kind))
-        | &ast::SliceExpr:
-            self.slice((&ast::SliceExpr)(kind))
-        | &ast::IndexingExpr:
-            self.indexing((&ast::IndexingExpr)(kind))
-        | &ast::SlicingExpr:
-            self.slicing((&ast::SlicingExpr)(kind))
-        }
-    }
+	fn formatKind(&self, mut &kind: ast::ExprData) {
+		match type kind {
+		| &ast::RangeExpr:
+			mut expr := (&ast::RangeExpr)(kind)
+			self.write("(")
+			self.formatKind(expr.Expr.Kind)
+			self.write(")")
+		| &ast::TypeDecl:
+			mut t := (&ast::TypeDecl)(kind)
+			self.fmt.formatType(t)
+		| &ast::FnDecl:
+			self.fmt.fnDecl((&ast::FnDecl)(kind))
+		| &ast::IdentExpr:
+			self.ident((&ast::IdentExpr)(kind))
+		| &ast::TupleExpr:
+			self.tuple((&ast::TupleExpr)(kind))
+		| &ast::LitExpr:
+			self.lit((&ast::LitExpr)(kind))
+		| &ast::UnsafeExpr:
+			self.unsafexpr((&ast::UnsafeExpr)(kind))
+		| &ast::UnaryExpr:
+			self.unary((&ast::UnaryExpr)(kind))
+		| &ast::VariadicExpr:
+			self.variadic((&ast::VariadicExpr)(kind))
+		| &ast::CastExpr:
+			self.cast((&ast::CastExpr)(kind))
+		| &ast::NsSelectionExpr:
+			self.nselect((&ast::NsSelectionExpr)(kind))
+		| &ast::SubIdentExpr:
+			self.subIdent((&ast::SubIdentExpr)(kind))
+		| &ast::BinaryExpr:
+			self.binary((&ast::BinaryExpr)(kind))
+		| &ast::FnCallExpr:
+			self.fnCall((&ast::FnCallExpr)(kind))
+		| &ast::FieldExprPair:
+			self.fieldExprPair((&ast::FieldExprPair)(kind))
+		| &ast::StructLit:
+			self.structLit((&ast::StructLit)(kind))
+		| &ast::BraceLit:
+			self.braceLit((&ast::BraceLit)(kind))
+		| &ast::KeyValPair:
+			self.keyValPair((&ast::KeyValPair)(kind))
+		| &ast::SliceExpr:
+			self.slice((&ast::SliceExpr)(kind))
+		| &ast::IndexingExpr:
+			self.indexing((&ast::IndexingExpr)(kind))
+		| &ast::SlicingExpr:
+			self.slicing((&ast::SlicingExpr)(kind))
+		}
+	}
 
-    fn format(&self, mut &expr: &ast::Expr) {
-        if expr == nil {
-            ret
-        }
-        self.fmt.row = expr.Token.Row
-        self.formatKind(expr.Kind)
-        self.fmt.row = expr.End.Row
-    }
+	fn format(&self, mut &expr: &ast::Expr) {
+		if expr == nil {
+			ret
+		}
+		self.fmt.row = expr.Token.Row
+		self.formatKind(expr.Kind)
+		self.fmt.row = expr.End.Row
+	}
 }
 
 struct binaryFormatter {
-    mut ef:     &exprFormatter
-    mut zip:    bool
-    mut strict: bool
-    mut op:     bool
-    mut bin:    &ast::BinaryExpr
-    mut weak:   bool
+	mut ef:     &exprFormatter
+	mut zip:    bool
+	mut strict: bool
+	mut op:     bool
+	mut bin:    &ast::BinaryExpr
+	mut weak:   bool
 }
 
 impl binaryFormatter {
-    static fn isOp(&bin: &ast::BinaryExpr): bool {
-        ret bin.Op.Kind == TokenKind.DblVline ||
-            bin.Op.Kind == TokenKind.DblAmper ||
-            bin.Op.Kind == TokenKind.Gt ||
-            bin.Op.Kind == TokenKind.Lt ||
-            bin.Op.Kind == TokenKind.LtEq ||
-            bin.Op.Kind == TokenKind.GtEq ||
-            bin.Op.Kind == TokenKind.Eqs ||
-            bin.Op.Kind == TokenKind.NotEq
-    }
+	static fn isOp(&bin: &ast::BinaryExpr): bool {
+		ret bin.Op.Kind == TokenKind.DblVline ||
+			bin.Op.Kind == TokenKind.DblAmper ||
+			bin.Op.Kind == TokenKind.Gt ||
+			bin.Op.Kind == TokenKind.Lt ||
+			bin.Op.Kind == TokenKind.LtEq ||
+			bin.Op.Kind == TokenKind.GtEq ||
+			bin.Op.Kind == TokenKind.Eqs ||
+			bin.Op.Kind == TokenKind.NotEq
+	}
 
-    static fn isZipOp(&bin: &ast::BinaryExpr): bool {
-        ret bin.Op.Kind == TokenKind.DblVline ||
-            bin.Op.Kind == TokenKind.DblAmper
-    }
+	static fn isZipOp(&bin: &ast::BinaryExpr): bool {
+		ret bin.Op.Kind == TokenKind.DblVline ||
+			bin.Op.Kind == TokenKind.DblAmper
+	}
 
-    fn write(&self, s: str) {
-        self.ef.write(s)
-    }
+	fn write(&self, s: str) {
+		self.ef.write(s)
+	}
 
-    fn clean(&self) {
-        self.zip = false
-        self.op = false
-        self.bin = nil
-        self.weak = false
-        self.strict = false
-    }
+	fn clean(&self) {
+		self.zip = false
+		self.op = false
+		self.bin = nil
+		self.weak = false
+		self.strict = false
+	}
 
-    fn head(&self, mut &bin: &ast::BinaryExpr) {
-        self.ef.fmt.popRowCommentsByC(bin.Left.Token.Row, bin.Left.Token.Column)
-        self.format(bin.Left)
-        self.op = binaryFormatter.isOp(bin)
-        if !self.zip || self.op {
-            self.write(" ")
-        }
-        self.ef.fmt.popRowCommentsByC(bin.Op.Row, bin.Op.Column)
-        self.write(bin.Op.Kind)
-    }
+	fn head(&self, mut &bin: &ast::BinaryExpr) {
+		self.ef.fmt.popRowCommentsByC(bin.Left.Token.Row, bin.Left.Token.Column)
+		self.format(bin.Left)
+		self.op = binaryFormatter.isOp(bin)
+		if !self.zip || self.op {
+			self.write(" ")
+		}
+		self.ef.fmt.popRowCommentsByC(bin.Op.Row, bin.Op.Column)
+		self.write(bin.Op.Kind)
+	}
 
-    fn binary(&self, mut &bin: &ast::BinaryExpr) {
-        self.bin = bin
-        self.head(bin)
-    rep:
-        if bin.Op.Row == bin.Right.Token.Row {
-            if !self.zip || self.op {
-                self.write(" ")
-            }
-            self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
-            self.format(bin.Right)
-            ret
-        }
-        self.ef.fmt.addIndent()
-        self.ef.fmt.popRowCommentsBy(bin.Op.Row)
-        self.write("\n")
-        self.ef.fmt.buf.Write(self.ef.fmt.indent)
-        self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
-        match type bin.Right.Kind {
-        | &ast::BinaryExpr:
-            bin = (&ast::BinaryExpr)(bin.Right.Kind)
-            self.head(bin)
-            self.ef.fmt.doneIndent()
-            goto rep
-        |:
-            self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
-            self.format(bin.Right)
-            self.ef.fmt.row = bin.Right.Token.Row
-        }
-        self.ef.fmt.doneIndent()
-    }
+	fn binary(&self, mut &bin: &ast::BinaryExpr) {
+		self.bin = bin
+		self.head(bin)
+	rep:
+		if bin.Op.Row == bin.Right.Token.Row {
+			if !self.zip || self.op {
+				self.write(" ")
+			}
+			self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
+			self.format(bin.Right)
+			ret
+		}
+		self.ef.fmt.addIndent()
+		self.ef.fmt.popRowCommentsBy(bin.Op.Row)
+		self.write("\n")
+		self.ef.fmt.buf.Write(self.ef.fmt.indent)
+		self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
+		match type bin.Right.Kind {
+		| &ast::BinaryExpr:
+			bin = (&ast::BinaryExpr)(bin.Right.Kind)
+			self.head(bin)
+			self.ef.fmt.doneIndent()
+			goto rep
+		|:
+			self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
+			self.format(bin.Right)
+			self.ef.fmt.row = bin.Right.Token.Row
+		}
+		self.ef.fmt.doneIndent()
+	}
 
-    fn isZip(&self, mut &kind: ast::ExprData): bool {
-        match type kind {
-        | &ast::BinaryExpr:
-            mut bin := (&ast::BinaryExpr)(kind)
-            if binaryFormatter.isZipOp(bin) {
-                ret true
-            }
-            ret self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
-        |:
-            ret false
-        }
-    }
+	fn isZip(&self, mut &kind: ast::ExprData): bool {
+		match type kind {
+		| &ast::BinaryExpr:
+			mut bin := (&ast::BinaryExpr)(kind)
+			if binaryFormatter.isZipOp(bin) {
+				ret true
+			}
+			ret self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
+		|:
+			ret false
+		}
+	}
 
-    fn new(&self, mut &bin: &ast::BinaryExpr) {
-        if self.strict {
-            ret
-        }
-        if self.zip {
-            ret
-        }
-        if binaryFormatter.isZipOp(bin) {
-            self.zip = true
-            ret
-        }
-        self.zip = self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
-        if !self.zip {
-            self.zip = binaryFormatter.isOp(bin)
-            self.weak = true
-        }
-    }
+	fn new(&self, mut &bin: &ast::BinaryExpr) {
+		if self.strict {
+			ret
+		}
+		if self.zip {
+			ret
+		}
+		if binaryFormatter.isZipOp(bin) {
+			self.zip = true
+			ret
+		}
+		self.zip = self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
+		if !self.zip {
+			self.zip = binaryFormatter.isOp(bin)
+			self.weak = true
+		}
+	}
 
-    fn format(&self, mut &expr: &ast::Expr) {
-        if expr == nil {
-            ret
-        }
+	fn format(&self, mut &expr: &ast::Expr) {
+		if expr == nil {
+			ret
+		}
 
-        zip := self.zip
-        weak := self.weak
-        mut bin := self.bin
-        defer {
-            self.zip = zip
-            self.weak = weak
-            self.bin = bin
-        }
+		zip := self.zip
+		weak := self.weak
+		mut bin := self.bin
+		defer {
+			self.zip = zip
+			self.weak = weak
+			self.bin = bin
+		}
 
-        if !self.strict && (self.weak || binaryFormatter.isZipOp(self.bin)) {
-            if isRanged(expr) {
-                self.zip = false
-            }
-        }
-        self.ef.format(expr)
-    }
+		if !self.strict && (self.weak || binaryFormatter.isZipOp(self.bin)) {
+			if isRanged(expr) {
+				self.zip = false
+			}
+		}
+		self.ef.format(expr)
+	}
 }
 
 fn paddingAbs(x: int): int {
-    if x < 0 {
-        ret 0
-    }
-    ret x
+	if x < 0 {
+		ret 0
+	}
+	ret x
 }
 
 fn isPrimType(&t: &ast::TypeDecl): bool {
-    match type t.Kind {
-    | &ast::IdentTypeDecl:
-        itd := (&ast::IdentTypeDecl)(t.Kind)
-        ret itd.Ident == TypeKind.I8 ||
-            itd.Ident == TypeKind.I16 ||
-            itd.Ident == TypeKind.I32 ||
-            itd.Ident == TypeKind.I64 ||
-            itd.Ident == TypeKind.U8 ||
-            itd.Ident == TypeKind.U16 ||
-            itd.Ident == TypeKind.U32 ||
-            itd.Ident == TypeKind.U64 ||
-            itd.Ident == TypeKind.Int ||
-            itd.Ident == TypeKind.Uint ||
-            itd.Ident == TypeKind.Uintptr ||
-            itd.Ident == TypeKind.F32 ||
-            itd.Ident == TypeKind.F64 ||
-            itd.Ident == TypeKind.Bool ||
-            itd.Ident == TypeKind.Str ||
-            itd.Ident == TypeKind.Any
-    }
-    ret false
+	match type t.Kind {
+	| &ast::IdentTypeDecl:
+		itd := (&ast::IdentTypeDecl)(t.Kind)
+		ret itd.Ident == TypeKind.I8 ||
+			itd.Ident == TypeKind.I16 ||
+			itd.Ident == TypeKind.I32 ||
+			itd.Ident == TypeKind.I64 ||
+			itd.Ident == TypeKind.U8 ||
+			itd.Ident == TypeKind.U16 ||
+			itd.Ident == TypeKind.U32 ||
+			itd.Ident == TypeKind.U64 ||
+			itd.Ident == TypeKind.Int ||
+			itd.Ident == TypeKind.Uint ||
+			itd.Ident == TypeKind.Uintptr ||
+			itd.Ident == TypeKind.F32 ||
+			itd.Ident == TypeKind.F64 ||
+			itd.Ident == TypeKind.Bool ||
+			itd.Ident == TypeKind.Str ||
+			itd.Ident == TypeKind.Any
+	}
+	ret false
 }
 
 fn isRanged(&e: &ast::Expr): bool {
-    if e == nil {
-        ret false
-    }
-    match type e.Kind {
-    | &ast::RangeExpr:
-        ret true
-    }
-    ret false
+	if e == nil {
+		ret false
+	}
+	match type e.Kind {
+	| &ast::RangeExpr:
+		ret true
+	}
+	ret false
 }
 
 fn isEmptyImpl(&imp: &ast::Impl): bool {
-    ret len(imp.Methods) == 0 && len(imp.Statics) == 0
+	ret len(imp.Methods) == 0 && len(imp.Statics) == 0
 }
 
 fn cloneBuf(b: []byte): []byte {
-    mut rb := make([]byte, len(b))
-    copy(rb, b)
-    ret rb
+	mut rb := make([]byte, len(b))
+	copy(rb, b)
+	ret rb
 }

@@ -3,78 +3,78 @@
 // license that can be found in the LICENSE file.
 
 use std::jule::lex::{
-    Token,
-    TokenId,
+	Token,
+	TokenId,
 }
 
 struct comment {
-    row: int
-    col: int
-    txt: str
+	row: int
+	col: int
+	txt: str
 }
 
 struct commentMap {
-    buf: []&comment
+	buf: []&comment
 }
 
 impl commentMap {
-    static fn build(mut &tokens: []&Token): commentMap {
-        mut cm := commentMap{
-            buf: make([]&comment, 0, 1 << 8),
-        }
-        mut i := 0
-        for i < len(tokens) {
-            token := tokens[i]
-            if token.Id != TokenId.Comment {
-                i++
-                continue
-            }
-            cm.buf = append(cm.buf, &comment{
-                row: token.Row,
-                col: token.Column,
-                txt: token.Kind,
-            })
-            _ = copy(tokens[i:], tokens[i+1:])
-            tokens = tokens[:len(tokens)-1]
-        }
-        ret cm
-    }
+	static fn build(mut &tokens: []&Token): commentMap {
+		mut cm := commentMap{
+			buf: make([]&comment, 0, 1 << 8),
+		}
+		mut i := 0
+		for i < len(tokens) {
+			token := tokens[i]
+			if token.Id != TokenId.Comment {
+				i++
+				continue
+			}
+			cm.buf = append(cm.buf, &comment{
+				row: token.Row,
+				col: token.Column,
+				txt: token.Kind,
+			})
+			_ = copy(tokens[i:], tokens[i+1:])
+			tokens = tokens[:len(tokens)-1]
+		}
+		ret cm
+	}
 
-    fn first(mut self, row: int): &comment {
-        if len(self.buf) == 0 {
-            ret nil
-        }
-        mut c := self.buf[0]
-        if row != -1 && c.row > row {
-            ret nil
-        }
-        ret c
-    }
+	fn first(mut self, row: int): &comment {
+		if len(self.buf) == 0 {
+			ret nil
+		}
+		mut c := self.buf[0]
+		if row != -1 && c.row > row {
+			ret nil
+		}
+		ret c
+	}
 
-    fn dropFirst(mut self) {
-        self.buf = self.buf[1:]
-    }
+	fn dropFirst(mut self) {
+		self.buf = self.buf[1:]
+	}
 
-    fn pop(mut self, row: int): &comment {
-        if len(self.buf) == 0 {
-            ret nil
-        }
-        mut c := self.buf[0]
-        if c.row > row {
-            ret nil
-        }
-        self.dropFirst()
-        ret c
-    }
+	fn pop(mut self, row: int): &comment {
+		if len(self.buf) == 0 {
+			ret nil
+		}
+		mut c := self.buf[0]
+		if c.row > row {
+			ret nil
+		}
+		self.dropFirst()
+		ret c
+	}
 
-    fn find(mut self, row: int): &comment {
-        if len(self.buf) == 0 {
-            ret nil
-        }
-        mut c := self.buf[0]
-        if c.row > row {
-            ret nil
-        }
-        ret c
-    }
+	fn find(mut self, row: int): &comment {
+		if len(self.buf) == 0 {
+			ret nil
+		}
+		mut c := self.buf[0]
+		if c.row > row {
+			ret nil
+		}
+		ret c
+	}
 }
