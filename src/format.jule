@@ -29,8 +29,8 @@ struct rowAlign {
 }
 
 struct formatter {
-    indentLen: int = 4
-    indentStr: str = " "
+    indentLen: int = 1
+    indentStr: str = "\t"
 
     mut i:      int
     mut buf:    StrBuilder
@@ -71,7 +71,7 @@ impl formatter {
     }
 
     fn doneIndent(&self) {
-        self.indent = self.indent[:len(self.indent)-4]
+        self.indent = self.indent[:len(self.indent)-self.indentLen]
     }
 
     fn writeComment(&self, &c: &comment) {
