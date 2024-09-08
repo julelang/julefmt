@@ -101,6 +101,16 @@ impl formatter {
 		self.write(c.txt)
 	}
 
+	fn seekCommentExcept(&self, row: int): &comment {
+		for (_, mut c) in self.cm.buf {
+			if row != -1 && c.row >= row {
+				break
+			}
+			ret c
+		}
+		ret nil
+	}
+
 	fn writeCommentsExceptL(&self, start: int, row: int): int {
 		mut lrow := row
 		mut i := 0
@@ -1478,14 +1488,36 @@ impl scopeFormatter {
 		}
 	}
 
+	fn emptyScope(&self, mut &scope: &ast::ScopeTree) {
+		// Lookup for first comment.
+		c := self.fmt.seekCommentExcept(scope.End.Row)
+
+		// Range comment exist and scope is not indented.
+		// Indent scope if indent is true.
+		indent := unsafe { self.fmt.buf.Buf()[self.fmt.buf.Len()-1] } != '\n' &&
+			c != nil && c.txt[1] == '*'
+
+		if indent {
+			self.write("\n")
+			self.fmt.addIndent()
+		}
+		self.fmt.writeCommentsExcept(scope.End.Row)
+		if indent {
+			self.fmt.doneIndent()
+			self.fmt.buf.Write(self.fmt.indent)
+		}
+	}
+
 	fn formatStmts(&self, mut &scope: &ast::ScopeTree, inline: bool) {
 		defer {
 			self.fmt.row = scope.End.Row
 		}
+
 		if len(scope.Stmts) == 0 {
-			self.fmt.writeCommentsExcept(scope.End.Row)
+			self.emptyScope(scope)
 			ret
 		}
+
 		mut i := 0
 		self.fmt.row = scope.Stmts[0].Token.Row
 		mut z := i
