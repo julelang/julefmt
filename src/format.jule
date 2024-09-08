@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 use ast for std::jule::ast::{
-	Ast,
+	AST,
 }
 use lex for std::jule::lex::{
 	Token,
@@ -34,7 +34,7 @@ struct formatter {
 
 	mut i:      int
 	mut buf:    StrBuilder
-	mut f:      &Ast
+	mut f:      &AST
 	mut indent: []byte
 	mut cm:     commentMap
 	mut row:    int
@@ -1022,7 +1022,7 @@ impl formatter {
 		self.writeRemainingComments()
 	}
 
-	fn format(&self, mut &f: &Ast, mut &cm: commentMap): []byte {
+	fn format(&self, mut &f: &AST, mut &cm: commentMap): []byte {
 		self.cm = cm
 		self.f = f
 		self.directives(self.f.TopDirectives)
