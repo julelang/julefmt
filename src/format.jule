@@ -1547,7 +1547,14 @@ impl scopeFormatter {
 					self.fmt.buf.Write(self.fmt.indent)
 				}
 				self.formatStmt(stmt.Data)
-				self.fmt.popRowComments(self.fmt.row)
+				if !inline {
+					self.fmt.popRowComments(self.fmt.row)
+				} else {
+					self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Column, fn(c: &comment) {
+						self.write(" ")
+						self.fmt.writeComment(c)
+					})
+				}
 			}
 			if z != i {
 				i--
@@ -1577,11 +1584,18 @@ impl scopeFormatter {
 		n := self.fmt.buf.Len()
 		comment := false
 		mut commentPtr := unsafe { (&bool)(&comment) }
-		self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
-			self.write(" ")
-			self.fmt.writeComment(c)
-			*commentPtr = true
-		})
+		if len(scope.Stmts) > 0 {
+			self.fmt.popRowCommentsByF(self.fmt.row, scope.Stmts[0].Token.Column, fn(c: &comment) {
+				if c.txt[:2] == "//" {
+					self.write("\n")
+					self.fmt.buf.Write(self.fmt.indent)
+					*commentPtr = true
+				} else if !*commentPtr {
+					self.write(" ")
+				}
+				self.fmt.writeComment(c)
+			})
+		}
 		inline := (len(scope.Stmts) == 0 && !*commentPtr) ||
 			(len(scope.Stmts) == 1 &&
 				self.fmt.row == scope.End.Row &&
@@ -1609,6 +1623,7 @@ impl scopeFormatter {
 		}
 		self.write("}")
 		self.fmt.popRowComments(scope.End.Row)
+		self.fmt.row = scope.End.Row
 	}
 }
 
