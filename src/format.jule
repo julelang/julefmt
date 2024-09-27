@@ -774,7 +774,7 @@ impl formatter {
 				}
 				if n > 0 {
 					self.popRowCommentsByF(row, -1, fn(c: &comment) {
-						self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
+						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
 						self.writeComment(c)
 					})
 					n--
@@ -857,7 +857,7 @@ impl formatter {
 				}
 				if n > 0 {
 					self.popRowCommentsByF(row, -1, fn(c: &comment) {
-						self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(line)) + 1))
+						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
 						self.writeComment(c)
 					})
 					n--
@@ -1975,7 +1975,7 @@ impl exprFormatter {
 			self.fmt.buf.Write(expr)
 			self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
 				if erow.max {
-					self.write(strings::Repeat(" ", paddingAbs(max - utf8::RuneCount(expr)) + 1))
+					self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(expr))+1))
 				} else {
 					self.write(" ")
 				}

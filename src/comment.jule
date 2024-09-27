@@ -20,7 +20,7 @@ struct commentMap {
 impl commentMap {
 	static fn build(mut &tokens: []&Token): commentMap {
 		mut cm := commentMap{
-			buf: make([]&comment, 0, 1 << 8),
+			buf: make([]&comment, 0, 1<<8),
 		}
 		mut i := 0
 		for i < len(tokens) {
