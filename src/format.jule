@@ -1295,7 +1295,17 @@ impl scopeFormatter {
 				self.write(" ")
 			}
 		}
-		self.format(it.Scope)
+		self.write("{")
+		self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
+			self.write(" ")
+			self.fmt.writeComment(c)
+		})
+		self.write("\n")
+		self.fmt.addIndent()
+		self.formatStmts(it.Scope, false)
+		self.fmt.doneIndent()
+		self.fmt.buf.Write(self.fmt.indent)
+		self.write("}")
 	}
 
 	fn conditionalCase(&self, mut c: &ast::If) {
