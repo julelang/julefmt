@@ -595,7 +595,7 @@ impl formatter {
 		self.write(d.Ident)
 		self.generics(d.Generics)
 		if len(d.Fields) == 0 {
-			self.write(" {}")
+			self.write("{}")
 			self.popRowComments(d.End.Row)
 			ret
 		}
@@ -614,7 +614,7 @@ impl formatter {
 		self.write("trait ")
 		self.write(d.Ident)
 		if len(d.Methods) == 0 && len(d.Inherits) == 0 {
-			self.write(" {}")
+			self.write("{}")
 			self.popRowComments(d.End.Row)
 			ret
 		}
