@@ -1990,12 +1990,9 @@ impl exprFormatter {
 		self.write("[")
 
 		zip := self.bf.zip
-		strict := self.bf.strict
 		self.bf.zip = true
-		self.bf.strict = true
 		self.format(i.Index)
 		self.bf.zip = zip
-		self.bf.strict = strict
 
 		self.write("]")
 	}
@@ -2101,29 +2098,46 @@ impl exprFormatter {
 }
 
 struct binaryFormatter {
-	mut ef:     &exprFormatter
-	mut zip:    bool
-	mut strict: bool
-	mut op:     bool
-	mut bin:    &ast::BinaryExpr
-	mut weak:   bool
+	mut ef:   &exprFormatter
+	mut zip:  bool
+	mut op:   bool // result of [binaryFormatter.isOp]
+	mut prec: bool // spacing by operator format precedence
+	mut bin:  &ast::BinaryExpr
 }
 
 impl binaryFormatter {
-	static fn isOp(&bin: &ast::BinaryExpr): bool {
-		ret bin.Op.Kind == TokenKind.DblVline ||
-			bin.Op.Kind == TokenKind.DblAmper ||
-			bin.Op.Kind == TokenKind.Gt ||
-			bin.Op.Kind == TokenKind.Lt ||
-			bin.Op.Kind == TokenKind.LtEq ||
-			bin.Op.Kind == TokenKind.GtEq ||
-			bin.Op.Kind == TokenKind.Eqs ||
-			bin.Op.Kind == TokenKind.NotEq
+	// Reports whether operator should take space for formatting.
+	static fn isOp(op: TokenId): bool {
+		ret op == TokenId.DblVline ||
+			op == TokenId.DblAmper ||
+			op == TokenId.Gt ||
+			op == TokenId.Lt ||
+			op == TokenId.LtEq ||
+			op == TokenId.GtEq ||
+			op == TokenId.Eqs ||
+			op == TokenId.NotEq
 	}
 
-	static fn isZipOp(&bin: &ast::BinaryExpr): bool {
-		ret bin.Op.Kind == TokenKind.DblVline ||
-			bin.Op.Kind == TokenKind.DblAmper
+	// Reports whether the operator is have high formatting precedence.
+	// Returns 1 for high precedence, otherwise returns 0.
+	static fn opPrec(op: TokenId): int {
+		match op {
+		| TokenId.Shl
+		| TokenId.Shr
+		| TokenId.Star
+		| TokenId.Solidus
+		| TokenId.Percent
+		| TokenId.Amper:
+			ret 1
+		|:
+			ret 0
+		}
+	}
+
+	// Reports whether operator zips operands.
+	static fn isHardZipOp(op: TokenId): bool {
+		ret op == TokenId.DblVline ||
+			op == TokenId.DblAmper
 	}
 
 	fn write(&self, s: str) {
@@ -2133,49 +2147,71 @@ impl binaryFormatter {
 	fn clean(&self) {
 		self.zip = false
 		self.op = false
+		self.prec = false
 		self.bin = nil
-		self.weak = false
-		self.strict = false
+	}
+
+	// writes space for operator if possible
+	fn writeSpace(&self) {
+		if self.op {
+			self.write(" ")
+			ret
+		}
+		// operator is not op
+
+		if self.zip {
+			// zip mode on following detection is disallowed
+			ret
+		}
+		// zip mode is off
+
+		if !self.prec {
+			// prec mode is off
+			self.write(" ")
+			ret
+		}
+		// prec mode is on
+
+		// write space if operator is not precedenced
+		if binaryFormatter.opPrec(self.bin.Op.Id) == 0 {
+			self.write(" ")
+		}
 	}
 
 	fn head(&self, mut &bin: &ast::BinaryExpr) {
 		self.ef.fmt.popRowCommentsByC(bin.Left.Token.Row, bin.Left.Token.Column)
 		self.format(bin.Left)
-		self.op = binaryFormatter.isOp(bin)
-		if !self.zip || self.op {
-			self.write(" ")
-		}
+		self.op = binaryFormatter.isOp(bin.Op.Id)
+		self.writeSpace()
 		self.ef.fmt.popRowCommentsByC(bin.Op.Row, bin.Op.Column)
 		self.write(bin.Op.Kind)
 	}
 
 	fn binary(&self, mut &bin: &ast::BinaryExpr) {
 		self.bin = bin
-		self.head(bin)
+		self.head(self.bin)
 	rep:
-		if bin.Op.Row == bin.Right.Token.Row {
-			if !self.zip || self.op {
-				self.write(" ")
-			}
-			self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
-			self.format(bin.Right)
+		if self.bin.Op.Row == self.bin.Right.Token.Row {
+			self.writeSpace()
+			self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
+			self.format(self.bin.Right)
 			ret
 		}
 		self.ef.fmt.addIndent()
-		self.ef.fmt.popRowCommentsBy(bin.Op.Row)
+		self.ef.fmt.popRowCommentsBy(self.bin.Op.Row)
 		self.write("\n")
 		self.ef.fmt.buf.Write(self.ef.fmt.indent)
-		self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
-		match type bin.Right.Kind {
+		self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
+		match type self.bin.Right.Kind {
 		| &ast::BinaryExpr:
-			bin = (&ast::BinaryExpr)(bin.Right.Kind)
-			self.head(bin)
+			self.bin = (&ast::BinaryExpr)(self.bin.Right.Kind)
+			self.head(self.bin)
 			self.ef.fmt.doneIndent()
 			goto rep
 		|:
-			self.ef.fmt.popRowCommentsByC(bin.Right.Token.Row, bin.Right.Token.Column)
-			self.format(bin.Right)
-			self.ef.fmt.row = bin.Right.Token.Row
+			self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
+			self.format(self.bin.Right)
+			self.ef.fmt.row = self.bin.Right.Token.Row
 		}
 		self.ef.fmt.doneIndent()
 	}
@@ -2184,7 +2220,7 @@ impl binaryFormatter {
 		match type kind {
 		| &ast::BinaryExpr:
 			mut bin := (&ast::BinaryExpr)(kind)
-			if binaryFormatter.isZipOp(bin) {
+			if binaryFormatter.isHardZipOp(bin.Op.Id) {
 				ret true
 			}
 			ret self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
@@ -2193,21 +2229,48 @@ impl binaryFormatter {
 		}
 	}
 
-	fn new(&self, mut &bin: &ast::BinaryExpr) {
-		if self.strict {
-			ret
+	fn isPrec(&self, first: int, &kind: ast::ExprData): int {
+		match type kind {
+		| &ast::BinaryExpr:
+			bin := (&ast::BinaryExpr)(kind)
+			if first != binaryFormatter.opPrec(bin.Op.Id) {
+				ret -1
+			}
+			mut prec := self.isPrec(first, bin.Left.Kind)
+			if first != prec {
+				ret -1
+			}
+			prec = self.isPrec(first, bin.Right.Kind)
+			if first != prec {
+				ret -1
+			}
+			ret first
+		|:
+			ret first
 		}
+	}
+
+	fn new(&self, mut &bin: &ast::BinaryExpr) {
 		if self.zip {
 			ret
 		}
-		if binaryFormatter.isZipOp(bin) {
+
+		// detect zip
+		if binaryFormatter.isOp(bin.Op.Id) {
 			self.zip = true
 			ret
 		}
 		self.zip = self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
-		if !self.zip {
-			self.zip = binaryFormatter.isOp(bin)
-			self.weak = true
+		if self.zip {
+			// skip if zipped, no need to detect following
+			ret
+		}
+
+		// detect prec
+		if !self.prec {
+			// enable prec formatting if all operators is not have same prec
+			first := binaryFormatter.opPrec(bin.Op.Id)
+			self.prec = first != self.isPrec(first, bin.Left.Kind) || first != self.isPrec(first, bin.Right.Kind)
 		}
 	}
 
@@ -2217,20 +2280,20 @@ impl binaryFormatter {
 		}
 
 		zip := self.zip
-		weak := self.weak
+		prec := self.prec
 		mut bin := self.bin
-		defer {
-			self.zip = zip
-			self.weak = weak
-			self.bin = bin
-		}
-
-		if !self.strict && (self.weak || binaryFormatter.isZipOp(self.bin)) {
-			if isRanged(expr) {
-				self.zip = false
-			}
+		match type expr.Kind {
+		| &ast::BinaryExpr:
+			// keep prec mode for tail
+			break
+		|:
+			// disable prec mode
+			self.prec = false
 		}
 		self.ef.format(expr)
+		self.zip = zip
+		self.bin = bin
+		self.prec = prec
 	}
 }
 
