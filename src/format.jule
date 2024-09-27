@@ -1608,7 +1608,23 @@ impl scopeFormatter {
 			self.write("\n")
 			self.fmt.addIndent()
 		}
+
+		// save internal state of binary formatter
+		zip := self.fmt.ef.bf.zip
+		op := self.fmt.ef.bf.op
+		prec := self.fmt.ef.bf.prec
+
+		// reset internal state of binary formatter
+		// thus we can use new internal state for anonymous functions or exceptional handlers
+		self.fmt.ef.bf.clean()
+
 		self.formatStmts(scope, inline)
+
+		// save internal state of binary formatter
+		self.fmt.ef.bf.zip = zip
+		self.fmt.ef.bf.op = op
+		self.fmt.ef.bf.prec = prec
+
 		if !inline {
 			self.fmt.doneIndent()
 		}
@@ -2262,7 +2278,6 @@ impl binaryFormatter {
 		if self.zip {
 			ret
 		}
-
 		// detect zip
 		if binaryFormatter.isOp(bin.Op.Id) {
 			self.zip = true
@@ -2299,6 +2314,12 @@ impl binaryFormatter {
 		| &ast::BinaryExpr:
 			// keep prec mode for tail
 			break
+		| &ast::FnCallExpr
+		| &ast::CastExpr:
+			self.zip = true
+
+			// disable prec mode for non-tail expressions
+			self.prec = false
 		|:
 			// enable zip mode if prec mode is enabled and
 			// current binary operator have high precedence
