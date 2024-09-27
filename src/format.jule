@@ -1743,6 +1743,11 @@ impl exprFormatter {
 		if len(f.Args) == 0 {
 			ret
 		}
+
+		// save state of zip mode
+		zip := self.bf.zip
+		self.bf.zip = self.bf.zip || len(f.Args) > 1 // enable zip mode if arguments more than one
+
 		mut row := f.Token.Row
 		mut indented := false
 		for (i, mut arg) in f.Args {
@@ -1768,6 +1773,9 @@ impl exprFormatter {
 		if indented {
 			self.fmt.doneIndent()
 		}
+
+		// save zip mode
+		self.bf.zip = zip
 	}
 
 	fn fnCall(&self, mut f: &ast::FnCallExpr) {
@@ -2274,23 +2282,34 @@ impl binaryFormatter {
 		}
 	}
 
+	// Formats expression.
+	// It designed for binary expressions operands only.
 	fn format(&self, mut &expr: &ast::Expr) {
 		if expr == nil {
 			ret
 		}
 
+		// store state of internal data
 		zip := self.zip
 		prec := self.prec
 		mut bin := self.bin
+
+		// format expression
 		match type expr.Kind {
 		| &ast::BinaryExpr:
 			// keep prec mode for tail
 			break
 		|:
-			// disable prec mode
+			// enable zip mode if prec mode is enabled and
+			// current binary operator have high precedence
+			self.zip = self.zip || self.prec && binaryFormatter.opPrec(self.bin.Op.Id) == 1
+
+			// disable prec mode for non-tail expressions
 			self.prec = false
 		}
 		self.ef.format(expr)
+
+		// save internal data
 		self.zip = zip
 		self.bin = bin
 		self.prec = prec
