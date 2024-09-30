@@ -8,6 +8,7 @@ use "std/jule/types"
 use "std/bytes"
 use "std/strings"
 use "std/unicode/utf8"
+use "std/slices"
 
 struct field {
 	f:     &ast::FieldDecl
@@ -105,7 +106,7 @@ impl formatter {
 		ret nil
 	}
 
-	fn writeCommentsExceptL(&self, start: int, row: int): int {
+	fn writeCommentsExceptL(&self, start: int, row: int, pad: bool): int {
 		mut lrow := row
 		mut i := 0
 		for i < len(self.cm.buf) {
@@ -116,7 +117,7 @@ impl formatter {
 			} else if row != -1 && c.row >= row {
 				break
 			}
-			if c.row-lrow > 1 {
+			if pad && c.row-lrow > 1 {
 				self.write("\n")
 			}
 			lrow = c.row
@@ -129,7 +130,8 @@ impl formatter {
 	}
 
 	fn writeCommentsExcept(&self, row: int): int {
-		ret self.writeCommentsExceptL(-1, row)
+		const Pad = true
+		ret self.writeCommentsExceptL(-1, row, Pad)
 	}
 
 	fn writeComments(&self, row: int): int {
@@ -282,15 +284,56 @@ impl formatter {
 		if len(self.f.TopDirectives) > 0 {
 			self.write("\n\n")
 		}
-		first := self.f.UseDecls[0]
-		self.addGlobalPaddingForComment(first.Token.Row)
-		self.row = self.writeComments(first.Token.Row)
-		if first.Token.Row-self.row > 1 {
-			self.write("\n")
+
+		// Write all-comments first.
+		// Do this before ordering use declarations to find correct last comment.
+		{
+			first := self.f.UseDecls[0]
+			self.addGlobalPaddingForComment(first.Token.Row)
+			self.row = self.writeComments(first.Token.Row)
+			if first.Token.Row-self.row > 1 {
+				self.write("\n")
+			}
+			const Pad = false
+			self.writeCommentsExceptL(-1, self.f.UseDecls[len(self.f.UseDecls)-1].Token.Row+1, Pad)
 		}
+
+		// Sort imports.
+		// See formatter documentation how ordering will be made.
+		slices::SortFunc(self.f.UseDecls, fn(a: &ast::UseDecl, b: &ast::UseDecl): int {
+			if a.Binded != b.Binded {
+				if a.Binded {
+					ret +1
+				}
+				ret -1
+			}
+			// a.Binded == b.Binded
+			if a.Binded {
+				ret strings::Compare(a.Path.Kind, b.Path.Kind)
+			}
+			const StdPrefix = `"std/`
+			aStd := strings::HasPrefix(a.Path.Kind, StdPrefix)
+			bStd := strings::HasPrefix(b.Path.Kind, StdPrefix)
+			if aStd == bStd {
+				ret strings::Compare(a.Path.Kind, b.Path.Kind)
+			}
+			if aStd && !bStd {
+				ret +1
+			}
+			ret -1
+		})
+
+		mut binded := false // whether any binded import seen
 		for i, decl in self.f.UseDecls {
+			if !binded && decl.Binded {
+				binded = true
+				if i > 0 {
+					// ordinary import seen
+					// separate binded imports
+					self.write("\n")
+				}
+			}
 			self.row = decl.Token.Row
-			self.writeComments(self.row)
 			self.useDecl(decl)
 			if len(self.f.UseDecls)-i > 1 {
 				self.write("\n")
@@ -1910,7 +1953,8 @@ impl exprFormatter {
 			erow := rows[i]
 			if !self.ibc || sibc || lined {
 				self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, erow.row)
-				self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row)
+				const Pad = true
+				self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row, Pad)
 			}
 			if self.fmt.ubuf()[self.fmt.buf.Len()-1] == '\n' {
 				self.fmt.buf.Write(self.fmt.indent)
@@ -1938,7 +1982,8 @@ impl exprFormatter {
 		}
 		if !self.ibc || sibc || lined {
 			self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, lit.End.Row)
-			self.fmt.writeCommentsExceptL(lit.Token.Row, lit.End.Row)
+			const Pad = true
+			self.fmt.writeCommentsExceptL(lit.Token.Row, lit.End.Row, Pad)
 		}
 		self.fmt.doneIndent()
 		if lined {
