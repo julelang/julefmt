@@ -2,22 +2,16 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
-use ast for std::jule::ast::{
-	AST,
-}
-use lex for std::jule::lex::{
-	Token,
-	TokenId,
-	TokenKind,
-}
-use std::jule::types::{TypeKind}
-use bytes for std::bytes
-use strings for std::strings::{StrBuilder}
-use utf8 for std::unicode::utf8
+use "std/jule/ast"
+use "std/jule/lex"
+use "std/jule/types"
+use "std/bytes"
+use "std/strings"
+use "std/unicode/utf8"
 
 struct field {
 	f:     &ast::FieldDecl
-	token: &Token
+	token: &lex::Token
 	expr:  []byte
 }
 
@@ -33,8 +27,8 @@ struct formatter {
 	indentStr: str = "\t"
 
 	mut i:      int
-	mut buf:    StrBuilder
-	mut f:      &AST
+	mut buf:    strings::StrBuilder
+	mut f:      &ast::AST
 	mut indent: []byte
 	mut cm:     commentMap
 	mut row:    int
@@ -242,7 +236,7 @@ impl formatter {
 			match {
 			| i == 0:
 				self.write(" ")
-			| arg.Kind != TokenKind.RParent && d.Args[i-1].Kind != TokenKind.LParent:
+			| arg.Kind != lex::TokenKind.RParent && d.Args[i-1].Kind != lex::TokenKind.LParent:
 				self.write(" ")
 			}
 			self.write(arg.Kind)
@@ -274,54 +268,11 @@ impl formatter {
 			self.write("cpp ")
 		}
 		self.write("use ")
-		if d.Alias != "" {
-			self.write(d.Alias)
-			self.write(" for ")
+		if d.Alias != nil {
+			self.write(d.Alias.Kind)
+			self.write(" ")
 		}
-		if d.Binded {
-			self.write("\"")
-			self.write(d.LinkPath)
-			self.write("\"")
-		} else {
-			self.write(d.LinkPath)
-		}
-		if d.Full {
-			self.write("::*")
-			ret
-		}
-		if len(d.Selected) == 0 {
-			ret
-		}
-		mut newline := false
-		mut row := d.Token.Row
-		for _, s in d.Selected {
-			if row != s.Row {
-				newline = true
-				break
-			}
-		}
-		self.write("::{")
-		if newline {
-			self.addIndent()
-			self.write("\n")
-		}
-		for i, s in d.Selected {
-			if newline {
-				self.buf.Write(self.indent)
-			}
-			self.write(s.Kind)
-			if newline {
-				self.write(",")
-				self.popRowCommentsBy(s.Row)
-				self.write("\n")
-			} else if len(d.Selected)-i > 1 {
-				self.write(", ")
-			}
-		}
-		if newline {
-			self.doneIndent()
-		}
-		self.write("}")
+		self.write(d.Path.Kind)
 	}
 
 	fn useDecls(&self) {
@@ -677,7 +628,7 @@ impl formatter {
 				self.write("static ")
 			} else if d.Constant {
 				self.write("const ")
-			} else if d.Setter == nil || d.Setter.Id == TokenId.Eq {
+			} else if d.Setter == nil || d.Setter.Id == lex::TokenId.Eq {
 				self.write("let ")
 			}
 		}
@@ -1032,7 +983,7 @@ impl formatter {
 		self.writeRemainingComments()
 	}
 
-	fn format(&self, mut &f: &AST, mut &cm: commentMap): []byte {
+	fn format(&self, mut &f: &ast::AST, mut &cm: commentMap): []byte {
 		self.cm = cm
 		self.f = f
 		self.directives(self.f.TopDirectives)
@@ -1087,10 +1038,8 @@ impl typeFormatter {
 	}
 
 	fn namespace(self, mut ns: &ast::NamespaceTypeDecl) {
-		for _, id in ns.Idents {
-			self.write(id.Kind)
-			self.write("::")
-		}
+		self.write(ns.Namespace.Kind)
+		self.write("::")
 		self.format(ns.Kind.Kind)
 	}
 
@@ -1423,7 +1372,7 @@ impl scopeFormatter {
 	}
 
 	fn multiAssign(&self, mut &a: &ast::AssignSt) {
-		letKwUsed := a.Setter.Kind == TokenKind.Eq
+		letKwUsed := a.Setter.Kind == lex::TokenKind.Eq
 		if a.Declarative && letKwUsed {
 			self.write("let (")
 		}
@@ -1746,11 +1695,9 @@ impl exprFormatter {
 		self.format(c.Expr)
 	}
 
-	fn nselect(&self, ns: &ast::NsSelectionExpr) {
-		for _, s in ns.Ns {
-			self.write(s.Kind)
-			self.write("::")
-		}
+	fn namespace(&self, ns: &ast::NamespaceExpr) {
+		self.write(ns.Namespace.Kind)
+		self.write("::")
 		self.write(ns.Ident.Kind)
 	}
 
@@ -2096,8 +2043,8 @@ impl exprFormatter {
 			self.variadic((&ast::VariadicExpr)(kind))
 		| &ast::CastExpr:
 			self.cast((&ast::CastExpr)(kind))
-		| &ast::NsSelectionExpr:
-			self.nselect((&ast::NsSelectionExpr)(kind))
+		| &ast::NamespaceExpr:
+			self.namespace((&ast::NamespaceExpr)(kind))
 		| &ast::SubIdentExpr:
 			self.subIdent((&ast::SubIdentExpr)(kind))
 		| &ast::BinaryExpr:
@@ -2141,27 +2088,27 @@ struct binaryFormatter {
 
 impl binaryFormatter {
 	// Reports whether operator should take space for formatting.
-	static fn isOp(op: TokenId): bool {
-		ret op == TokenId.DblVline ||
-			op == TokenId.DblAmper ||
-			op == TokenId.Gt ||
-			op == TokenId.Lt ||
-			op == TokenId.LtEq ||
-			op == TokenId.GtEq ||
-			op == TokenId.Eqs ||
-			op == TokenId.NotEq
+	static fn isOp(op: lex::TokenId): bool {
+		ret op == lex::TokenId.DblVline ||
+			op == lex::TokenId.DblAmper ||
+			op == lex::TokenId.Gt ||
+			op == lex::TokenId.Lt ||
+			op == lex::TokenId.LtEq ||
+			op == lex::TokenId.GtEq ||
+			op == lex::TokenId.Eqs ||
+			op == lex::TokenId.NotEq
 	}
 
 	// Reports whether the operator is have high formatting precedence.
 	// Returns 1 for high precedence, otherwise returns 0.
-	static fn opPrec(op: TokenId): int {
+	static fn opPrec(op: lex::TokenId): int {
 		match op {
-		| TokenId.Shl
-		| TokenId.Shr
-		| TokenId.Star
-		| TokenId.Solidus
-		| TokenId.Percent
-		| TokenId.Amper:
+		| lex::TokenId.Shl
+		| lex::TokenId.Shr
+		| lex::TokenId.Star
+		| lex::TokenId.Solidus
+		| lex::TokenId.Percent
+		| lex::TokenId.Amper:
 			ret 1
 		|:
 			ret 0
@@ -2169,9 +2116,9 @@ impl binaryFormatter {
 	}
 
 	// Reports whether operator zips operands.
-	static fn isHardZipOp(op: TokenId): bool {
-		ret op == TokenId.DblVline ||
-			op == TokenId.DblAmper
+	static fn isHardZipOp(op: lex::TokenId): bool {
+		ret op == lex::TokenId.DblVline ||
+			op == lex::TokenId.DblAmper
 	}
 
 	fn write(&self, s: str) {
@@ -2358,22 +2305,22 @@ fn isPrimType(&t: &ast::TypeDecl): bool {
 	match type t.Kind {
 	| &ast::IdentTypeDecl:
 		itd := (&ast::IdentTypeDecl)(t.Kind)
-		ret itd.Ident == TypeKind.I8 ||
-			itd.Ident == TypeKind.I16 ||
-			itd.Ident == TypeKind.I32 ||
-			itd.Ident == TypeKind.I64 ||
-			itd.Ident == TypeKind.U8 ||
-			itd.Ident == TypeKind.U16 ||
-			itd.Ident == TypeKind.U32 ||
-			itd.Ident == TypeKind.U64 ||
-			itd.Ident == TypeKind.Int ||
-			itd.Ident == TypeKind.Uint ||
-			itd.Ident == TypeKind.Uintptr ||
-			itd.Ident == TypeKind.F32 ||
-			itd.Ident == TypeKind.F64 ||
-			itd.Ident == TypeKind.Bool ||
-			itd.Ident == TypeKind.Str ||
-			itd.Ident == TypeKind.Any
+		ret itd.Ident == types::TypeKind.I8 ||
+			itd.Ident == types::TypeKind.I16 ||
+			itd.Ident == types::TypeKind.I32 ||
+			itd.Ident == types::TypeKind.I64 ||
+			itd.Ident == types::TypeKind.U8 ||
+			itd.Ident == types::TypeKind.U16 ||
+			itd.Ident == types::TypeKind.U32 ||
+			itd.Ident == types::TypeKind.U64 ||
+			itd.Ident == types::TypeKind.Int ||
+			itd.Ident == types::TypeKind.Uint ||
+			itd.Ident == types::TypeKind.Uintptr ||
+			itd.Ident == types::TypeKind.F32 ||
+			itd.Ident == types::TypeKind.F64 ||
+			itd.Ident == types::TypeKind.Bool ||
+			itd.Ident == types::TypeKind.Str ||
+			itd.Ident == types::TypeKind.Any
 	}
 	ret false
 }

@@ -2,10 +2,7 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
-use std::jule::lex::{
-	Token,
-	TokenId,
-}
+use "std/jule/lex"
 
 struct comment {
 	row: int
@@ -18,14 +15,14 @@ struct commentMap {
 }
 
 impl commentMap {
-	static fn build(mut &tokens: []&Token): commentMap {
+	static fn build(mut &tokens: []&lex::Token): commentMap {
 		mut cm := commentMap{
 			buf: make([]&comment, 0, 1<<8),
 		}
 		mut i := 0
 		for i < len(tokens) {
 			token := tokens[i]
-			if token.Id != TokenId.Comment {
+			if token.Id != lex::TokenId.Comment {
 				i++
 				continue
 			}

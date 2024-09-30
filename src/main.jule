@@ -2,21 +2,18 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
-use env for std::env
-use std::fs::{Directory, File}
-use path for std::fs::path
-use process for std::process
-use build for std::jule::build
-use lex for std::jule::lex
-use parser for std::jule::parser
-use sema for std::jule::sema::{
-	SemaFlag,
-}
-use strings for std::strings
+use "std/env"
+use "std/fs"
+use "std/fs/path"
+use "std/jule/build"
+use "std/jule/lex"
+use "std/jule/parser"
+use "std/jule/sema"
+use "std/strings"
 
 fn formatFile(path: str) {
 	mut file := lex::NewFileSet(path)
-	file.Fill(File.Read(path) else {
+	file.Fill(fs::File.Read(path) else {
 		outln("error: file could not read: " + path)
 		ret
 	})
@@ -37,14 +34,14 @@ fn formatFile(path: str) {
 	fmt := formatter.new()
 	buf := fmt.format(f, cm)
 	fpath := f.File.Path
-	File.Write(fpath, buf, 0o660) else {
+	fs::File.Write(fpath, buf, 0o660) else {
 		outln("error: could not write to file: " + fpath)
 		ret
 	}
 }
 
 fn parsePackage(path: str) {
-	mut dirents := Directory.Read(path) else {
+	mut dirents := fs::Directory.Read(path) else {
 		outln("error: connot read package directory: " + path)
 		ret
 	}
