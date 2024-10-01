@@ -17,7 +17,7 @@ fn formatFile(path: str) {
 		outln("error: file could not read: " + path)
 		ret
 	})
-	mut errors := token::Lex(file, token::Mode.Comment)
+	mut errors := token::Lex(file, token::LexMode.Comment)
 	if len(errors) > 0 {
 		outln("error: file could not formatted, have error(s): " + path)
 		ret
