@@ -365,7 +365,6 @@ impl formatter {
 	}
 
 	fn enumItem[T](&self, mut &item: T) {
-		self.buf.Write(self.indent)
 		const match type T {
 		| &ast::EnumItemDecl:
 			self.write(item.Ident)
@@ -405,9 +404,15 @@ impl formatter {
 				item := d.Items[i]
 				const match type T {
 				| &ast::EnumDecl:
-					self.groupDecls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.Items, i)
+					self.groupDecls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.Items, i, fn(mut &d: &ast::EnumItemDecl) {
+						self.buf.Write(self.indent)
+						self.enumItem[&ast::EnumItemDecl](d)
+					})
 				| &ast::TypeEnumDecl:
-					self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i)
+					self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i, fn(mut &d: &ast::TypeEnumItemDecl) {
+						self.buf.Write(self.indent)
+						self.enumItem[&ast::TypeEnumItemDecl](d)
+					})
 				}
 				if i < len(d.Items) {
 					if !self.addGlobalPaddingForComment(d.End.Row) && old != i {
@@ -649,7 +654,6 @@ impl formatter {
 	}
 
 	fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
-		self.buf.Write(self.indent)
 		if d.Binded {
 			self.write("cpp ")
 		}
@@ -660,7 +664,6 @@ impl formatter {
 	}
 
 	fn varDecl(&self, mut d: &ast::VarDecl) {
-		self.buf.Write(self.indent)
 		if len(d.Directives) != 0 {
 			self.directives(d.Directives)
 		}
@@ -779,7 +782,7 @@ impl formatter {
 		}
 	}
 
-	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int) {
+	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int, writer: fn(mut &d: T)) {
 		if len(nodes) == 0 {
 			ret
 		}
@@ -797,43 +800,50 @@ impl formatter {
 		mut n := self.buf.Len()
 	loop:
 		for i < len(nodes) {
-			let mut decl: T = nil
+			let mut decl: T
+			mut row := -1
 			const match type Node {
 			| &ast::EnumItemDecl
 			| &ast::TypeEnumItemDecl
 			| &ast::VarDecl
 			| &ast::FnDecl:
 				decl = nodes[i]
-			| ast::Node
+				row = decl.Token.Row
 			| ast::Stmt:
+				decl = nodes[i]
+				if !isGroupStmt(decl) {
+					break loop
+				}
+				row = decl.End.Row
+			| ast::Node:
 				node := nodes[i]
 				match type node.Data {
 				| T:
 					decl = (T)(nodes[i].Data)
+					row = decl.Token.Row
 				|:
 					break loop
 				}
+			|:
+				panic("groupDecls: unimplemented type")
 			}
-			if !all && self.row != -1 && decl.Token.Row-self.row > 1 {
+			if !all && self.row != -1 && row-self.row > 1 {
 				break loop
 			}
-			self.row = decl.Token.Row
-			const match type T {
-			| &ast::VarDecl:
-				self.varDecl(decl)
-			| &ast::TypeAliasDecl:
-				self.typeAliasDecl(decl)
-			| &ast::EnumItemDecl
-			| &ast::TypeEnumItemDecl:
-				self.enumItem[T](decl)
-			| &ast::FnDecl:
-				self.fnDecl(decl)
-			}
+			self.row = row
+			writer(decl)
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
 			rows = append(rows, self.row)
 			self.setBuf(self.ubuf()[:n])
 			i++
+			const match type Node {
+			| ast::Stmt:
+				if decl.Token.Row != decl.End.Row {
+					// break if start row and end row is not same of stmt
+					break loop
+				}
+			}
 		}
 
 		n = 0
@@ -861,11 +871,11 @@ impl formatter {
 		}
 	}
 
-	fn writeImplNodes[T](&self, mut &nodes: []T) {
+	fn writeImplNodes[T](&self, mut &nodes: []T, writer: fn(mut &d: T)) {
 		self.write("\n")
 		mut j := 0
 		for j < len(nodes) {
-			self.groupDecls[T, T](nodes, j)
+			self.groupDecls[T, T](nodes, j, writer)
 			if j < len(nodes) {
 				self.write("\n")
 			}
@@ -905,7 +915,9 @@ impl formatter {
 					statics = si
 					if methods != -1 {
 						mut mtds := d.Methods[methods:mi]
-						self.writeImplNodes[&ast::FnDecl](mtds)
+						self.writeImplNodes[&ast::FnDecl](mtds, fn(mut &d: &ast::FnDecl) {
+							self.fnDecl(d)
+						})
 					}
 					methods = -1
 				}
@@ -914,7 +926,10 @@ impl formatter {
 			}
 			if statics != -1 {
 				mut vars := d.Statics[statics:si]
-				self.writeImplNodes[&ast::VarDecl](vars)
+				self.writeImplNodes[&ast::VarDecl](vars, fn(mut &d: &ast::VarDecl) {
+					self.buf.Write(self.indent)
+					self.varDecl(d)
+				})
 				statics = -1
 			}
 			if methods == -1 {
@@ -924,11 +939,16 @@ impl formatter {
 		}
 		if statics != -1 {
 			mut vars := d.Statics[statics:si]
-			self.writeImplNodes[&ast::VarDecl](vars)
+			self.writeImplNodes[&ast::VarDecl](vars, fn(mut &d: &ast::VarDecl) {
+				self.buf.Write(self.indent)
+				self.varDecl(d)
+			})
 		}
 		if methods != -1 {
 			mut mtds := d.Methods[methods:mi]
-			self.writeImplNodes[&ast::FnDecl](mtds)
+			self.writeImplNodes[&ast::FnDecl](mtds, fn(mut &d: &ast::FnDecl) {
+				self.fnDecl(d)
+			})
 		}
 		self.addGlobalPaddingForComment(d.End.Row)
 		self.writeCommentsExcept(d.End.Row)
@@ -937,7 +957,7 @@ impl formatter {
 		self.popRowComments(d.End.Row)
 	}
 
-	fn groupNode[T](&self, &node: ast::Node) {
+	fn groupNode[T](&self, &node: ast::Node, writer: fn(mut &d: T)) {
 		mut row := node.Token.Row
 		const match type T {
 		| &ast::TypeAliasDecl:
@@ -951,19 +971,27 @@ impl formatter {
 		if row-self.writeCommentsExcept(row) > 1 {
 			self.write("\n")
 		}
-		self.groupDecls[T, ast::Node](self.f.Nodes, self.i)
+		self.groupDecls[T, ast::Node](self.f.Nodes, self.i, writer)
 	}
 
 	fn node(&self, mut &node: ast::Node) {
 		match type node.Data {
 		| &ast::TypeAliasDecl:
-			self.groupNode[&ast::TypeAliasDecl](node)
+			self.groupNode[&ast::TypeAliasDecl](node, fn(mut &d: &ast::TypeAliasDecl) {
+				self.buf.Write(self.indent)
+				self.typeAliasDecl(d)
+			})
 			ret
 		| &ast::VarDecl:
-			self.groupNode[&ast::VarDecl](node)
+			self.groupNode[&ast::VarDecl](node, fn(mut &d: &ast::VarDecl) {
+				self.buf.Write(self.indent)
+				self.varDecl(d)
+			})
 			ret
 		| &ast::FnDecl:
-			self.groupNode[&ast::FnDecl](node)
+			self.groupNode[&ast::FnDecl](node, fn(mut &d: &ast::FnDecl) {
+				self.fnDecl(d)
+			})
 			ret
 		| &ast::StructDecl:
 			self.structDecl((&ast::StructDecl)(node.Data))
@@ -1460,6 +1488,10 @@ impl scopeFormatter {
 
 	fn formatStmt(&self, mut &stmt: ast::StmtData) {
 		match type stmt {
+		| &ast::VarDecl:
+			self.fmt.varDecl((&ast::VarDecl)(stmt))
+		| &ast::TypeAliasDecl:
+			self.fmt.typeAliasDecl((&ast::TypeAliasDecl)(stmt))
 		| &ast::ScopeTree:
 			self.format((&ast::ScopeTree)(stmt))
 		| &ast::Expr:
@@ -1539,12 +1571,12 @@ impl scopeFormatter {
 			}
 			z = i
 			self.fmt.row = stmt.Token.Row
-			match type stmt.Data {
-			| &ast::TypeAliasDecl:
-				self.fmt.groupDecls[&ast::TypeAliasDecl, ast::Stmt](scope.Stmts, i)
-			| &ast::VarDecl:
-				self.fmt.groupDecls[&ast::VarDecl, ast::Stmt](scope.Stmts, i)
-			|:
+			if !inline && isGroupStmt(stmt) {
+				self.fmt.groupDecls[ast::Stmt, ast::Stmt](scope.Stmts, i, fn(mut &d: ast::Stmt) {
+					self.fmt.buf.Write(self.fmt.indent)
+					self.formatStmt(d.Data)
+				})
+			} else {
 				if !inline {
 					self.fmt.buf.Write(self.fmt.indent)
 				}
@@ -1775,7 +1807,8 @@ impl exprFormatter {
 					indented = true
 					self.fmt.addIndent()
 				}
-				self.fmt.popRowComments(self.fmt.row)
+				const Pad = true
+				self.fmt.writeCommentsExceptL(arg.Token.Row, arg.Token.Row, Pad)
 				self.write("\n")
 				self.fmt.buf.Write(self.fmt.indent)
 			} else if i > 0 {
@@ -1820,12 +1853,10 @@ impl exprFormatter {
 	}
 
 	fn structLit(&self, mut lit: &ast::StructLit) {
-		defer {
-			self.fmt.row = lit.End.Row
-		}
 		self.fmt.formatType(lit.Kind)
 		if len(lit.Exprs) == 0 {
 			self.write("{}")
+			self.fmt.row = lit.End.Row
 			ret
 		}
 		mut newline := false
@@ -1847,7 +1878,8 @@ impl exprFormatter {
 			if newline {
 				if !self.ibc {
 					self.fmt.addGlobalPaddingForComment(expr.Token.Row)
-					self.fmt.writeCommentsExcept(expr.Token.Row)
+					const Pad = true
+					self.fmt.writeCommentsExceptL(expr.Token.Row-1, expr.Token.Row, Pad)
 				}
 				self.fmt.buf.Write(self.fmt.indent)
 			}
@@ -1869,13 +1901,15 @@ impl exprFormatter {
 		}
 		if !self.ibc {
 			self.fmt.addGlobalPaddingForComment(lit.End.Row)
-			self.fmt.writeCommentsExcept(lit.End.Row)
+			const Pad = true
+			self.fmt.writeCommentsExceptL(lit.End.Row, lit.End.Row, Pad)
 		}
 		self.fmt.doneIndent()
 		if newline {
 			self.fmt.buf.Write(self.fmt.indent)
 		}
 		self.write("}")
+		self.fmt.row = lit.End.Row
 	}
 
 	fn responsiveExprs[T](&self, mut &lit: T) {
@@ -2389,4 +2423,16 @@ fn cloneBuf(b: []byte): []byte {
 	mut rb := make([]byte, len(b))
 	copy(rb, b)
 	ret rb
+}
+
+fn isGroupStmt(stmt: ast::Stmt): bool {
+	match type stmt.Data {
+	| &ast::TypeAliasDecl
+	| &ast::VarDecl
+	| &ast::AssignSt
+	| &ast::Expr:
+		ret true
+	|:
+		ret false
+	}
 }
