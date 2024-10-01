@@ -4,7 +4,7 @@
 
 use "std/bytes"
 use "std/jule/ast"
-use "std/jule/lex"
+use "std/jule/token"
 use "std/jule/types"
 use "std/slices"
 use "std/strings"
@@ -12,7 +12,7 @@ use "std/unicode/utf8"
 
 struct field {
 	f:     &ast::FieldDecl
-	token: &lex::Token
+	token: &token::Token
 	expr:  []byte
 }
 
@@ -28,7 +28,7 @@ struct formatter {
 	indentStr: str = "\t"
 
 	mut i:      int
-	mut buf:    strings::StrBuilder
+	mut buf:    strings::Builder
 	mut f:      &ast::AST
 	mut indent: []byte
 	mut cm:     commentMap
@@ -238,7 +238,7 @@ impl formatter {
 			match {
 			| i == 0:
 				self.write(" ")
-			| arg.Kind != lex::TokenKind.RParent && d.Args[i-1].Kind != lex::TokenKind.LParent:
+			| arg.Kind != token::Kind.RParent && d.Args[i-1].Kind != token::Kind.LParent:
 				self.write(" ")
 			}
 			self.write(arg.Kind)
@@ -457,7 +457,7 @@ impl formatter {
 				}
 				self.write("self")
 			} else {
-				if !lex::IsAnonIdent(p.Ident) {
+				if !token::IsAnonIdent(p.Ident) {
 					self.write(p.Ident)
 					self.write(": ")
 				} else if p.Reference {
@@ -505,7 +505,7 @@ impl formatter {
 			self.write("unsafe ")
 		}
 		self.write("fn")
-		if !lex::IsAnonIdent(d.Ident) {
+		if !token::IsAnonIdent(d.Ident) {
 			self.write(" ")
 			self.write(d.Ident)
 		}
@@ -671,7 +671,7 @@ impl formatter {
 				self.write("static ")
 			} else if d.Constant {
 				self.write("const ")
-			} else if d.Setter == nil || d.Setter.Id == lex::TokenId.Eq {
+			} else if d.Setter == nil || d.Setter.Id == token::Id.Eq {
 				self.write("let ")
 			}
 		}
@@ -1129,7 +1129,7 @@ impl typeFormatter {
 			ret
 		}
 		if len(r.Idents) == 1 {
-			if lex::IsAnonIdent(r.Idents[0].Kind) {
+			if token::IsAnonIdent(r.Idents[0].Kind) {
 				self.format(r.Kind.Kind)
 				ret
 			}
@@ -1144,7 +1144,7 @@ impl typeFormatter {
 		self.write("(")
 		for (i, mut t) in types {
 			ident := r.Idents[i]
-			if lex::IsAnonIdent(ident.Kind) {
+			if token::IsAnonIdent(ident.Kind) {
 				self.format(t.Kind)
 			} else {
 				self.write(ident.Kind)
@@ -1402,7 +1402,7 @@ impl scopeFormatter {
 	}
 
 	fn singleAssign(&self, mut &a: &ast::AssignSt) {
-		if lex::IsIgnoreIdent(a.Left[0].Ident) {
+		if token::IsIgnoreIdent(a.Left[0].Ident) {
 			self.write("_ ")
 		} else {
 			mut expr := a.Left[0].Expr
@@ -1415,7 +1415,7 @@ impl scopeFormatter {
 	}
 
 	fn multiAssign(&self, mut &a: &ast::AssignSt) {
-		letKwUsed := a.Setter.Kind == lex::TokenKind.Eq
+		letKwUsed := a.Setter.Kind == token::Kind.Eq
 		if a.Declarative && letKwUsed {
 			self.write("let (")
 		}
@@ -1449,7 +1449,7 @@ impl scopeFormatter {
 
 	fn assign(&self, mut a: &ast::AssignSt) {
 		match {
-		| lex::IsPostfixOp(a.Setter.Id):
+		| token::IsPostfixOp(a.Setter.Id):
 			self.postfix(a)
 		| len(a.Left) == 1 && !a.Declarative:
 			self.singleAssign(a)
@@ -2133,27 +2133,27 @@ struct binaryFormatter {
 
 impl binaryFormatter {
 	// Reports whether operator should take space for formatting.
-	static fn isOp(op: lex::TokenId): bool {
-		ret op == lex::TokenId.DblVline ||
-			op == lex::TokenId.DblAmper ||
-			op == lex::TokenId.Gt ||
-			op == lex::TokenId.Lt ||
-			op == lex::TokenId.LtEq ||
-			op == lex::TokenId.GtEq ||
-			op == lex::TokenId.Eqs ||
-			op == lex::TokenId.NotEq
+	static fn isOp(op: token::Id): bool {
+		ret op == token::Id.DblVline ||
+			op == token::Id.DblAmper ||
+			op == token::Id.Gt ||
+			op == token::Id.Lt ||
+			op == token::Id.LtEq ||
+			op == token::Id.GtEq ||
+			op == token::Id.Eqs ||
+			op == token::Id.NotEq
 	}
 
 	// Reports whether the operator is have high formatting precedence.
 	// Returns 1 for high precedence, otherwise returns 0.
-	static fn opPrec(op: lex::TokenId): int {
+	static fn opPrec(op: token::Id): int {
 		match op {
-		| lex::TokenId.Shl
-		| lex::TokenId.Shr
-		| lex::TokenId.Star
-		| lex::TokenId.Solidus
-		| lex::TokenId.Percent
-		| lex::TokenId.Amper:
+		| token::Id.Shl
+		| token::Id.Shr
+		| token::Id.Star
+		| token::Id.Solidus
+		| token::Id.Percent
+		| token::Id.Amper:
 			ret 1
 		|:
 			ret 0
@@ -2161,9 +2161,9 @@ impl binaryFormatter {
 	}
 
 	// Reports whether operator zips operands.
-	static fn isHardZipOp(op: lex::TokenId): bool {
-		ret op == lex::TokenId.DblVline ||
-			op == lex::TokenId.DblAmper
+	static fn isHardZipOp(op: token::Id): bool {
+		ret op == token::Id.DblVline ||
+			op == token::Id.DblAmper
 	}
 
 	fn write(&self, s: str) {
@@ -2350,22 +2350,22 @@ fn isPrimType(&t: &ast::TypeDecl): bool {
 	match type t.Kind {
 	| &ast::IdentTypeDecl:
 		itd := (&ast::IdentTypeDecl)(t.Kind)
-		ret itd.Ident == types::TypeKind.I8 ||
-			itd.Ident == types::TypeKind.I16 ||
-			itd.Ident == types::TypeKind.I32 ||
-			itd.Ident == types::TypeKind.I64 ||
-			itd.Ident == types::TypeKind.U8 ||
-			itd.Ident == types::TypeKind.U16 ||
-			itd.Ident == types::TypeKind.U32 ||
-			itd.Ident == types::TypeKind.U64 ||
-			itd.Ident == types::TypeKind.Int ||
-			itd.Ident == types::TypeKind.Uint ||
-			itd.Ident == types::TypeKind.Uintptr ||
-			itd.Ident == types::TypeKind.F32 ||
-			itd.Ident == types::TypeKind.F64 ||
-			itd.Ident == types::TypeKind.Bool ||
-			itd.Ident == types::TypeKind.Str ||
-			itd.Ident == types::TypeKind.Any
+		ret itd.Ident == types::Kind.I8 ||
+			itd.Ident == types::Kind.I16 ||
+			itd.Ident == types::Kind.I32 ||
+			itd.Ident == types::Kind.I64 ||
+			itd.Ident == types::Kind.U8 ||
+			itd.Ident == types::Kind.U16 ||
+			itd.Ident == types::Kind.U32 ||
+			itd.Ident == types::Kind.U64 ||
+			itd.Ident == types::Kind.Int ||
+			itd.Ident == types::Kind.Uint ||
+			itd.Ident == types::Kind.Uintptr ||
+			itd.Ident == types::Kind.F32 ||
+			itd.Ident == types::Kind.F64 ||
+			itd.Ident == types::Kind.Bool ||
+			itd.Ident == types::Kind.Str ||
+			itd.Ident == types::Kind.Any
 	}
 	ret false
 }

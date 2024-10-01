@@ -6,18 +6,18 @@ use "std/env"
 use "std/fs"
 use "std/fs/path"
 use "std/jule/build"
-use "std/jule/lex"
 use "std/jule/parser"
 use "std/jule/sema"
+use "std/jule/token"
 use "std/strings"
 
 fn formatFile(path: str) {
-	mut file := lex::NewFileSet(path)
+	mut file := token::Fileset.New(path)
 	file.Fill(fs::File.Read(path) else {
 		outln("error: file could not read: " + path)
 		ret
 	})
-	mut errors := lex::Lex(file, lex::LexMode.Comment)
+	mut errors := token::Lex(file, token::Mode.Comment)
 	if len(errors) > 0 {
 		outln("error: file could not formatted, have error(s): " + path)
 		ret
