@@ -14,19 +14,19 @@ use "std/strings"
 fn formatFile(path: str) {
 	mut file := token::Fileset.New(path)
 	file.Fill(fs::File.Read(path) else {
-		outln("error: file could not read: " + path)
+		println("error: file could not read: " + path)
 		ret
 	})
 	mut errors := token::Lex(file, token::LexMode.Comment)
 	if len(errors) > 0 {
-		outln("error: file could not formatted, have error(s): " + path)
+		println("error: file could not formatted, have error(s): " + path)
 		ret
 	}
 
 	mut cm := commentMap.build(file.Tokens)
 	mut finfo := parser::ParseFile(file)
 	if len(finfo.Errors) > 0 {
-		outln("error: file could not formatted, have error(s): " + path)
+		println("error: file could not formatted, have error(s): " + path)
 		ret
 	}
 
@@ -35,14 +35,14 @@ fn formatFile(path: str) {
 	buf := fmt.format(f, cm)
 	fpath := f.File.Path
 	fs::File.Write(fpath, buf, 0o660) else {
-		outln("error: could not write to file: " + fpath)
+		println("error: could not write to file: " + fpath)
 		ret
 	}
 }
 
 fn parsePackage(path: str) {
 	mut dirents := fs::Directory.Read(path) else {
-		outln("error: connot read package directory: " + path)
+		println("error: connot read package directory: " + path)
 		ret
 	}
 	for _, dirent in dirents {
