@@ -1472,7 +1472,13 @@ impl scopeFormatter {
 		} else {
 			self.write(" = ")
 		}
+		zip := self.fmt.ef.bf.zip
+		match type a.Right.Kind {
+		| &ast::TupleExpr:
+			self.fmt.ef.bf.zip = len((&ast::TupleExpr)(a.Right.Kind).Expr) > 1
+		}
 		self.fmt.formatExpr(a.Right)
+		self.fmt.ef.bf.zip = zip
 	}
 
 	fn assign(&self, mut a: &ast::AssignSt) {
