@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
-use "std/env"
-use "std/fs"
-use "std/fs/path"
-use "std/jule/build"
+use "std/os"
+use "std/os/filepath"
+use "std/jule"
 use "std/jule/parser"
 use "std/jule/sema"
 use "std/jule/token"
@@ -13,10 +12,12 @@ use "std/strings"
 
 fn formatFile(path: str) {
 	mut file := token::Fileset.New(path)
-	file.Fill(fs::File.Read(path) else {
-		println("error: file could not read: " + path)
-		ret
-	})
+	unsafe {
+		file.FillMut(os::File.Read(path) else {
+			println("error: file could not read: " + path)
+			ret
+		})
+	}
 	mut errors := token::Lex(file, token::LexMode.Comment)
 	if len(errors) > 0 {
 		println("error: file could not formatted, have error(s): " + path)
@@ -34,29 +35,29 @@ fn formatFile(path: str) {
 	fmt := formatter.new()
 	buf := fmt.format(f, cm)
 	fpath := f.File.Path
-	fs::File.Write(fpath, buf, 0o660) else {
+	os::File.Write(fpath, buf, 0o660) else {
 		println("error: could not write to file: " + fpath)
 		ret
 	}
 }
 
 fn parsePackage(path: str) {
-	mut dirents := fs::Directory.Read(path) else {
+	mut dirents := os::Dir.Read(path) else {
 		println("error: connot read package directory: " + path)
 		ret
 	}
 	for _, dirent in dirents {
 		// Skip directories, and non-jule files.
-		if dirent.Stat.IsDir() || !strings::HasSuffix(dirent.Name, build::Ext) {
+		if dirent.Stat.IsDir() || !strings::HasSuffix(dirent.Name, jule::Ext) {
 			continue
 		}
-		filepath := path::Join(path, dirent.Name)
+		filepath := filepath::Join(path, dirent.Name)
 		formatFile(filepath)
 	}
 }
 
 fn main() {
-	args := env::Args()
+	args := os::Args()
 	if len(args) == 1 {
 		ret
 	}
