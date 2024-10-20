@@ -93,6 +93,11 @@ impl formatter {
 				}
 			}
 		}
+		if c.txt[1] == '/' {
+			// Single-line comment, trim trailing spaces before writing.
+			self.write(strings::TrimRight(c.txt, " \t\v\b"))
+			ret
+		}
 		self.write(c.txt)
 	}
 
