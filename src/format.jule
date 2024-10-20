@@ -183,6 +183,22 @@ impl formatter {
 		ret false
 	}
 
+	fn popRowCommentsUntilByF(&self, row: int, col: int, f: fn(&comment)) {
+		mut i := 0
+		for i < len(self.cm.buf) {
+			c := self.cm.buf[i]
+			if c.row > row {
+				break
+			}
+			if col == -1 || c.col < col {
+				f(c)
+				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+				continue
+			}
+			i++
+		}
+	}
+
 	fn popRowCommentsByF(&self, row: int, col: int, f: fn(&comment)) {
 		mut i := 0
 		for i < len(self.cm.buf) {
@@ -1628,10 +1644,16 @@ impl scopeFormatter {
 		self.write("{")
 		n := self.fmt.buf.Len()
 		comment := false
-		mut commentPtr := unsafe { (&bool)(&comment) }
-		if len(scope.Stmts) > 0 {
-			self.fmt.popRowCommentsByF(self.fmt.row, scope.Stmts[0].Token.Column, fn(c: &comment) {
+		commentWr := false
+		{
+			mut commentPtr := unsafe { (&bool)(&comment) }
+			mut commentWrPtr := unsafe { (&bool)(&commentWr) }
+			writer := fn(c: &comment) {
+				*commentWrPtr = true
 				if c.txt[:2] == "//" {
+					if !*commentPtr {
+						self.fmt.addIndent()
+					}
 					self.write("\n")
 					self.fmt.buf.Write(self.fmt.indent)!
 					*commentPtr = true
@@ -1639,19 +1661,28 @@ impl scopeFormatter {
 					self.write(" ")
 				}
 				self.fmt.writeComment(c)
-			})
+			}
+			if len(scope.Stmts) > 0 && scope.Stmts[0].Token.Row == scope.End.Row {
+				self.fmt.popRowCommentsByF(self.fmt.row, scope.Stmts[0].Token.Column, writer)
+			} else if len(scope.Stmts) == 0 {
+				self.fmt.row = scope.End.Row
+				self.fmt.popRowCommentsUntilByF(self.fmt.row - 1, -1, writer)
+				self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Row, writer)
+			}
 		}
-		inline := (len(scope.Stmts) == 0 && !*commentPtr) ||
+		inline := (len(scope.Stmts) == 0 && !comment) ||
 			(len(scope.Stmts) == 1 &&
 				self.fmt.row == scope.End.Row &&
 				scope.Stmts[0].Token.Row == scope.End.Row)
 		if inline {
-			if len(scope.Stmts) > 0 {
+			if len(scope.Stmts) > 0 || commentWr {
 				self.write(" ")
 			}
 		} else {
 			self.write("\n")
-			self.fmt.addIndent()
+			if !comment {
+				self.fmt.addIndent()
+			}
 		}
 
 		// save internal state of binary formatter
