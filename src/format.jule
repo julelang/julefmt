@@ -1666,7 +1666,7 @@ impl scopeFormatter {
 				self.fmt.popRowCommentsByF(self.fmt.row, scope.Stmts[0].Token.Column, writer)
 			} else if len(scope.Stmts) == 0 {
 				self.fmt.row = scope.End.Row
-				self.fmt.popRowCommentsUntilByF(self.fmt.row - 1, -1, writer)
+				self.fmt.popRowCommentsUntilByF(self.fmt.row-1, -1, writer)
 				self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Row, writer)
 			}
 		}

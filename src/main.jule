@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
-use "std/os"
-use "std/os/filepath"
 use "std/jule"
 use "std/jule/parser"
 use "std/jule/sema"
 use "std/jule/token"
+use "std/os"
+use "std/os/filepath"
 use "std/strings"
 
 fn formatFile(path: str) {
