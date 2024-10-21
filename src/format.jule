@@ -1807,9 +1807,9 @@ impl exprFormatter {
 			self.fmt.formatType(c.Kind)
 			self.write(")")
 		}
-		// Do not write parentheses for expression.
-		// Expression formatter will add.
+		self.write("(")
 		self.format(c.Expr)
+		self.write(")")
 	}
 
 	fn namespace(&self, ns: &ast::NamespaceExpr) {
