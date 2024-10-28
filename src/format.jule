@@ -680,7 +680,11 @@ impl formatter {
 		}
 		self.write("type ")
 		self.write(d.Ident)
-		self.write(": ")
+		if d.Strict {
+			self.write(": ")
+		} else {
+			self.write(" = ")
+		}
 		self.formatType(d.Kind)
 	}
 
