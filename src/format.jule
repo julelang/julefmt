@@ -1442,7 +1442,18 @@ impl scopeFormatter {
 			self.formatStmts(mc.Default.Scope, false)
 			self.fmt.doneIndent()
 		}
+
+		// Write remaining comments with indentation if
+		// any case exist.
+		caseExist := len(mc.Cases) > 0 || mc.Default != nil
+		if caseExist {
+			self.fmt.addIndent()
+		}
 		self.fmt.writeCommentsExcept(mc.End.Row)
+		if caseExist {
+			self.fmt.doneIndent()
+		}
+
 		self.fmt.buf.Write(self.fmt.indent)!
 		self.fmt.row = mc.End.Row
 		self.write("}")
