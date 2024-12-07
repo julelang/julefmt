@@ -56,10 +56,28 @@ fn parsePackage(path: str) {
 	}
 }
 
+fn parse(path: str) {
+	stat := os::Stat.Of(path) else {
+		println("error: connot read path: " + path)
+		ret
+	}
+	match {
+	| stat.IsDir():
+		parsePackage(path)
+		ret
+	| stat.IsReg():
+		if strings::HasSuffix(path, jule::Ext) {
+			formatFile(path)
+			ret
+		}
+	}
+	println("error: path is not supported: " + path)
+}
+
 fn main() {
 	args := os::Args()
 	if len(args) == 1 {
 		ret
 	}
-	parsePackage(args[1])
+	parse(args[1])
 }
