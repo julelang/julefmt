@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
+use "std/flag"
 use "std/jule"
 use "std/jule/parser"
 use "std/jule/sema"
@@ -10,40 +11,65 @@ use "std/os"
 use "std/os/filepath"
 use "std/strings"
 
-fn formatFile(path: str) {
-	mut file := token::Fileset.New(path)
-	unsafe {
-		file.FillMut(os::File.Read(path) else {
-			println("error: file could not read: " + path)
-			ret
-		})
+static mut _W = new(bool, false) // Flag -w
+
+fn writeError(message: str) {
+	os::Stderr().WriteStr(message)!
+	os::Stderr().WriteByte('\n')!
+}
+
+// Prints formatted data to relevant file.
+fn printFormat(path: str, data: []byte) {
+	if data == nil {
+		ret
 	}
+	if *_W {
+		os::File.Write(path, data, 0o660) else {
+			writeError("error: could not write to file: " + path)
+			ret
+		}
+	} else {
+		os::Stdout().Write(data) else {
+			writeError("error: could not write stdout")
+			ret
+		}
+	}
+}
+
+// Formats data with path, and returns result.
+// If result is nil, we have an error(s).
+fn format(path: str, mut data: []byte): []byte {
+	mut file := token::Fileset.New(path)
+	unsafe { file.FillMut(data) }
 	mut errors := token::Lex(file, token::LexMode.Comment)
 	if len(errors) > 0 {
-		println("error: file could not formatted, have error(s): " + path)
-		ret
+		writeError("error: file could not formatted, have error(s): " + path)
+		ret nil
 	}
 
 	mut cm := commentMap.build(file.Tokens)
 	mut finfo := parser::ParseFile(file)
 	if len(finfo.Errors) > 0 {
-		println("error: file could not formatted, have error(s): " + path)
-		ret
+		writeError("error: file could not formatted, have error(s): " + path)
+		ret nil
 	}
 
 	mut f := finfo.Ast
 	fmt := formatter.new()
-	buf := fmt.format(f, cm)
-	fpath := f.File.Path
-	os::File.Write(fpath, buf, 0o660) else {
-		println("error: could not write to file: " + fpath)
+	ret fmt.format(f, cm)
+}
+
+fn formatFile(path: str) {
+	data := format(path, os::File.Read(path) else {
+		writeError("error: file could not read: " + path)
 		ret
-	}
+	})
+	printFormat(path, data)
 }
 
 fn parsePackage(path: str) {
 	mut dirents := os::Dir.Read(path) else {
-		println("error: connot read package directory: " + path)
+		writeError("error: connot read package directory: " + path)
 		ret
 	}
 	for _, dirent in dirents {
@@ -58,7 +84,7 @@ fn parsePackage(path: str) {
 
 fn parse(path: str) {
 	stat := os::Stat.Of(path) else {
-		println("error: connot read path: " + path)
+		writeError("error: connot read path: " + path)
 		ret
 	}
 	match {
@@ -71,13 +97,46 @@ fn parse(path: str) {
 			ret
 		}
 	}
-	println("error: path is not supported: " + path)
+	writeError("error: path is not supported: " + path)
+}
+
+fn cliMode() {
+	if *_W {
+		writeError("error: -w argument cannot used with stdout mode")
+		ret
+	}
+	mut i := 0
+	mut buf := make([]byte, 1024)
+	for {
+		n := os::Stdin().Read(buf[i:]) else {
+			writeError("error: could not read from stdin")
+			ret
+		}
+		if n == 0 {
+			// EOF
+			break
+		}
+		i += n
+		if i >= len(buf) {
+			// Need more space, so grow.
+			mut newBuf := make([]byte, len(buf)*2)
+			copy(newBuf, buf)
+			buf = newBuf
+		}
+	}
+	buf = buf[:i]
+	printFormat("<stdin>", format("<stdin>", buf))
 }
 
 fn main() {
-	args := os::Args()
-	if len(args) == 1 {
-		ret
+	mut args := os::Args()
+	args = args[1:] // Skip program path.
+	mut flag := flag::FlagSet.New()
+	flag.AddVar(_W, "write", 'w', "write result to (source) file instead of stdout")
+	args = flag.Parse(args)!
+	if len(args) == 0 {
+		cliMode()
+	} else {
+		parse(args[0])
 	}
-	parse(args[1])
 }
