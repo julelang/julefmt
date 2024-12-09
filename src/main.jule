@@ -54,9 +54,8 @@ fn format(path: str, mut data: []byte): []byte {
 		ret nil
 	}
 
-	mut f := finfo.Ast
 	fmt := formatter.new()
-	ret fmt.format(f, cm)
+	ret fmt.format(finfo.AST, cm)
 }
 
 fn formatFile(path: str) {
