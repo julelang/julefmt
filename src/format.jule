@@ -1211,6 +1211,11 @@ impl typeFormatter {
 		self.write(")")
 	}
 
+	fn chanType(self, mut c: &ast::ChanTypeDecl) {
+		self.write("chan ")
+		self.format(c.Elem.Kind)
+	}
+
 	fn format(self, mut &kind: ast::TypeDeclKind) {
 		match type kind {
 		| &ast::IdentTypeDecl:
@@ -1231,6 +1236,8 @@ impl typeFormatter {
 			self.mapType((&ast::MapTypeDecl)(kind))
 		| &ast::FnDecl:
 			self.fmt.fnDecl((&ast::FnDecl)(kind))
+		| &ast::ChanTypeDecl:
+			self.chanType((&ast::ChanTypeDecl)(kind))
 		}
 	}
 }
@@ -1528,6 +1535,12 @@ impl scopeFormatter {
 		}
 	}
 
+	fn chanSend(&self, mut c: &ast::ChanSend) {
+		self.fmt.formatExpr(c.Chan)
+		self.write(" <- ")
+		self.fmt.formatExpr(c.Data)
+	}
+
 	fn formatStmt(&self, mut &stmt: ast::StmtData) {
 		match type stmt {
 		| &ast::VarDecl:
@@ -1561,6 +1574,8 @@ impl scopeFormatter {
 			self.matchCase((&ast::MatchCase)(stmt))
 		| &ast::AssignSt:
 			self.assign((&ast::AssignSt)(stmt))
+		| &ast::ChanSend:
+			self.chanSend((&ast::ChanSend)(stmt))
 		}
 	}
 
@@ -2153,6 +2168,11 @@ impl exprFormatter {
 		self.write("]")
 	}
 
+	fn chanRecv(&self, mut c: &ast::ChanRecv) {
+		self.write("<-")
+		self.format(c.Expr)
+	}
+
 	fn formatKind(&self, mut &kind: ast::ExprData) {
 		match type kind {
 		| &ast::RangeExpr:
@@ -2201,6 +2221,8 @@ impl exprFormatter {
 			self.indexing((&ast::IndexingExpr)(kind))
 		| &ast::SlicingExpr:
 			self.slicing((&ast::SlicingExpr)(kind))
+		| &ast::ChanRecv:
+			self.chanRecv((&ast::ChanRecv)(kind))
 		}
 	}
 
