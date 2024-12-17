@@ -83,9 +83,8 @@ impl formatter {
 				| '\n':
 					cmt := c.txt[:i+1]
 					i = bytes::FindLastByte(self.ubuf(), '\n')
-					n := utf8::RuneCount(unsafe { self.buf.Buf() }) - i - 1
 					self.write(cmt)
-					self.write(strings::Repeat(" ", n))
+					self.buf.Write(self.indent)!
 					self.write("*/")
 					ret
 				|:
