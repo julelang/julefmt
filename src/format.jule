@@ -129,6 +129,11 @@ impl formatter {
 			self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
 			self.buf.Write(self.indent)!
 			self.writeComment(c)
+			if c.txt[1] == '*' {
+				// If comment is range, it might include new-lines.
+				// Count them and add to lrow for correct row calculation.
+				lrow += strings::Count(c.txt, "\n")
+			}
 			self.write("\n")
 		}
 		ret lrow
