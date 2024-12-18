@@ -1216,7 +1216,13 @@ impl typeFormatter {
 	}
 
 	fn chanType(self, mut c: &ast::ChanTypeDecl) {
-		self.write("chan ")
+		if c.Recv && !c.Send {
+			self.write("<-chan ")
+		} else if !c.Recv && c.Send {
+			self.write("chan<- ")
+		} else {
+			self.write("chan ")
+		}
 		self.format(c.Elem.Kind)
 	}
 
