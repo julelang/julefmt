@@ -1695,21 +1695,33 @@ impl scopeFormatter {
 		}
 		self.write("{")
 		n := self.fmt.buf.Len()
-		comment := false
-		commentWr := false
+		comment := false   // Whether comment written and indented.
+		commentWr := false // Whether comment written.
 		{
 			mut commentPtr := unsafe { (&bool)(&comment) }
 			mut commentWrPtr := unsafe { (&bool)(&commentWr) }
 			writer := fn(c: &comment) {
 				*commentWrPtr = true
-				if c.txt[:2] == "//" {
+				match {
+				| c.txt[1] == '/':
 					if !*commentPtr {
 						self.fmt.addIndent()
 					}
 					self.write("\n")
 					self.fmt.buf.Write(self.fmt.indent)!
 					*commentPtr = true
-				} else if !*commentPtr {
+				| c.txt[1] == '*':
+					if strings::ContainsByte(c.txt, '\n') {
+						if !*commentPtr {
+							self.fmt.addIndent()
+						}
+						self.write("\n")
+						self.fmt.buf.Write(self.fmt.indent)!
+						*commentPtr = true
+						break
+					}
+					fall
+				| !*commentPtr:
 					self.write(" ")
 				}
 				self.fmt.writeComment(c)
@@ -1720,6 +1732,15 @@ impl scopeFormatter {
 				self.fmt.row = scope.End.Row
 				self.fmt.popRowCommentsUntilByF(self.fmt.row-1, -1, writer)
 				self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Row, writer)
+			}
+			if comment {
+				// Comment(s) written with new-line.
+				// So we have to convert space-indentation to indented new-line.
+				mut buf := self.fmt.ubuf()
+				if buf[n] != '\n' {
+					buf[n] = '\n'
+					buf = slices::Insert(buf, n+1, self.fmt.indent...)
+				}
 			}
 		}
 		inline := (len(scope.Stmts) == 0 && !comment) ||
