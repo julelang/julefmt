@@ -1216,14 +1216,26 @@ impl typeFormatter {
 	}
 
 	fn chanType(self, mut c: &ast::ChanTypeDecl) {
-		if c.Recv && !c.Send {
-			self.write("<-chan ")
-		} else if !c.Recv && c.Send {
-			self.write("chan<- ")
-		} else {
+		mut range := false
+		if c.Recv && c.Send {
 			self.write("chan ")
+			match type c.Elem.Kind {
+			| &ast::ChanTypeDecl:
+				elemC := (&ast::ChanTypeDecl)(c.Elem.Kind)
+				if elemC.Recv && !elemC.Send {
+					range = true
+					self.write("(")
+				}
+			}
+		} else if c.Recv {
+			self.write("<-chan ")
+		} else {
+			self.write("chan<- ")
 		}
 		self.format(c.Elem.Kind)
+		if range {
+			self.write(")")
+		}
 	}
 
 	fn format(self, mut &kind: ast::TypeDeclKind) {
