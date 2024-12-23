@@ -1488,6 +1488,63 @@ impl scopeFormatter {
 		self.write("}")
 	}
 
+	fn selectCase(&self, mut slct: &ast::SelectCase) {
+		caseExist := len(slct.Cases) > 0 || slct.Default != nil
+		if !caseExist {
+			// Empty select.
+			self.write("select{}")
+			ret
+		}
+		self.write("select {\n")
+		for (_, mut c) in slct.Cases {
+			mut row := c.Exprs[0].Token.Row
+			for (i, mut expr) in c.Exprs {
+				if row != expr.Token.Row {
+					self.fmt.popRowComments(row)
+				}
+				self.fmt.writeCommentsExcept(expr.Token.Row)
+				if row != expr.Token.Row {
+					self.write("\n")
+					self.fmt.buf.Write(self.fmt.indent)!
+				} else if i == 0 {
+					self.fmt.buf.Write(self.fmt.indent)!
+				} else if i > 0 {
+					self.write(" ")
+				}
+				row = expr.Token.Row
+				self.write("| ")
+				self.fmt.formatExpr(expr)
+			}
+			self.write(":")
+			self.fmt.popRowComments(self.fmt.row)
+			self.write("\n")
+			self.fmt.addIndent()
+			self.formatStmts(c.Scope, false)
+			self.fmt.doneIndent()
+		}
+		if slct.Default != nil {
+			self.fmt.buf.Write(self.fmt.indent)!
+			self.write("|:\n")
+			self.fmt.addIndent()
+			self.formatStmts(slct.Default.Scope, false)
+			self.fmt.doneIndent()
+		}
+
+		// Write remaining comments with indentation if
+		// any case exist.
+		if caseExist {
+			self.fmt.addIndent()
+		}
+		self.fmt.writeCommentsExcept(slct.End.Row)
+		if caseExist {
+			self.fmt.doneIndent()
+		}
+
+		self.fmt.buf.Write(self.fmt.indent)!
+		self.fmt.row = slct.End.Row
+		self.write("}")
+	}
+
 	fn postfix(&self, mut &a: &ast::AssignSt) {
 		mut expr := a.Left[0].Expr
 		self.fmt.formatExpr(expr)
@@ -1557,12 +1614,6 @@ impl scopeFormatter {
 		}
 	}
 
-	fn chanSend(&self, mut c: &ast::ChanSend) {
-		self.fmt.formatExpr(c.Chan)
-		self.write(" <- ")
-		self.fmt.formatExpr(c.Data)
-	}
-
 	fn formatStmt(&self, mut &stmt: ast::StmtData) {
 		match type stmt {
 		| &ast::VarDecl:
@@ -1594,10 +1645,10 @@ impl scopeFormatter {
 			self.conditional((&ast::Conditional)(stmt))
 		| &ast::MatchCase:
 			self.matchCase((&ast::MatchCase)(stmt))
+		| &ast::SelectCase:
+			self.selectCase((&ast::SelectCase)(stmt))
 		| &ast::AssignSt:
 			self.assign((&ast::AssignSt)(stmt))
-		| &ast::ChanSend:
-			self.chanSend((&ast::ChanSend)(stmt))
 		}
 	}
 
@@ -2216,6 +2267,12 @@ impl exprFormatter {
 		self.format(c.Expr)
 	}
 
+	fn chanSend(&self, mut c: &ast::ChanSend) {
+		self.fmt.formatExpr(c.Chan)
+		self.write(" <- ")
+		self.fmt.formatExpr(c.Data)
+	}
+
 	fn formatKind(&self, mut &kind: ast::ExprData) {
 		match type kind {
 		| &ast::RangeExpr:
@@ -2266,6 +2323,8 @@ impl exprFormatter {
 			self.slicing((&ast::SlicingExpr)(kind))
 		| &ast::ChanRecv:
 			self.chanRecv((&ast::ChanRecv)(kind))
+		| &ast::ChanSend:
+			self.chanSend((&ast::ChanSend)(kind))
 		}
 	}
 
