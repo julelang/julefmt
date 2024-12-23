@@ -252,8 +252,8 @@ impl formatter {
 		self.tf.format(expr.Kind)
 	}
 
-	fn formatScope(&self, mut &scope: &ast::ScopeTree) {
-		self.sf.format(scope)
+	fn formatScope(&self, mut &scope: &ast::ScopeTree, options: scopeOption) {
+		self.sf.format(scope, options)
 	}
 
 	fn directive(&self, &d: &ast::Directive) {
@@ -552,7 +552,7 @@ impl formatter {
 			self.write(" ")
 			unsafety := d.Unsafety
 			d.Scope.Unsafety = false // Avoid unsafe keyword beginning of scope.
-			self.formatScope(d.Scope)
+			self.formatScope(d.Scope, scopeDefault|scopePopByC)
 			d.Scope.Unsafety = unsafety
 			self.row = d.Scope.End.Row
 		}
@@ -1264,6 +1264,12 @@ impl typeFormatter {
 	}
 }
 
+// Option flags for scope formatter.
+type scopeOption: int
+
+const scopeDefault = 0 << 0
+const scopePopByC = 1 << 0 // Pops last comments by row and column.
+
 struct scopeFormatter {
 	mut fmt: &formatter
 }
@@ -1333,7 +1339,7 @@ impl scopeFormatter {
 				}
 				if wk.Next != nil {
 					self.write("; ")
-					self.formatStmt(wk.Next)
+					self.formatStmt(wk.Next, scopeDefault)
 				}
 				self.write(" ")
 			| &ast::RangeKind:
@@ -1614,14 +1620,14 @@ impl scopeFormatter {
 		}
 	}
 
-	fn formatStmt(&self, mut &stmt: ast::StmtData) {
+	fn formatStmt(&self, mut &stmt: ast::StmtData, options: scopeOption) {
 		match type stmt {
 		| &ast::VarDecl:
 			self.fmt.varDecl((&ast::VarDecl)(stmt))
 		| &ast::TypeAliasDecl:
 			self.fmt.typeAliasDecl((&ast::TypeAliasDecl)(stmt))
 		| &ast::ScopeTree:
-			self.format((&ast::ScopeTree)(stmt))
+			self.format((&ast::ScopeTree)(stmt), options)
 		| &ast::Expr:
 			mut expr := (&ast::Expr)(stmt)
 			self.fmt.formatExpr(expr)
@@ -1704,13 +1710,13 @@ impl scopeFormatter {
 			if !inline && isGroupStmt(stmt) {
 				self.fmt.groupDecls[ast::Stmt, ast::Stmt](scope.Stmts, i, fn(mut &d: ast::Stmt) {
 					self.fmt.buf.Write(self.fmt.indent)!
-					self.formatStmt(d.Data)
+					self.formatStmt(d.Data, scopeDefault)
 				})
 			} else {
 				if !inline {
 					self.fmt.buf.Write(self.fmt.indent)!
 				}
-				self.formatStmt(stmt.Data)
+				self.formatStmt(stmt.Data, scopeDefault)
 				if !inline {
 					self.fmt.popRowComments(self.fmt.row)
 				} else {
@@ -1737,7 +1743,7 @@ impl scopeFormatter {
 		self.fmt.writeCommentsExcept(scope.End.Row)
 	}
 
-	fn format(&self, mut scope: &ast::ScopeTree) {
+	fn format(&self, mut scope: &ast::ScopeTree, options: scopeOption) {
 		if scope.Unsafety {
 			self.write("unsafe ")
 		}
@@ -1782,7 +1788,7 @@ impl scopeFormatter {
 			} else if len(scope.Stmts) == 0 {
 				self.fmt.row = scope.End.Row
 				self.fmt.popRowCommentsUntilByF(self.fmt.row-1, -1, writer)
-				self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Row, writer)
+				self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Column, writer)
 			}
 			if comment {
 				// Comment(s) written with new-line.
@@ -1838,7 +1844,11 @@ impl scopeFormatter {
 			self.fmt.buf.Write(self.fmt.indent)!
 		}
 		self.write("}")
-		self.fmt.popRowComments(scope.End.Row)
+		if options&scopePopByC == scopePopByC {
+			self.fmt.popRowCommentsByC(scope.End.Row, scope.End.Column)
+		} else {
+			self.fmt.popRowComments(scope.End.Row)
+		}
 		self.fmt.row = scope.End.Row
 	}
 }
@@ -2005,7 +2015,7 @@ impl exprFormatter {
 			self.write("!")
 		} else if f.Exception != nil {
 			self.write(" else ")
-			self.fmt.formatScope(f.Exception)
+			self.fmt.formatScope(f.Exception, scopeDefault)
 			self.fmt.row = f.Exception.End.Row
 		}
 	}
