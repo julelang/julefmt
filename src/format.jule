@@ -11,7 +11,7 @@ use "std/strings"
 use "std/unicode/utf8"
 
 struct field {
-	f:     &ast::FieldDecl
+	f:     &ast::Field
 	token: &token::Token
 	expr:  []byte
 }
@@ -82,7 +82,7 @@ impl formatter {
 					continue
 				| '\n':
 					cmt := c.txt[:i+1]
-					i = bytes::FindLastByte(self.ubuf(), '\n')
+					i = bytes::LastIndexByte(self.ubuf(), '\n')
 					self.write(cmt)
 					self.buf.Write(self.indent)!
 					self.write("*/")
@@ -248,7 +248,7 @@ impl formatter {
 		self.ef.clean()
 	}
 
-	fn formatType(&self, mut &expr: &ast::TypeDecl) {
+	fn formatType(&self, mut &expr: &ast::Type) {
 		self.tf.format(expr.Kind)
 	}
 
@@ -290,7 +290,7 @@ impl formatter {
 		}
 	}
 
-	fn useDecl(&self, d: &ast::UseDecl) {
+	fn useDecl(&self, d: &ast::Use) {
 		if d.Binded {
 			self.write("cpp ")
 		}
@@ -325,7 +325,7 @@ impl formatter {
 
 		// Sort imports.
 		// See formatter documentation how ordering will be made.
-		slices::SortFunc(self.f.UseDecls, fn(a: &ast::UseDecl, b: &ast::UseDecl): int {
+		slices::SortFunc(self.f.UseDecls, fn(a: &ast::Use, b: &ast::Use): int {
 			if a.Binded != b.Binded {
 				if a.Binded {
 					ret +1
@@ -366,7 +366,7 @@ impl formatter {
 		}
 	}
 
-	fn generics(&self, mut &g: []&ast::GenericDecl) {
+	fn generics(&self, mut &g: []&ast::Generic) {
 		if len(g) == 0 {
 			ret
 		}
@@ -391,13 +391,13 @@ impl formatter {
 
 	fn enumItem[T](&self, mut &item: T) {
 		const match type T {
-		| &ast::EnumItemDecl:
+		| &ast::EnumItem:
 			self.write(item.Ident)
 			if !item.AutoExpr() {
 				self.write(": ")
 				self.formatExpr(item.Expr)
 			}
-		| &ast::TypeEnumItemDecl:
+		| &ast::TypeEnumItem:
 			if item.Ident != "" {
 				self.write(item.Ident)
 				self.write(": ")
@@ -411,12 +411,12 @@ impl formatter {
 		self.write("enum ")
 		self.write(d.Ident)
 		const match type T {
-		| &ast::EnumDecl:
+		| &ast::Enum:
 			if !d.DefaultTyped() {
 				self.write(": ")
 				self.formatType(d.Kind)
 			}
-		| &ast::TypeEnumDecl:
+		| &ast::TypeEnum:
 			self.write(": type")
 		}
 		self.write(" {")
@@ -428,15 +428,15 @@ impl formatter {
 				old := self.i
 				item := d.Items[i]
 				const match type T {
-				| &ast::EnumDecl:
-					self.groupDecls[&ast::EnumItemDecl, &ast::EnumItemDecl](d.Items, i, fn(mut &d: &ast::EnumItemDecl) {
+				| &ast::Enum:
+					self.groupDecls[&ast::EnumItem, &ast::EnumItem](d.Items, i, fn(mut &d: &ast::EnumItem) {
 						self.buf.Write(self.indent)!
-						self.enumItem[&ast::EnumItemDecl](d)
+						self.enumItem[&ast::EnumItem](d)
 					})
-				| &ast::TypeEnumDecl:
-					self.groupDecls[&ast::TypeEnumItemDecl, &ast::TypeEnumItemDecl](d.Items, i, fn(mut &d: &ast::TypeEnumItemDecl) {
+				| &ast::TypeEnum:
+					self.groupDecls[&ast::TypeEnumItem, &ast::TypeEnumItem](d.Items, i, fn(mut &d: &ast::TypeEnumItem) {
 						self.buf.Write(self.indent)!
-						self.enumItem[&ast::TypeEnumItemDecl](d)
+						self.enumItem[&ast::TypeEnumItem](d)
 					})
 				}
 				if i < len(d.Items) {
@@ -455,7 +455,7 @@ impl formatter {
 		self.row = d.End.Row
 	}
 
-	fn params(&self, mut &f: &ast::FnDecl) {
+	fn params(&self, mut &f: &ast::Func) {
 		if len(f.Params) == 0 {
 			self.write("()")
 			ret
@@ -516,7 +516,7 @@ impl formatter {
 		self.write(")")
 	}
 
-	fn fnDecl(&self, mut d: &ast::FnDecl) {
+	fn fnDecl(&self, mut d: &ast::Func) {
 		if !d.IsAnon() {
 			self.writeCommentsExcept(d.Token.Row)
 			self.buf.Write(self.indent)!
@@ -579,7 +579,7 @@ impl formatter {
 		}
 	}
 
-	fn fields(&self, mut &fields: []&ast::FieldDecl) {
+	fn fields(&self, mut &fields: []&ast::Field) {
 		if len(fields) == 0 {
 			ret
 		}
@@ -604,7 +604,7 @@ impl formatter {
 		}
 	}
 
-	fn structDecl(&self, mut d: &ast::StructDecl) {
+	fn structDecl(&self, mut d: &ast::Struct) {
 		if len(d.Directives) != 0 {
 			self.directives(d.Directives)
 		} else {
@@ -634,7 +634,7 @@ impl formatter {
 		self.row = d.End.Row
 	}
 
-	fn traitDecl(&self, mut d: &ast::TraitDecl) {
+	fn traitDecl(&self, mut d: &ast::Trait) {
 		self.write("trait ")
 		self.write(d.Ident)
 		if len(d.Methods) == 0 && len(d.Inherits) == 0 {
@@ -678,7 +678,7 @@ impl formatter {
 		self.row = d.End.Row
 	}
 
-	fn typeAliasDecl(&self, mut d: &ast::TypeAliasDecl) {
+	fn typeAliasDecl(&self, mut d: &ast::TypeAlias) {
 		if d.Binded {
 			self.write("cpp ")
 		}
@@ -692,7 +692,7 @@ impl formatter {
 		self.formatType(d.Kind)
 	}
 
-	fn varDecl(&self, mut d: &ast::VarDecl) {
+	fn varDecl(&self, mut d: &ast::Var) {
 		if len(d.Directives) != 0 {
 			self.directives(d.Directives)
 		}
@@ -832,10 +832,10 @@ impl formatter {
 			let mut decl: T
 			mut row := -1
 			const match type Node {
-			| &ast::EnumItemDecl
-			| &ast::TypeEnumItemDecl
-			| &ast::VarDecl
-			| &ast::FnDecl:
+			| &ast::EnumItem
+			| &ast::TypeEnumItem
+			| &ast::Var
+			| &ast::Func:
 				decl = nodes[i]
 				row = decl.Token.Row
 			| ast::Stmt:
@@ -928,8 +928,8 @@ impl formatter {
 		self.addIndent()
 		mut si, mut mi, mut statics, mut methods := 0, 0, -1, -1
 		for {
-			let mut s: &ast::VarDecl = nil
-			let mut m: &ast::FnDecl = nil
+			let mut s: &ast::Var = nil
+			let mut m: &ast::Func = nil
 			if si < len(d.Statics) {
 				s = d.Statics[si]
 			}
@@ -944,7 +944,7 @@ impl formatter {
 					statics = si
 					if methods != -1 {
 						mut mtds := d.Methods[methods:mi]
-						self.writeImplNodes[&ast::FnDecl](mtds, fn(mut &d: &ast::FnDecl) {
+						self.writeImplNodes[&ast::Func](mtds, fn(mut &d: &ast::Func) {
 							self.fnDecl(d)
 						})
 					}
@@ -955,7 +955,7 @@ impl formatter {
 			}
 			if statics != -1 {
 				mut vars := d.Statics[statics:si]
-				self.writeImplNodes[&ast::VarDecl](vars, fn(mut &d: &ast::VarDecl) {
+				self.writeImplNodes[&ast::Var](vars, fn(mut &d: &ast::Var) {
 					self.buf.Write(self.indent)!
 					self.varDecl(d)
 				})
@@ -968,14 +968,14 @@ impl formatter {
 		}
 		if statics != -1 {
 			mut vars := d.Statics[statics:si]
-			self.writeImplNodes[&ast::VarDecl](vars, fn(mut &d: &ast::VarDecl) {
+			self.writeImplNodes[&ast::Var](vars, fn(mut &d: &ast::Var) {
 				self.buf.Write(self.indent)!
 				self.varDecl(d)
 			})
 		}
 		if methods != -1 {
 			mut mtds := d.Methods[methods:mi]
-			self.writeImplNodes[&ast::FnDecl](mtds, fn(mut &d: &ast::FnDecl) {
+			self.writeImplNodes[&ast::Func](mtds, fn(mut &d: &ast::Func) {
 				self.fnDecl(d)
 			})
 		}
@@ -989,7 +989,7 @@ impl formatter {
 	fn groupNode[T](&self, &node: ast::Node, writer: fn(mut &d: T)) {
 		mut row := node.Token.Row
 		const match type T {
-		| &ast::TypeAliasDecl:
+		| &ast::TypeAlias:
 			break
 		|:
 			data := (T)(node.Data)
@@ -1005,37 +1005,37 @@ impl formatter {
 
 	fn node(&self, mut &node: ast::Node) {
 		match type node.Data {
-		| &ast::TypeAliasDecl:
-			self.groupNode[&ast::TypeAliasDecl](node, fn(mut &d: &ast::TypeAliasDecl) {
+		| &ast::TypeAlias:
+			self.groupNode[&ast::TypeAlias](node, fn(mut &d: &ast::TypeAlias) {
 				self.buf.Write(self.indent)!
 				self.typeAliasDecl(d)
 			})
 			ret
-		| &ast::VarDecl:
-			self.groupNode[&ast::VarDecl](node, fn(mut &d: &ast::VarDecl) {
+		| &ast::Var:
+			self.groupNode[&ast::Var](node, fn(mut &d: &ast::Var) {
 				self.buf.Write(self.indent)!
 				self.varDecl(d)
 			})
 			ret
-		| &ast::FnDecl:
-			self.groupNode[&ast::FnDecl](node, fn(mut &d: &ast::FnDecl) {
+		| &ast::Func:
+			self.groupNode[&ast::Func](node, fn(mut &d: &ast::Func) {
 				self.fnDecl(d)
 			})
 			ret
-		| &ast::StructDecl:
-			self.structDecl((&ast::StructDecl)(node.Data))
+		| &ast::Struct:
+			self.structDecl((&ast::Struct)(node.Data))
 		}
 		mut commentExist := self.cm.find(node.Token.Row) != nil
 		if node.Token.Row-self.writeComments(node.Token.Row) > 1 {
 			self.write("\n")
 		}
 		match type node.Data {
-		| &ast::EnumDecl:
-			self.enumDecl[&ast::EnumDecl]((&ast::EnumDecl)(node.Data))
-		| &ast::TypeEnumDecl:
-			self.enumDecl[&ast::TypeEnumDecl]((&ast::TypeEnumDecl)(node.Data))
-		| &ast::TraitDecl:
-			self.traitDecl((&ast::TraitDecl)(node.Data))
+		| &ast::Enum:
+			self.enumDecl[&ast::Enum]((&ast::Enum)(node.Data))
+		| &ast::TypeEnum:
+			self.enumDecl[&ast::TypeEnum]((&ast::TypeEnum)(node.Data))
+		| &ast::Trait:
+			self.traitDecl((&ast::Trait)(node.Data))
 		| &ast::Impl:
 			mut imp := (&ast::Impl)(node.Data)
 			isGroupHeader := !commentExist && isEmptyImpl(imp)
@@ -1093,7 +1093,7 @@ impl formatter {
 		self.useDecls()
 		self.nodes()
 		self.f = nil
-		ret bytes::Trim(self.ubuf(), []byte(" \n\r\v\t"))
+		ret bytes::Trim(self.ubuf(), " \f\n\r\v\t")
 	}
 }
 
@@ -1106,7 +1106,7 @@ impl typeFormatter {
 		self.fmt.buf.WriteStr(s)!
 	}
 
-	fn generics(self, mut g: []&ast::TypeDecl) {
+	fn generics(self, mut g: []&ast::Type) {
 		if len(g) == 0 {
 			ret
 		}
@@ -1120,7 +1120,7 @@ impl typeFormatter {
 		self.write("]")
 	}
 
-	fn ident(self, mut id: &ast::IdentTypeDecl) {
+	fn ident(self, mut id: &ast::IdentType) {
 		if id.Binded {
 			self.write("cpp.")
 		}
@@ -1128,7 +1128,7 @@ impl typeFormatter {
 		self.generics(id.Generics)
 	}
 
-	fn subIdent(self, mut id: &ast::SubIdentTypeDecl) {
+	fn subIdent(self, mut id: &ast::SubIdentType) {
 		for i, ident in id.Idents {
 			self.write(ident.Ident)
 			if len(id.Idents)-i > 1 {
@@ -1137,23 +1137,23 @@ impl typeFormatter {
 		}
 	}
 
-	fn namespace(self, mut ns: &ast::NamespaceTypeDecl) {
+	fn namespace(self, mut ns: &ast::NamespaceType) {
 		self.write(ns.Namespace.Kind)
 		self.write("::")
 		self.format(ns.Kind.Kind)
 	}
 
-	fn sptr(self, mut sptr: &ast::SptrTypeDecl) {
+	fn sptr(self, mut sptr: &ast::SptrType) {
 		self.write("&")
 		self.format(sptr.Elem.Kind)
 	}
 
-	fn slc(self, mut slc: &ast::SlcTypeDecl) {
+	fn slice(self, mut slc: &ast::SliceType) {
 		self.write("[]")
 		self.format(slc.Elem.Kind)
 	}
 
-	fn ptr(self, mut ptr: &ast::PtrTypeDecl) {
+	fn ptr(self, mut ptr: &ast::PtrType) {
 		self.write("*")
 		if ptr.IsUnsafe() {
 			self.write("unsafe")
@@ -1162,7 +1162,7 @@ impl typeFormatter {
 		self.format(ptr.Elem.Kind)
 	}
 
-	fn arr(self, mut arr: &ast::ArrTypeDecl) {
+	fn array(self, mut arr: &ast::ArrayType) {
 		self.write("[")
 		if arr.AutoSized() {
 			self.write("...")
@@ -1173,14 +1173,14 @@ impl typeFormatter {
 		self.format(arr.Elem.Kind)
 	}
 
-	fn mapType(self, mut m: &ast::MapTypeDecl) {
+	fn mapType(self, mut m: &ast::MapType) {
 		self.write("map[")
 		self.format(m.Key.Kind)
 		self.write("]")
 		self.format(m.Val.Kind)
 	}
 
-	fn result(self, mut r: &ast::RetTypeDecl) {
+	fn result(self, mut r: &ast::RetType) {
 		if len(r.Idents) == 0 {
 			self.format(r.Kind.Kind)
 			ret
@@ -1197,7 +1197,7 @@ impl typeFormatter {
 			self.write(")")
 			ret
 		}
-		mut types := (&ast::TupleTypeDecl)(r.Kind.Kind).Types
+		mut types := (&ast::TupleType)(r.Kind.Kind).Types
 		self.write("(")
 		for (i, mut t) in types {
 			ident := r.Idents[i]
@@ -1215,13 +1215,13 @@ impl typeFormatter {
 		self.write(")")
 	}
 
-	fn chanType(self, mut c: &ast::ChanTypeDecl) {
+	fn chanType(self, mut c: &ast::ChanType) {
 		mut range := false
 		if c.Recv && c.Send {
 			self.write("chan ")
 			match type c.Elem.Kind {
-			| &ast::ChanTypeDecl:
-				elemC := (&ast::ChanTypeDecl)(c.Elem.Kind)
+			| &ast::ChanType:
+				elemC := (&ast::ChanType)(c.Elem.Kind)
 				if elemC.Recv && !elemC.Send {
 					range = true
 					self.write("(")
@@ -1238,28 +1238,28 @@ impl typeFormatter {
 		}
 	}
 
-	fn format(self, mut &kind: ast::TypeDeclKind) {
+	fn format(self, mut &kind: ast::TypeKind) {
 		match type kind {
-		| &ast::IdentTypeDecl:
-			self.ident((&ast::IdentTypeDecl)(kind))
-		| &ast::SubIdentTypeDecl:
-			self.subIdent((&ast::SubIdentTypeDecl)(kind))
-		| &ast::NamespaceTypeDecl:
-			self.namespace((&ast::NamespaceTypeDecl)(kind))
-		| &ast::SptrTypeDecl:
-			self.sptr((&ast::SptrTypeDecl)(kind))
-		| &ast::SlcTypeDecl:
-			self.slc((&ast::SlcTypeDecl)(kind))
-		| &ast::PtrTypeDecl:
-			self.ptr((&ast::PtrTypeDecl)(kind))
-		| &ast::ArrTypeDecl:
-			self.arr((&ast::ArrTypeDecl)(kind))
-		| &ast::MapTypeDecl:
-			self.mapType((&ast::MapTypeDecl)(kind))
-		| &ast::FnDecl:
-			self.fmt.fnDecl((&ast::FnDecl)(kind))
-		| &ast::ChanTypeDecl:
-			self.chanType((&ast::ChanTypeDecl)(kind))
+		| &ast::IdentType:
+			self.ident((&ast::IdentType)(kind))
+		| &ast::SubIdentType:
+			self.subIdent((&ast::SubIdentType)(kind))
+		| &ast::NamespaceType:
+			self.namespace((&ast::NamespaceType)(kind))
+		| &ast::SptrType:
+			self.sptr((&ast::SptrType)(kind))
+		| &ast::SliceType:
+			self.slice((&ast::SliceType)(kind))
+		| &ast::PtrType:
+			self.ptr((&ast::PtrType)(kind))
+		| &ast::ArrayType:
+			self.array((&ast::ArrayType)(kind))
+		| &ast::MapType:
+			self.mapType((&ast::MapType)(kind))
+		| &ast::Func:
+			self.fmt.fnDecl((&ast::Func)(kind))
+		| &ast::ChanType:
+			self.chanType((&ast::ChanType)(kind))
 		}
 	}
 }
@@ -1284,23 +1284,23 @@ impl scopeFormatter {
 		self.fmt.formatExpr(u.Expr)
 	}
 
-	fn label(&self, l: &ast::LabelSt) {
+	fn label(&self, l: &ast::Label) {
 		// Remove one indentation.
 		self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-self.fmt.indentLen])
 		self.write(l.Ident)
 		self.write(":")
 	}
 
-	fn gotoSt(&self, g: &ast::GotoSt) {
+	fn gotoSt(&self, g: &ast::Goto) {
 		self.write("goto ")
 		self.write(g.Label.Kind)
 	}
 
-	fn fallSt(&self, fll: &ast::FallSt) {
+	fn fallSt(&self, fll: &ast::Fall) {
 		self.write("fall")
 	}
 
-	fn contSt(&self, cont: &ast::ContSt) {
+	fn contSt(&self, cont: &ast::Continue) {
 		self.write("continue")
 		if cont.Label != nil {
 			self.write(" ")
@@ -1308,7 +1308,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn breakSt(&self, brk: &ast::BreakSt) {
+	fn breakSt(&self, brk: &ast::Break) {
 		self.write("break")
 		if brk.Label != nil {
 			self.write(" ")
@@ -1316,7 +1316,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn retSt(&self, mut r: &ast::RetSt) {
+	fn retSt(&self, mut r: &ast::Ret) {
 		self.write("ret")
 		if r.Expr != nil {
 			self.write(" ")
@@ -1430,7 +1430,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn matchCase(&self, mut mc: &ast::MatchCase) {
+	fn matchCase(&self, mut mc: &ast::Match) {
 		if mc.Comptime {
 			self.write("const ")
 		}
@@ -1494,7 +1494,7 @@ impl scopeFormatter {
 		self.write("}")
 	}
 
-	fn selectCase(&self, mut slct: &ast::SelectCase) {
+	fn selectCase(&self, mut slct: &ast::Select) {
 		caseExist := len(slct.Cases) > 0 || slct.Default != nil
 		if !caseExist {
 			// Empty select.
@@ -1551,13 +1551,13 @@ impl scopeFormatter {
 		self.write("}")
 	}
 
-	fn postfix(&self, mut &a: &ast::AssignSt) {
+	fn postfix(&self, mut &a: &ast::Assign) {
 		mut expr := a.Left[0].Expr
 		self.fmt.formatExpr(expr)
 		self.write(a.Setter.Kind)
 	}
 
-	fn singleAssign(&self, mut &a: &ast::AssignSt) {
+	fn singleAssign(&self, mut &a: &ast::Assign) {
 		if token::IsIgnoreIdent(a.Left[0].Ident) {
 			self.write("_ ")
 		} else {
@@ -1570,7 +1570,7 @@ impl scopeFormatter {
 		self.fmt.formatExpr(a.Right)
 	}
 
-	fn multiAssign(&self, mut &a: &ast::AssignSt) {
+	fn multiAssign(&self, mut &a: &ast::Assign) {
 		letKwUsed := a.Setter.Kind == token::Kind.Eq
 		if a.Declarative && letKwUsed {
 			self.write("let (")
@@ -1609,7 +1609,7 @@ impl scopeFormatter {
 		self.fmt.ef.bf.zip = zip
 	}
 
-	fn assign(&self, mut a: &ast::AssignSt) {
+	fn assign(&self, mut a: &ast::Assign) {
 		match {
 		| token::IsPostfixOp(a.Setter.Id):
 			self.postfix(a)
@@ -1622,39 +1622,39 @@ impl scopeFormatter {
 
 	fn formatStmt(&self, mut &stmt: ast::StmtData, options: scopeOption) {
 		match type stmt {
-		| &ast::VarDecl:
-			self.fmt.varDecl((&ast::VarDecl)(stmt))
-		| &ast::TypeAliasDecl:
-			self.fmt.typeAliasDecl((&ast::TypeAliasDecl)(stmt))
+		| &ast::Var:
+			self.fmt.varDecl((&ast::Var)(stmt))
+		| &ast::TypeAlias:
+			self.fmt.typeAliasDecl((&ast::TypeAlias)(stmt))
 		| &ast::ScopeTree:
 			self.format((&ast::ScopeTree)(stmt), options)
 		| &ast::Expr:
 			mut expr := (&ast::Expr)(stmt)
 			self.fmt.formatExpr(expr)
-		| &ast::LabelSt:
-			self.label((&ast::LabelSt)(stmt))
-		| &ast::GotoSt:
-			self.gotoSt((&ast::GotoSt)(stmt))
+		| &ast::Label:
+			self.label((&ast::Label)(stmt))
+		| &ast::Goto:
+			self.gotoSt((&ast::Goto)(stmt))
 		| &ast::UseExpr:
 			self.usexpr((&ast::UseExpr)(stmt))
-		| &ast::FallSt:
-			self.fallSt((&ast::FallSt)(stmt))
-		| &ast::ContSt:
-			self.contSt((&ast::ContSt)(stmt))
-		| &ast::BreakSt:
-			self.breakSt((&ast::BreakSt)(stmt))
-		| &ast::RetSt:
-			self.retSt((&ast::RetSt)(stmt))
+		| &ast::Fall:
+			self.fallSt((&ast::Fall)(stmt))
+		| &ast::Continue:
+			self.contSt((&ast::Continue)(stmt))
+		| &ast::Break:
+			self.breakSt((&ast::Break)(stmt))
+		| &ast::Ret:
+			self.retSt((&ast::Ret)(stmt))
 		| &ast::Iter:
 			self.iter((&ast::Iter)(stmt))
 		| &ast::Conditional:
 			self.conditional((&ast::Conditional)(stmt))
-		| &ast::MatchCase:
-			self.matchCase((&ast::MatchCase)(stmt))
-		| &ast::SelectCase:
-			self.selectCase((&ast::SelectCase)(stmt))
-		| &ast::AssignSt:
-			self.assign((&ast::AssignSt)(stmt))
+		| &ast::Match:
+			self.matchCase((&ast::Match)(stmt))
+		| &ast::Select:
+			self.selectCase((&ast::Select)(stmt))
+		| &ast::Assign:
+			self.assign((&ast::Assign)(stmt))
 		}
 	}
 
@@ -1768,7 +1768,7 @@ impl scopeFormatter {
 					self.fmt.buf.Write(self.fmt.indent)!
 					*commentPtr = true
 				| c.txt[1] == '*':
-					if strings::ContainsByte(c.txt, '\n') {
+					if strings::ContainsRune(c.txt, '\n') {
 						if !*commentPtr {
 							self.fmt.addIndent()
 						}
@@ -1963,7 +1963,7 @@ impl exprFormatter {
 		self.bf.binary(bin)
 	}
 
-	fn args(&self, mut &f: &ast::FnCallExpr) {
+	fn args(&self, mut &f: &ast::FuncCallExpr) {
 		if len(f.Args) == 0 {
 			ret
 		}
@@ -2003,7 +2003,7 @@ impl exprFormatter {
 		self.bf.zip = zip
 	}
 
-	fn fnCall(&self, mut f: &ast::FnCallExpr) {
+	fn fnCall(&self, mut f: &ast::FuncCallExpr) {
 		if f.IsCo {
 			self.write("co ")
 		}
@@ -2290,11 +2290,11 @@ impl exprFormatter {
 			self.write("(")
 			self.formatKind(expr.Expr.Kind)
 			self.write(")")
-		| &ast::TypeDecl:
-			mut t := (&ast::TypeDecl)(kind)
+		| &ast::Type:
+			mut t := (&ast::Type)(kind)
 			self.fmt.formatType(t)
-		| &ast::FnDecl:
-			self.fmt.fnDecl((&ast::FnDecl)(kind))
+		| &ast::Func:
+			self.fmt.fnDecl((&ast::Func)(kind))
 		| &ast::IdentExpr:
 			self.ident((&ast::IdentExpr)(kind))
 		| &ast::TupleExpr:
@@ -2315,8 +2315,8 @@ impl exprFormatter {
 			self.subIdent((&ast::SubIdentExpr)(kind))
 		| &ast::BinaryExpr:
 			self.binary((&ast::BinaryExpr)(kind))
-		| &ast::FnCallExpr:
-			self.fnCall((&ast::FnCallExpr)(kind))
+		| &ast::FuncCallExpr:
+			self.fnCall((&ast::FuncCallExpr)(kind))
 		| &ast::FieldExprPair:
 			self.fieldExprPair((&ast::FieldExprPair)(kind))
 		| &ast::StructLit:
@@ -2541,7 +2541,7 @@ impl binaryFormatter {
 		| &ast::BinaryExpr:
 			// keep prec mode for tail
 			break
-		| &ast::FnCallExpr
+		| &ast::FuncCallExpr
 		| &ast::CastExpr:
 			self.zip = true
 
@@ -2571,10 +2571,10 @@ fn paddingAbs(x: int): int {
 	ret x
 }
 
-fn isPrimType(&t: &ast::TypeDecl): bool {
+fn isPrimType(&t: &ast::Type): bool {
 	match type t.Kind {
-	| &ast::IdentTypeDecl:
-		itd := (&ast::IdentTypeDecl)(t.Kind)
+	| &ast::IdentType:
+		itd := (&ast::IdentType)(t.Kind)
 		ret itd.Ident == types::Kind.I8 ||
 			itd.Ident == types::Kind.I16 ||
 			itd.Ident == types::Kind.I32 ||
@@ -2618,9 +2618,9 @@ fn cloneBuf(b: []byte): []byte {
 
 fn isGroupStmt(stmt: ast::Stmt): bool {
 	match type stmt.Data {
-	| &ast::TypeAliasDecl
-	| &ast::VarDecl
-	| &ast::AssignSt
+	| &ast::TypeAlias
+	| &ast::Var
+	| &ast::Assign
 	| &ast::Expr:
 		ret true
 	|:
