@@ -263,7 +263,9 @@ impl formatter {
 			match {
 			| i == 0:
 				self.write(" ")
-			| arg.Kind != token::Kind.RParent && d.Args[i-1].Kind != token::Kind.LParent:
+			| arg.Kind != token::Kind.RParent &&
+				d.Args[i-1].Kind != token::Kind.LParent &&
+				d.Args[i-1].Kind != token::Kind.Excl:
 				self.write(" ")
 			}
 			self.write(arg.Kind)
