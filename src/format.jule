@@ -672,10 +672,22 @@ impl formatter {
 			self.fnDecl(m)
 			self.popRowComments(m.Token.Row)
 		}
-		self.addGlobalPaddingForComment(d.End.Row)
+		// Function declaration formatting won't add new-line.
+		// So add a new-line to complete "\n\n" if needed.
+		// addGlobalPaddingForComment adds one "\n" if needed.
+		pad := self.addGlobalPaddingForComment(d.End.Row) || self.seekCommentExcept(d.End.Row) != nil
+		if pad {
+			self.write("\n")
+		}
 		self.writeCommentsExcept(d.End.Row)
 		self.doneIndent()
-		self.write("\n}")
+		// If padding enabled, there is comment.
+		// So comment writer will write a new-line after comment.
+		// Avoid to write a new-line after comments.
+		if !pad {
+			self.write("\n")
+		}
+		self.write("}")
 		self.popRowComments(d.End.Row)
 		self.row = d.End.Row
 	}
