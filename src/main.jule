@@ -5,7 +5,6 @@
 use "std/flag"
 use "std/jule"
 use "std/jule/parser"
-use "std/jule/sema"
 use "std/jule/token"
 use "std/os"
 use "std/os/filepath"
