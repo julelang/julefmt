@@ -932,7 +932,7 @@ impl formatter {
 			self.write(" for ")
 		}
 		self.formatType(d.Dest)
-		if len(d.Methods) == 0 && len(d.Statics) == 0 {
+		if isEmptyImpl(d) {
 			self.write(" {}")
 			self.popRowComments(d.End.Row)
 			ret
@@ -940,59 +940,9 @@ impl formatter {
 
 		self.write(" {")
 		self.addIndent()
-		mut si, mut mi, mut statics, mut methods := 0, 0, -1, -1
-		for {
-			let mut s: &ast::Var = nil
-			let mut m: &ast::Func = nil
-			if si < len(d.Statics) {
-				s = d.Statics[si]
-			}
-			if mi < len(d.Methods) {
-				m = d.Methods[mi]
-			}
-			if s == nil && m == nil {
-				break
-			}
-			if s != nil && (m == nil || s.Token.Row < m.Token.Row) {
-				if statics == -1 {
-					statics = si
-					if methods != -1 {
-						mut mtds := d.Methods[methods:mi]
-						self.writeImplNodes[&ast::Func](mtds, fn(mut &d: &ast::Func) {
-							self.fnDecl(d)
-						})
-					}
-					methods = -1
-				}
-				si++
-				continue
-			}
-			if statics != -1 {
-				mut vars := d.Statics[statics:si]
-				self.writeImplNodes[&ast::Var](vars, fn(mut &d: &ast::Var) {
-					self.buf.Write(self.indent)!
-					self.varDecl(d)
-				})
-				statics = -1
-			}
-			if methods == -1 {
-				methods = mi
-			}
-			mi++
-		}
-		if statics != -1 {
-			mut vars := d.Statics[statics:si]
-			self.writeImplNodes[&ast::Var](vars, fn(mut &d: &ast::Var) {
-				self.buf.Write(self.indent)!
-				self.varDecl(d)
-			})
-		}
-		if methods != -1 {
-			mut mtds := d.Methods[methods:mi]
-			self.writeImplNodes[&ast::Func](mtds, fn(mut &d: &ast::Func) {
-				self.fnDecl(d)
-			})
-		}
+		self.writeImplNodes[&ast::Func](d.Methods, fn(mut &d: &ast::Func) {
+			self.fnDecl(d)
+		})
 		self.addGlobalPaddingForComment(d.End.Row)
 		self.writeCommentsExcept(d.End.Row)
 		self.doneIndent()
@@ -2621,7 +2571,7 @@ fn isRanged(&e: &ast::Expr): bool {
 }
 
 fn isEmptyImpl(&imp: &ast::Impl): bool {
-	ret len(imp.Methods) == 0 && len(imp.Statics) == 0
+	ret len(imp.Methods) == 0
 }
 
 fn cloneBuf(b: []byte): []byte {
