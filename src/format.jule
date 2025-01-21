@@ -1992,15 +1992,15 @@ impl exprFormatter {
 		self.format(pair.Expr)
 	}
 
-	fn structLit(&self, mut lit: &ast::StructLit) {
+	fn typedBraceLit(&self, mut lit: &ast::TypedBraceLit) {
 		self.fmt.formatType(lit.Kind)
-		if len(lit.Exprs) == 0 {
+		if len(lit.Lit.Exprs) == 0 {
 			self.write("{}")
-			self.fmt.row = lit.End.Row
+			self.fmt.row = lit.Lit.End.Row
 			ret
 		}
 		mut newline := false
-		for _, expr in lit.Exprs {
+		for _, expr in lit.Lit.Exprs {
 			// Compare with kind row. Because kind and brace should be same line.
 			// Therefore, kind row also means brace row.
 			if expr.Token.Row != lit.Kind.Token.Row {
@@ -2013,8 +2013,8 @@ impl exprFormatter {
 			self.write("\n")
 		}
 		self.fmt.addIndent()
-		for (i, mut expr) in lit.Exprs {
-			diff := len(lit.Exprs) - i
+		for (i, mut expr) in lit.Lit.Exprs {
+			diff := len(lit.Lit.Exprs) - i
 			if newline {
 				if !self.ibc {
 					self.fmt.addGlobalPaddingForComment(expr.Token.Row)
@@ -2028,7 +2028,7 @@ impl exprFormatter {
 			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
 			if newline {
 				self.write(",")
-				if diff < 2 || lit.Exprs[i+1].Token.Row != self.fmt.row {
+				if diff < 2 || lit.Lit.Exprs[i+1].Token.Row != self.fmt.row {
 					self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
 						self.write(" ")
 						self.fmt.writeComment(c)
@@ -2040,16 +2040,16 @@ impl exprFormatter {
 			}
 		}
 		if !self.ibc {
-			self.fmt.addGlobalPaddingForComment(lit.End.Row)
+			self.fmt.addGlobalPaddingForComment(lit.Lit.End.Row)
 			const Pad = true
-			self.fmt.writeCommentsExceptL(lit.End.Row, lit.End.Row, Pad)
+			self.fmt.writeCommentsExceptL(lit.Lit.End.Row, lit.Lit.End.Row, Pad)
 		}
 		self.fmt.doneIndent()
 		if newline {
 			self.fmt.buf.Write(self.fmt.indent)!
 		}
 		self.write("}")
-		self.fmt.row = lit.End.Row
+		self.fmt.row = lit.Lit.End.Row
 	}
 
 	fn responsiveExprs[T](&self, mut &lit: T) {
@@ -2283,8 +2283,8 @@ impl exprFormatter {
 			self.fnCall((&ast::FuncCallExpr)(kind))
 		| &ast::FieldExprPair:
 			self.fieldExprPair((&ast::FieldExprPair)(kind))
-		| &ast::StructLit:
-			self.structLit((&ast::StructLit)(kind))
+		| &ast::TypedBraceLit:
+			self.typedBraceLit((&ast::TypedBraceLit)(kind))
 		| &ast::BraceLit:
 			self.braceLit((&ast::BraceLit)(kind))
 		| &ast::KeyValPair:
