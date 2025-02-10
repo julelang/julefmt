@@ -2225,7 +2225,8 @@ impl exprFormatter {
 		self.bf.zip = zip || !lr
 		self.format(i.Start)
 
-		if lb && rb {
+		padding := lb || rb
+		if padding {
 			self.write(" : ")
 		} else {
 			self.write(":")
