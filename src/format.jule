@@ -125,7 +125,7 @@ impl formatter {
 				self.write("\n")
 			}
 			lrow = c.row
-			self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+			self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1 : ]...)
 			self.buf.Write(self.indent)!
 			self.writeComment(c)
 			if c.txt[1] == '*' {
@@ -196,7 +196,7 @@ impl formatter {
 			}
 			if col == -1 || c.col < col {
 				f(c)
-				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1 : ]...)
 				continue
 			}
 			i++
@@ -209,7 +209,7 @@ impl formatter {
 			c := self.cm.buf[i]
 			if c.row == row && (col == -1 || c.col < col) {
 				f(c)
-				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1 : ]...)
 				continue
 			} else if c.row > row {
 				break
@@ -2203,9 +2203,8 @@ impl exprFormatter {
 			self.bf.zip = zip
 		}
 
-		mut lb, mut rb := false, false
-		lr := isRanged(i.Start)
-		rr := isRanged(i.To)
+		mut lb, mut rb, mut cb := false, false, false
+		lr, rr, cr := isRanged(i.Start), isRanged(i.To), isRanged(i.Cap)
 		if !lr && i.Start != nil {
 			match type i.Start.Kind {
 			| &ast::BinaryExpr:
@@ -2218,6 +2217,12 @@ impl exprFormatter {
 				rb = true
 			}
 		}
+		if !cr && i.Cap != nil {
+			match type i.Cap.Kind {
+			| &ast::BinaryExpr:
+				cb = true
+			}
+		}
 
 		self.format(i.Expr)
 		self.write("[")
@@ -2225,8 +2230,8 @@ impl exprFormatter {
 		self.bf.zip = zip || !lr
 		self.format(i.Start)
 
-		padding := lb || rb
-		if padding {
+		padding := lb || rb || cb
+		if padding && i.Start != nil {
 			self.write(" : ")
 		} else {
 			self.write(":")
@@ -2234,6 +2239,17 @@ impl exprFormatter {
 
 		self.bf.zip = zip || !rr
 		self.format(i.To)
+
+		if i.Cap != nil {
+			if padding {
+				self.write(" : ")
+			} else {
+				self.write(":")
+			}
+			self.bf.zip = zip || !cr
+			self.format(i.Cap)
+		}
+
 		self.write("]")
 	}
 
