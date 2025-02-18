@@ -23,7 +23,7 @@ fn printFormat(path: str, data: []byte) {
 		ret
 	}
 	if *_W {
-		os::File.Write(path, data, 0o660) else {
+		os::WriteFile(path, data, 0o660) else {
 			writeError("error: could not write to file: " + path)
 			ret
 		}
@@ -58,7 +58,7 @@ fn format(path: str, mut data: []byte): []byte {
 }
 
 fn formatFile(path: str) {
-	data := format(path, os::File.Read(path) else {
+	data := format(path, os::ReadFile(path) else {
 		writeError("error: file could not read: " + path)
 		ret
 	})
@@ -66,7 +66,7 @@ fn formatFile(path: str) {
 }
 
 fn parsePackage(path: str) {
-	mut dirents := os::Dir.Read(path) else {
+	mut dirents := os::ReadDir(path) else {
 		writeError("error: connot read package directory: " + path)
 		ret
 	}
@@ -81,19 +81,18 @@ fn parsePackage(path: str) {
 }
 
 fn parse(path: str) {
-	stat := os::Stat.Of(path) else {
+	stat := os::Stat(path) else {
 		writeError("error: connot read path: " + path)
 		ret
 	}
-	match {
-	| stat.IsDir():
+	if stat.IsDir() {
 		parsePackage(path)
 		ret
-	| stat.IsReg():
-		if strings::HasSuffix(path, jule::Ext) {
-			formatFile(path)
-			ret
-		}
+	}
+	// file
+	if strings::HasSuffix(path, jule::Ext) {
+		formatFile(path)
+		ret
 	}
 	writeError("error: path is not supported: " + path)
 }
