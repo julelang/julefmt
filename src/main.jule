@@ -85,14 +85,16 @@ fn parse(path: str) {
 		writeError("error: connot read path: " + path)
 		ret
 	}
-	if stat.IsDir() {
+	m := stat.Mode()
+	match {
+	| m.IsDir():
 		parsePackage(path)
 		ret
-	}
-	// file
-	if strings::HasSuffix(path, jule::Ext) {
-		formatFile(path)
-		ret
+	| m.IsRegular():
+		if strings::HasSuffix(path, jule::Ext) {
+			formatFile(path)
+			ret
+		}
 	}
 	writeError("error: path is not supported: " + path)
 }
