@@ -2556,22 +2556,22 @@ fn isPrimType(&t: &ast::Type): bool {
 	match type t.Kind {
 	| &ast::IdentType:
 		itd := (&ast::IdentType)(t.Kind)
-		ret itd.Ident == types::Kind.I8 ||
-			itd.Ident == types::Kind.I16 ||
-			itd.Ident == types::Kind.I32 ||
-			itd.Ident == types::Kind.I64 ||
-			itd.Ident == types::Kind.U8 ||
-			itd.Ident == types::Kind.U16 ||
-			itd.Ident == types::Kind.U32 ||
-			itd.Ident == types::Kind.U64 ||
-			itd.Ident == types::Kind.Int ||
-			itd.Ident == types::Kind.Uint ||
-			itd.Ident == types::Kind.Uintptr ||
-			itd.Ident == types::Kind.F32 ||
-			itd.Ident == types::Kind.F64 ||
-			itd.Ident == types::Kind.Bool ||
-			itd.Ident == types::Kind.Str ||
-			itd.Ident == types::Kind.Any
+		ret itd.Ident == types::I8 ||
+			itd.Ident == types::I16 ||
+			itd.Ident == types::I32 ||
+			itd.Ident == types::I64 ||
+			itd.Ident == types::U8 ||
+			itd.Ident == types::U16 ||
+			itd.Ident == types::U32 ||
+			itd.Ident == types::U64 ||
+			itd.Ident == types::Int ||
+			itd.Ident == types::Uint ||
+			itd.Ident == types::Uintptr ||
+			itd.Ident == types::F32 ||
+			itd.Ident == types::F64 ||
+			itd.Ident == types::Bool ||
+			itd.Ident == types::Str ||
+			itd.Ident == types::Any
 	}
 	ret false
 }
