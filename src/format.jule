@@ -702,37 +702,42 @@ impl formatter {
 		self.formatType(d.Kind)
 	}
 
-	fn varDecl(&self, mut d: &ast::Var) {
-		if len(d.Directives) != 0 {
-			self.directives(d.Directives)
-		}
-		if d.Binded {
-			self.write("cpp let ")
-		} else {
-			if d.Statically {
-				self.write("static ")
-			} else if d.Constant {
-				self.write("const ")
-			} else if d.Setter == nil || d.Setter.Id == token::Id.Eq {
-				self.write("let ")
+	fn varDecl(&self, mut d: &ast::Var, head: bool) {
+		if head {
+			if len(d.Directives) != 0 {
+				self.directives(d.Directives)
+			}
+			if d.Binded {
+				self.write("cpp let ")
+			} else {
+				if d.Statically {
+					self.write("static ")
+				} else if d.Constant {
+					self.write("const ")
+				} else if d.Setter == nil || d.Setter.Id == token::Id.Eq {
+					self.write("let ")
+				}
+			}
+			if d.Mutable {
+				self.write("mut ")
+			}
+			if d.Reference {
+				self.write("&")
 			}
 		}
-		if d.Mutable {
-			self.write("mut ")
-		}
-		if d.Reference {
-			self.write("&")
-		}
 		self.write(d.Ident)
+		self.row = d.Token.Row
 		if d.Kind != nil {
 			self.write(": ")
 			self.formatType(d.Kind)
+			self.row = d.Kind.Token.Row
 		}
 		if d.Expr != nil {
 			self.write(" ")
 			self.write(d.Setter.Kind)
 			self.write(" ")
 			self.formatExpr(d.Expr)
+			self.row = d.Expr.End.Row
 		}
 	}
 
@@ -821,9 +826,84 @@ impl formatter {
 		}
 	}
 
+	fn varGroup(&self, mut root: &ast::Var, mut &i: int) {
+		// Do not increase the i, because all grouped variables are represented by the root.
+		mut lines := make([][]byte, 0, len(root.Group))
+		mut rows := make([]int, 0, len(root.Group))
+
+		self.buf.Write(self.indent)!
+		self.write("const (\n")
+		self.addIndent()
+		mut n := self.buf.Len()
+		for (_, mut v) in root.Group {
+			self.varDecl(v, false)
+			mut line := cloneBuf(self.ubuf()[n:])
+			lines = append(lines, line)
+			rows = append(rows, self.row)
+			self.setBuf(self.ubuf()[:n])
+		}
+		n = 0
+		mut max := 0
+		mut rowBreak := indexRowBrake(rows)
+		for j, line in lines {
+			row := rows[j]
+			if j == rowBreak {
+				self.write("\n")
+				rowBreak = j + indexRowBrake(rows[j:])
+			}
+			self.writeCommentsExcept(row)
+			self.buf.Write(self.indent)!
+			self.buf.Write(line)!
+			// Handle comments if same-line condition is not appear or
+			// current row is not same as next row. So, we can move line comments
+			// to last statement of inline statements.
+			if len(lines)-j < 2 || rows[j] != rows[j+1] {
+				if n == 0 {
+					max, n = self.getMax(lines[j:rowBreak], rows[j:rowBreak])
+				}
+				if n > 0 {
+					self.popRowCommentsByF(row, -1, fn(c: &comment) {
+						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
+						self.writeComment(c)
+					})
+					n--
+				}
+			}
+			self.write("\n")
+		}
+		self.doneIndent()
+		self.buf.Write(self.indent)!
+		self.write(")")
+		self.row = rows[len(rows)-1] + 1 // Add +1 offset for "\n)" suffix.
+	}
+
 	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int, writer: fn(mut &d: T)) {
 		if len(nodes) == 0 {
 			ret
+		}
+
+		// If group declaration used, fall-back to special group handling.
+		const match type T {
+		| &ast::Var:
+			const match type Node {
+			| &ast::Var:
+				if nodes[i].Group != nil {
+					self.varGroup(nodes[i], i)
+					ret
+				}
+			| ast::Node | ast::Stmt:
+				mut v, ok := nodes[i].Data.(T)
+				if ok && v.Group != nil {
+					self.varGroup(v, i)
+					ret
+				}
+			}
+		| ast::Node | ast::Stmt:
+			mut v, ok := nodes[i].Data.(&ast::Var)
+			if ok && v.Group != nil {
+				self.varGroup(v, i)
+				ret
+			}
 		}
 
 		const Cap = 1 << 4
@@ -842,15 +922,23 @@ impl formatter {
 			let mut decl: T
 			mut row := -1
 			const match type Node {
+			| &ast::Var:
+				if nodes[i].Group != nil {
+					break loop
+				}
+				fall
 			| &ast::EnumItem
 			| &ast::TypeEnumItem
-			| &ast::Var
 			| &ast::Func:
 				decl = nodes[i]
 				row = decl.Token.Row
 			| ast::Stmt:
 				decl = nodes[i]
 				if !isGroupStmt(decl) {
+					break loop
+				}
+				v, ok := decl.Data.(&ast::Var)
+				if ok && v.Group != nil {
 					break loop
 				}
 				row = decl.End.Row
@@ -974,7 +1062,7 @@ impl formatter {
 		| &ast::Var:
 			self.groupNode[&ast::Var](node, fn(mut &d: &ast::Var) {
 				self.buf.Write(self.indent)!
-				self.varDecl(d)
+				self.varDecl(d, true)
 			})
 			ret
 		| &ast::Func:
@@ -1572,7 +1660,7 @@ impl scopeFormatter {
 	fn formatStmt(&self, mut &stmt: ast::StmtData, options: scopeOption) {
 		match type stmt {
 		| &ast::Var:
-			self.fmt.varDecl(stmt.(&ast::Var))
+			self.fmt.varDecl(stmt.(&ast::Var), true)
 		| &ast::TypeAlias:
 			self.fmt.typeAliasDecl(stmt.(&ast::TypeAlias))
 		| &ast::ScopeTree:
@@ -2601,4 +2689,13 @@ fn isGroupStmt(stmt: ast::Stmt): bool {
 	|:
 		ret false
 	}
+}
+
+fn indexRowBrake(rows: []int): int {
+	for i, r in rows {
+		if i > 0 && r-rows[i-1] > 1 {
+			ret i
+		}
+	}
+	ret len(rows)
 }
