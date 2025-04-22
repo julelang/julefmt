@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 use "std/bytes"
+use "std/jule"
 use "std/jule/ast"
 use "std/jule/token"
 use "std/jule/types"
@@ -263,9 +264,9 @@ impl formatter {
 			match {
 			| i == 0:
 				self.write(" ")
-			| arg.Kind != token::Kind.RParent &&
-				d.Args[i-1].Kind != token::Kind.LParent &&
-				d.Args[i-1].Kind != token::Kind.Excl:
+			| arg.Id != token::RParent &&
+				d.Args[i-1].Id != token::LParent &&
+				d.Args[i-1].Id != token::Excl:
 				self.write(" ")
 			}
 			self.write(arg.Kind)
@@ -485,7 +486,7 @@ impl formatter {
 				}
 				self.write("self")
 			} else {
-				if !token::IsAnonIdent(p.Ident) {
+				if !jule::IsAnon(p.Ident) {
 					self.write(p.Ident)
 					self.write(": ")
 				} else if p.Reference {
@@ -533,7 +534,7 @@ impl formatter {
 			self.write("unsafe ")
 		}
 		self.write("fn")
-		if !token::IsAnonIdent(d.Ident) {
+		if !jule::IsAnon(d.Ident) {
 			self.write(" ")
 			self.write(d.Ident)
 		}
@@ -714,7 +715,7 @@ impl formatter {
 					self.write("static ")
 				} else if d.Constant {
 					self.write("const ")
-				} else if d.Setter == nil || d.Setter.Id == token::Id.Eq {
+				} else if d.Setter == nil || d.Setter.Id == token::Eq {
 					self.write("let ")
 				}
 			}
@@ -1225,7 +1226,7 @@ impl typeFormatter {
 			ret
 		}
 		if len(r.Idents) == 1 {
-			if token::IsAnonIdent(r.Idents[0].Kind) {
+			if jule::IsAnon(r.Idents[0].Kind) {
 				self.format(r.Kind.Kind)
 				ret
 			}
@@ -1240,7 +1241,7 @@ impl typeFormatter {
 		self.write("(")
 		for (i, mut t) in types {
 			ident := r.Idents[i]
-			if token::IsAnonIdent(ident.Kind) {
+			if jule::IsAnon(ident.Kind) {
 				self.format(t.Kind)
 			} else {
 				self.write(ident.Kind)
@@ -1595,7 +1596,7 @@ impl scopeFormatter {
 	}
 
 	fn singleAssign(&self, mut &a: &ast::Assign) {
-		if token::IsIgnoreIdent(a.Left[0].Ident) {
+		if jule::IsBlank(a.Left[0].Ident) {
 			self.write("_ ")
 		} else {
 			mut expr := a.Left[0].Expr
@@ -1608,7 +1609,7 @@ impl scopeFormatter {
 	}
 
 	fn multiAssign(&self, mut &a: &ast::Assign) {
-		letKwUsed := a.Setter.Kind == token::Kind.Eq
+		letKwUsed := a.Setter.Id == token::Eq
 		if a.Declarative && letKwUsed {
 			self.write("let (")
 		}
@@ -2421,27 +2422,27 @@ struct binaryFormatter {
 
 impl binaryFormatter {
 	// Reports whether operator should take space for formatting.
-	static fn isOp(op: token::Id): bool {
-		ret op == token::Id.DblVline ||
-			op == token::Id.DblAmper ||
-			op == token::Id.Gt ||
-			op == token::Id.Lt ||
-			op == token::Id.LtEq ||
-			op == token::Id.GtEq ||
-			op == token::Id.Eqs ||
-			op == token::Id.NotEq
+	static fn isOp(op: int): bool {
+		ret op == token::DblVline ||
+			op == token::DblAmper ||
+			op == token::Gt ||
+			op == token::Lt ||
+			op == token::LtEq ||
+			op == token::GtEq ||
+			op == token::DblEq ||
+			op == token::NotEq
 	}
 
 	// Reports whether the operator is have high formatting precedence.
 	// Returns 1 for high precedence, otherwise returns 0.
-	static fn opPrec(op: token::Id): int {
+	static fn opPrec(op: int): int {
 		match op {
-		| token::Id.Shl
-		| token::Id.Shr
-		| token::Id.Star
-		| token::Id.Solidus
-		| token::Id.Percent
-		| token::Id.Amper:
+		| token::Shl
+		| token::Shr
+		| token::Star
+		| token::Solidus
+		| token::Percent
+		| token::Amper:
 			ret 1
 		|:
 			ret 0
@@ -2449,9 +2450,9 @@ impl binaryFormatter {
 	}
 
 	// Reports whether operator zips operands.
-	static fn isHardZipOp(op: token::Id): bool {
-		ret op == token::Id.DblVline ||
-			op == token::Id.DblAmper
+	static fn isHardZipOp(op: int): bool {
+		ret op == token::DblVline ||
+			op == token::DblAmper
 	}
 
 	fn write(&self, s: str) {

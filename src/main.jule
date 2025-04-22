@@ -40,7 +40,7 @@ fn printFormat(path: str, data: []byte) {
 fn format(path: str, mut data: []byte): []byte {
 	mut file := token::Fileset.New(path)
 	unsafe { file.FillMut(data) }
-	mut errors := token::Lex(file, token::LexMode.Comment)
+	mut errors := token::Lex(file, token::Comments)
 	if len(errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path)
 		ret nil
@@ -58,10 +58,11 @@ fn format(path: str, mut data: []byte): []byte {
 }
 
 fn formatFile(path: str) {
-	data := format(path, os::ReadFile(path) else {
+	mut ctx := os::ReadFile(path) else {
 		writeError("error: file could not read: " + path)
 		ret
-	})
+	}
+	data := format(path, ctx)
 	printFormat(path, data)
 }
 
