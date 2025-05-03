@@ -559,20 +559,25 @@ impl formatter {
 
 	// Only parses last field.
 	// Leading fields used to calculate maximum declaration length of group for padding.
-	fn field(&self, mut f: &field, mut max: int) {
+	fn field(&self, mut f: &field, mut fieldMax: int, mut typeMax: int) {
 		self.buf.Write(self.indent)!
 		if f.f.Mutable {
 			self.write("mut ")
-			max -= 4
+			fieldMax -= 4
 		}
 		self.write(f.f.Ident)
-		max -= utf8::RuneCountStr(f.f.Ident)
+		fieldMax -= utf8::RuneCountStr(f.f.Ident)
 		self.write(": ")
-		if max > 0 {
-			self.write(strings::Repeat(" ", max))
+		if fieldMax > 0 {
+			self.write(strings::Repeat(" ", fieldMax))
 		}
+		n := len(self.ubuf())
 		self.formatType(f.f.Kind)
+		typeMax -= len(self.ubuf()) - n
 		if len(f.expr) != 0 {
+			if typeMax > 0 {
+				self.write(strings::Repeat(" ", typeMax))
+			}
 			self.write(" = ")
 			self.buf.Write(f.expr)!
 		}
@@ -761,17 +766,20 @@ impl formatter {
 	}
 
 	fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
-		const Cap = 1 << 4
-		mut lines := make([][]byte, 0, Cap)
-		mut rows := make([]int, 0, Cap)
+		mut lines := make([][]byte, 0, len(fields))
+		mut rows := make([]int, 0, len(fields))
 
 		mut start := i
 		self.row = -1
 		mut fieldMax := 0
+		mut typeMax := 0
 		mut n := self.buf.Len()
 		for i < len(fields) {
 			mut decl := fields[i]
-			if self.row != -1 && decl.token.Row-1 != self.row {
+			row := self.row // save the first row data to after use
+			// If the row is not first, compare current row with the previous one.
+			// If the difference greatest than one row, end the iteration.
+			if row != -1 && decl.token.Row-rows[(i-start)-1] > 1 {
 				break
 			}
 			self.row = decl.token.Row
@@ -780,22 +788,34 @@ impl formatter {
 				fm += len("mut ")
 			}
 			fm += utf8::RuneCountStr(decl.f.Ident)
-			if fm > fieldMax {
-				fieldMax = fm
+			self.formatType(decl.f.Kind)
+			tm := len(self.ubuf()) - n
+			self.setBuf(self.ubuf()[:n])
+			if row != -1 && decl.token.Row != self.row {
+				break
 			}
 			if decl.f.Default != nil {
 				self.formatExpr(decl.f.Default)
 				decl.expr = cloneBuf(self.ubuf()[n:])
 				self.setBuf(self.ubuf()[:n])
 			}
-			rows = append(rows, self.row)
+			if row != -1 && decl.token.Row != self.row {
+				break
+			}
+			rows = append(rows, decl.token.Row)
+			if fm > fieldMax {
+				fieldMax = fm
+			}
+			if tm > typeMax {
+				typeMax = tm
+			}
 			i++
 		}
 
 		mut j := start
 		for j < i; j++ {
 			mut f := fields[j]
-			self.field(f, fieldMax)
+			self.field(f, fieldMax, typeMax)
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
 			self.setBuf(self.ubuf()[:n])
@@ -2642,7 +2662,7 @@ fn paddingAbs(x: int): int {
 
 fn isPrimType(&t: &ast::Type): bool {
 	name, ok := t.Kind.(&ast::IdentType)
-	ret ok && name.Ident == types::I8 ||
+	ret ok && (name.Ident == types::I8 ||
 		name.Ident == types::I16 ||
 		name.Ident == types::I32 ||
 		name.Ident == types::I64 ||
@@ -2657,7 +2677,7 @@ fn isPrimType(&t: &ast::Type): bool {
 		name.Ident == types::F64 ||
 		name.Ident == types::Bool ||
 		name.Ident == types::Str ||
-		name.Ident == types::Any
+		name.Ident == types::Any)
 }
 
 fn isRanged(&e: &ast::Expr): bool {
