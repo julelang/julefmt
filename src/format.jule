@@ -1073,6 +1073,8 @@ impl formatter {
 			ret
 		| &ast::Struct:
 			self.structDecl(node.Data.(&ast::Struct))
+		|:
+			// no-op
 		}
 		mut commentExist := self.cm.find(node.Token.Row) != nil
 		if node.Token.Row-self.writeComments(node.Token.Row) > 1 {
@@ -1113,6 +1115,8 @@ impl formatter {
 				// Add newline to be removed by the [nodes] method.
 				self.write("\n")
 			}
+		|:
+			// no-op
 		}
 	}
 
@@ -1259,10 +1263,9 @@ impl typeFormatter {
 		mut range := false
 		if c.Recv && c.Send {
 			self.write("chan ")
-			match type c.Elem.Kind {
-			| &ast::ChanType:
-				elemC := c.Elem.Kind.(&ast::ChanType)
-				if elemC.Recv && !elemC.Send {
+			elemChan, isChan := c.Elem.Kind.(&ast::ChanType)
+			if isChan {
+				if elemChan.Recv && !elemChan.Send {
 					range = true
 					self.write("(")
 				}
@@ -1298,6 +1301,8 @@ impl typeFormatter {
 			self.fmt.fnDecl(kind.(&ast::Func))
 		| &ast::ChanType:
 			self.chanType(kind.(&ast::ChanType))
+		| &ast::TupleType:
+			// no-op
 		}
 	}
 }
@@ -1639,8 +1644,8 @@ impl scopeFormatter {
 			self.write(" = ")
 		}
 		zip := self.fmt.ef.bf.zip
-		match type a.Right.Kind {
-		| &ast::TupleExpr:
+		_, isTup := a.Right.Kind.(&ast::TupleExpr)
+		if isTup {
 			self.fmt.ef.bf.zip = len(a.Right.Kind.(&ast::TupleExpr).Expr) > 1
 		}
 		self.fmt.formatExpr(a.Right)
@@ -2278,20 +2283,20 @@ impl exprFormatter {
 		mut lb, mut rb, mut cb := false, false, false
 		lr, rr, cr := isRanged(i.Start), isRanged(i.To), isRanged(i.Cap)
 		if !lr && i.Start != nil {
-			match type i.Start.Kind {
-			| &ast::BinaryExpr:
+			_, isBinary := i.Start.Kind.(&ast::BinaryExpr)
+			if isBinary {
 				lb = true
 			}
 		}
 		if !rr && i.To != nil {
-			match type i.To.Kind {
-			| &ast::BinaryExpr:
+			_, isBinary := i.To.Kind.(&ast::BinaryExpr)
+			if isBinary {
 				rb = true
 			}
 		}
 		if !cr && i.Cap != nil {
-			match type i.Cap.Kind {
-			| &ast::BinaryExpr:
+			_, isBinary := i.Cap.Kind.(&ast::BinaryExpr)
+			if isBinary {
 				cb = true
 			}
 		}
@@ -2636,38 +2641,31 @@ fn paddingAbs(x: int): int {
 }
 
 fn isPrimType(&t: &ast::Type): bool {
-	match type t.Kind {
-	| &ast::IdentType:
-		itd := t.Kind.(&ast::IdentType)
-		ret itd.Ident == types::I8 ||
-			itd.Ident == types::I16 ||
-			itd.Ident == types::I32 ||
-			itd.Ident == types::I64 ||
-			itd.Ident == types::U8 ||
-			itd.Ident == types::U16 ||
-			itd.Ident == types::U32 ||
-			itd.Ident == types::U64 ||
-			itd.Ident == types::Int ||
-			itd.Ident == types::Uint ||
-			itd.Ident == types::Uintptr ||
-			itd.Ident == types::F32 ||
-			itd.Ident == types::F64 ||
-			itd.Ident == types::Bool ||
-			itd.Ident == types::Str ||
-			itd.Ident == types::Any
-	}
-	ret false
+	name, ok := t.Kind.(&ast::IdentType)
+	ret ok && name.Ident == types::I8 ||
+		name.Ident == types::I16 ||
+		name.Ident == types::I32 ||
+		name.Ident == types::I64 ||
+		name.Ident == types::U8 ||
+		name.Ident == types::U16 ||
+		name.Ident == types::U32 ||
+		name.Ident == types::U64 ||
+		name.Ident == types::Int ||
+		name.Ident == types::Uint ||
+		name.Ident == types::Uintptr ||
+		name.Ident == types::F32 ||
+		name.Ident == types::F64 ||
+		name.Ident == types::Bool ||
+		name.Ident == types::Str ||
+		name.Ident == types::Any
 }
 
 fn isRanged(&e: &ast::Expr): bool {
 	if e == nil {
 		ret false
 	}
-	match type e.Kind {
-	| &ast::RangeExpr:
-		ret true
-	}
-	ret false
+	_, ok := e.Kind.(&ast::RangeExpr)
+	ret ok
 }
 
 fn isEmptyImpl(&imp: &ast::Impl): bool {
