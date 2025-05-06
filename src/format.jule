@@ -573,7 +573,7 @@ impl formatter {
 		}
 		n := len(self.ubuf())
 		self.formatType(f.f.Kind)
-		typeMax -= len(self.ubuf()) - n
+		typeMax -= utf8::RuneCount(self.ubuf()[n:])
 		if len(f.expr) != 0 {
 			if typeMax > 0 {
 				self.write(strings::Repeat(" ", typeMax))
@@ -708,7 +708,14 @@ impl formatter {
 		self.formatType(d.Kind)
 	}
 
-	fn varDecl(&self, mut d: &ast::Var, head: bool) {
+	fn varDecl(&self, mut d: &ast::Var, head: bool, mut counts: [5]int) {
+		// Layout of counts.
+		mut typeAnnoMax := counts[0]      // maximum name length for type alignment column
+		mut nameMax := counts[1]          // maximum name length of the group
+		nameMaxHaveType := counts[2] == 1 // whether nameMax owner have type annotation
+		mut typeMax := counts[3]          // maximum length of the type annotations
+		table := counts[4] == 1           // whether the alignment is like table, column-by-column
+
 		if head {
 			if len(d.Directives) != 0 {
 				self.directives(d.Directives)
@@ -731,14 +738,63 @@ impl formatter {
 				self.write("&")
 			}
 		}
+		nameLen := utf8::RuneCountStr(d.Ident)
 		self.write(d.Ident)
 		self.row = d.Token.Row
+		mut typ := 0
 		if d.Kind != nil {
 			self.write(": ")
+			// If typeAnnoMax>0, add the missing leading spaces for type annotation.
+			if typeAnnoMax > 0 {
+				diff := typeAnnoMax - nameLen
+				if diff > 0 {
+					self.write(strings::Repeat(" ", diff))
+				}
+			}
+			n := len(self.ubuf())
 			self.formatType(d.Kind)
+			typ = utf8::RuneCount(self.ubuf()[n:]) // subtract the runes of type
 			self.row = d.Kind.Token.Row
 		}
 		if d.Expr != nil {
+			// If nameMax>0, we have to do alignment.
+			if nameMax > 0 {
+				// If typeMax>0 and d.Kind==nil, we have type alignment.
+				// But this variable have not type annotation.
+				// Add spaces for the missing ": " part of type annotations.
+				if (nameMaxHaveType || table) && typeMax > 0 && d.Kind == nil {
+					nameMax += 2
+				}
+				// If the maximum name have not type annotation and this variable have,
+				// remove the spaces of the ": " part of type annotations.
+				if !nameMaxHaveType && d.Kind != nil {
+					nameMax -= 2
+				}
+				// If we have type alignment and this variable have type annotation,
+				// add missing trailing spaces to reach maximum type annotation length.
+				if typeMax > 0 && d.Kind != nil {
+					diff := typeMax - typ
+					if diff > 0 {
+						self.write(strings::Repeat(" ", diff))
+					}
+					// Remove the added spaces from alignment.
+					nameMax -= diff
+				}
+				// Remove the spaces of type annotation length of this variable.
+				nameMax -= typ
+				// If type annotation alignemnt exist and this variable have type annotation,
+				// remove the spaces of annotation alignment, because type annotation is aligned.
+				// Otherwise, remove spaces for name length,
+				// there are still missing spaces for type annotations.
+				if typeAnnoMax > 0 && d.Kind != nil {
+					nameMax -= typeAnnoMax
+				} else {
+					nameMax -= nameLen
+				}
+				if nameMax > 0 {
+					self.write(strings::Repeat(" ", nameMax))
+				}
+			}
 			self.write(" ")
 			self.write(d.Setter.Kind)
 			self.write(" ")
@@ -789,7 +845,7 @@ impl formatter {
 			}
 			fm += utf8::RuneCountStr(decl.f.Ident)
 			self.formatType(decl.f.Kind)
-			tm := len(self.ubuf()) - n
+			tm := utf8::RuneCount(self.ubuf()[n:])
 			self.setBuf(self.ubuf()[:n])
 			if row != -1 && decl.token.Row != self.row {
 				break
@@ -847,17 +903,135 @@ impl formatter {
 		}
 	}
 
-	fn varGroup(&self, mut root: &ast::Var, mut &i: int) {
+	fn varSubGroup(&self, mut vars: []&ast::Var, mut &i: int) {
 		// Do not increase the i, because all grouped variables are represented by the root.
-		mut lines := make([][]byte, 0, len(root.Group))
-		mut rows := make([]int, 0, len(root.Group))
+		mut lines := make([][]byte, 0, len(vars[i:]))
+		mut rows := make([]int, 0, len(vars[i:]))
+		mut counts := make([][2]int, 0, len(vars[i:]))
 
-		self.buf.Write(self.indent)!
-		self.write("const (\n")
-		self.addIndent()
+		start := i
 		mut n := self.buf.Len()
-		for (_, mut v) in root.Group {
-			self.varDecl(v, false)
+
+		// Returns maximum length of identifiers for type annotation alignment.
+		// j is the current varaible.
+		getTypeAnnoMax := fn(mut j: int): (nameMax: int) {
+			counts = counts[:unsafe { i }-start] // use all capacity of counts
+			for j > start {
+				v := vars[j-1]
+				if v.Kind != nil {
+					j--
+				} else {
+					break
+				}
+			}
+			for j < unsafe { i }; j++ {
+				mut v := vars[j]
+				if v.Kind != nil {
+					name := counts[j-start][0]
+					if name > nameMax {
+						nameMax = name
+					}
+				} else {
+					break
+				}
+			}
+			ret
+		}
+
+		// Returns maximum length of assignment alignment.
+		// j is the current varaible
+		getAssignMax := fn(mut j: int, mut &typeAnnoMax: int): (nameMax: int, nameMaxHaveType: int, typeMax: int, table: int) {
+			counts = counts[:unsafe { i }-start] // use all capacity of counts
+			for j > start {
+				v := vars[j-1]
+				if v.Expr != nil || self.isPopsRowCommentsByF(v.Token.Row, -1) {
+					j--
+				} else {
+					break
+				}
+			}
+			mut fullComment := true // whether the all group members have comment
+			mut maxPlainName := 0
+			mut maxNameWithType := typeAnnoMax
+			for j < unsafe { i }; j++ {
+				mut v := vars[j]
+				comment := self.isPopsRowCommentsByF(v.Token.Row, -1)
+				if v.Expr == nil && !comment {
+					break
+				}
+				fullComment = fullComment && comment
+				c := counts[j-start]
+				t := c[0]
+				if maxPlainName < t {
+					maxPlainName = t
+				}
+				if v.Kind != nil {
+					if maxNameWithType < t {
+						maxNameWithType = t
+					}
+				}
+				if c[1] > typeMax {
+					typeMax = c[1]
+				}
+			}
+			if fullComment {
+				table = 1
+				// typeAnnoMax must strore the maximum length of the group for type alignment.
+				typeAnnoMax = maxNameWithType
+				if typeAnnoMax < maxPlainName {
+					typeAnnoMax = maxPlainName
+				}
+				// add typeMax to maxPlainName for type alignment.
+				// Because all the group must be aligned column-by-column.
+				maxPlainName += typeMax
+			}
+			maxNameWithType += typeMax
+			maxNameWithType += 2 // add space for ": " part of type annotation
+			if maxNameWithType > maxPlainName {
+				maxNameWithType -= 2 // remove space for ": " part of type annotation
+				nameMax = maxNameWithType
+				nameMaxHaveType = 1
+			} else {
+				nameMax = maxPlainName
+				nameMaxHaveType = 0
+			}
+			ret
+		}
+
+		self.row = -1
+		for i < len(vars); i++ {
+			mut v := vars[i]
+			row := self.row // save the first row data to after use
+			// If the row is not first, compare current row with the previous one.
+			// If the difference greatest than one row, end the iteration.
+			if row != -1 && v.Token.Row-vars[i-1].Token.Row > 1 {
+				break
+			}
+			self.row = v.Token.Row
+			mut name := utf8::RuneCountStr(v.Ident)
+			mut typ := 0
+			if v.Kind != nil {
+				self.formatType(v.Kind)
+				typ = utf8::RuneCount(self.ubuf()[n:])
+				self.setBuf(self.ubuf()[:n])
+				if row != -1 && v.Token.Row != self.row {
+					break
+				}
+			}
+			if v.Expr != nil {
+				self.formatExpr(v.Expr)
+				self.setBuf(self.ubuf()[:n])
+				if row != -1 && v.Token.Row != self.row {
+					break
+				}
+			}
+			counts = append(counts, [name, typ])
+		}
+		mut z := start
+		for z < i; z++ {
+			mut typeAnnoMax := getTypeAnnoMax(z)
+			nameMax, nameMaxHaveType, typeMax, table := getAssignMax(z, typeAnnoMax)
+			self.varDecl(vars[z], false, [typeAnnoMax, nameMax, nameMaxHaveType, typeMax, table])
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
 			rows = append(rows, self.row)
@@ -892,10 +1066,29 @@ impl formatter {
 			}
 			self.write("\n")
 		}
+		self.row = rows[len(rows)-1] + 1 // Add +1 offset for "\n)" suffix.
+	}
+
+	fn varGroup(&self, mut root: &ast::Var, mut &i: int) {
+		// Do not increase the i, because all grouped variables are represented by the root.
+		self.buf.Write(self.indent)!
+		self.write("const (\n")
+		self.addIndent()
+		mut j := 0
+		for j < len(root.Group) {
+			old := j
+			self.varSubGroup(root.Group, j)
+			if old != j {
+				if j < len(root.Group) {
+					self.write("\n")
+				}
+			} else {
+				j++
+			}
+		}
 		self.doneIndent()
 		self.buf.Write(self.indent)!
 		self.write(")")
-		self.row = rows[len(rows)-1] + 1 // Add +1 offset for "\n)" suffix.
 	}
 
 	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int, writer: fn(mut &d: T)) {
@@ -1083,7 +1276,7 @@ impl formatter {
 		| &ast::Var:
 			self.groupNode[&ast::Var](node, fn(mut &d: &ast::Var) {
 				self.buf.Write(self.indent)!
-				self.varDecl(d, true)
+				self.varDecl(d, true, [])
 			})
 			ret
 		| &ast::Func:
@@ -1686,7 +1879,7 @@ impl scopeFormatter {
 	fn formatStmt(&self, mut &stmt: ast::StmtData, options: scopeOption) {
 		match type stmt {
 		| &ast::Var:
-			self.fmt.varDecl(stmt.(&ast::Var), true)
+			self.fmt.varDecl(stmt.(&ast::Var), true, [])
 		| &ast::TypeAlias:
 			self.fmt.typeAliasDecl(stmt.(&ast::TypeAlias))
 		| &ast::ScopeTree:
