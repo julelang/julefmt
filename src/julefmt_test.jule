@@ -243,16 +243,16 @@ stdMask           =1<<stdArgShift-1// mask out argument
 	},
 	{
 		data: `struct Foo{
-    Foo:int=0// foo
-    Fooooo:bool=false// foo
-    F:MyType=0// foo
-    Foo:int=0// foo
+    Foo:int"json:\"foo\""// foo
+    Fooooo:bool"json:\"bar\""// foo
+    F:MyType"json:\"baz\""// foo
+    Foo:int"json:\"buz\""// foo
 }`,
 		out: `struct Foo {
-	Foo:    int    = 0     // foo
-	Fooooo: bool   = false // foo
-	F:      MyType = 0     // foo
-	Foo:    int    = 0     // foo
+	Foo:    int    "json:\"foo\"" // foo
+	Fooooo: bool   "json:\"bar\"" // foo
+	F:      MyType "json:\"baz\"" // foo
+	Foo:    int    "json:\"buz\"" // foo
 }`,
 	},
 ])
