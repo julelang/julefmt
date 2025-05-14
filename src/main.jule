@@ -14,7 +14,7 @@ static mut _W = new(bool, false) // Flag -w
 
 fn writeError(message: str) {
 	os::Stderr().WriteStr(message)!
-	os::Stderr().WriteByte('\n')!
+	os::Stderr().WriteStr("\n")!
 }
 
 // Prints formatted data to relevant file.

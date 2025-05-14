@@ -14,7 +14,7 @@ use "std/unicode/utf8"
 struct field {
 	f:     &ast::Field
 	token: &token::Token
-	expr:  []byte
+	tag:   []byte
 }
 
 struct rowAlign {
@@ -25,8 +25,8 @@ struct rowAlign {
 }
 
 struct formatter {
-	indentLen: int = 1
-	indentStr: str = "\t"
+	indentLen: int
+	indentStr: str
 
 	mut i:      int
 	mut buf:    strings::Builder
@@ -46,6 +46,8 @@ impl formatter {
 		fmt.ef = exprFormatter.new(fmt)
 		fmt.sf = &scopeFormatter{fmt: fmt}
 		fmt.tf = &typeFormatter{fmt: fmt}
+		fmt.indentLen = 1
+		fmt.indentStr = "\t"
 		ret fmt
 	}
 
@@ -574,12 +576,12 @@ impl formatter {
 		n := len(self.ubuf())
 		self.formatType(f.f.Kind)
 		typeMax -= utf8::RuneCount(self.ubuf()[n:])
-		if len(f.expr) != 0 {
+		if len(f.tag) != 0 {
 			if typeMax > 0 {
 				self.write(strings::Repeat(" ", typeMax))
 			}
-			self.write(" = ")
-			self.buf.Write(f.expr)!
+			self.write(" ")
+			self.buf.Write(f.tag)!
 		}
 	}
 
@@ -850,9 +852,9 @@ impl formatter {
 			if row != -1 && decl.token.Row != self.row {
 				break
 			}
-			if decl.f.Default != nil {
-				self.formatExpr(decl.f.Default)
-				decl.expr = cloneBuf(self.ubuf()[n:])
+			if decl.f.Tag != nil {
+				self.write(decl.f.Tag.Kind)
+				decl.tag = cloneBuf(self.ubuf()[n:])
 				self.setBuf(self.ubuf()[:n])
 			}
 			if row != -1 && decl.token.Row != self.row {
