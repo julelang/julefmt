@@ -38,9 +38,9 @@ fn printFormat(path: str, data: []byte) {
 // Formats data with path, and returns result.
 // If result is nil, we have an error(s).
 fn format(path: str, mut data: []byte): []byte {
-	mut file := token::Fileset.New(path)
+	mut file := token::FileSet.New(path)
 	unsafe { file.FillMut(data) }
-	mut errors := token::Lex(file, token::Comments)
+	mut errors := token::ScanAll(file, token::Comments)
 	if len(errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path)
 		ret nil
