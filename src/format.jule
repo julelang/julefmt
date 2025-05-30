@@ -556,6 +556,7 @@ impl formatter {
 			self.formatScope(d.Scope, scopeDefault|scopePopByC)
 			d.Scope.Unsafety = unsafety
 			self.row = d.Scope.End.Row
+			self.popRowCommentsBy(self.row)
 		}
 	}
 
