@@ -2722,10 +2722,9 @@ impl binaryFormatter {
 		self.write(bin.Op.Kind)
 	}
 
-	fn binary(&self, mut &bin: &ast::BinaryExpr) {
+	fn binary(&self, mut bin: &ast::BinaryExpr) {
 		self.bin = bin
 		self.head(self.bin)
-	rep:
 		if self.bin.Op.Row == self.bin.Right.Token.Row {
 			self.writeSpace()
 			self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
@@ -2739,16 +2738,19 @@ impl binaryFormatter {
 		self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
 		match type self.bin.Right.Kind {
 		| &ast::BinaryExpr:
-			self.bin = self.bin.Right.Kind.(&ast::BinaryExpr)
-			self.head(self.bin)
-			self.ef.fmt.doneIndent()
-			goto rep
+			bin = self.bin.Right.Kind.(&ast::BinaryExpr)
+			if self.bin.Op.Row != self.bin.Right.Token.Row {
+				self.binary(bin)
+				self.ef.fmt.doneIndent()
+			} else {
+				self.ef.fmt.doneIndent()
+				self.binary(bin)
+			}
 		|:
-			self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
 			self.format(self.bin.Right)
 			self.ef.fmt.row = self.bin.Right.Token.Row
+			self.ef.fmt.doneIndent()
 		}
-		self.ef.fmt.doneIndent()
 	}
 
 	fn isZip(&self, mut &kind: ast::ExprData): bool {

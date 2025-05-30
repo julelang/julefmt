@@ -255,6 +255,82 @@ stdMask           =1<<stdArgShift-1// mask out argument
 	Foo:    int    "json:\"buz\"" // foo
 }`,
 	},
+	{
+		data: `fn foo() {
+if foo && bar && baz {
+	}
+
+	}`,
+		out: `fn foo() {
+	if foo && bar && baz {
+	}
+}`,
+	},
+	{
+		data: `fn foo() {
+if foo &&
+bar &&
+baz {}
+
+	}`,
+		out: `fn foo() {
+	if foo &&
+		bar &&
+		baz {
+	}
+}`,
+	},
+	{
+		data: `fn foo() {
+if self.r == eof ||
+self.r != ' ' &&
+self.r==
+"hello"==
+'a' &&
+self.r != '\t' &&
+self.r != '\v' ||
+self.r != '\r' ||
+self.r != '\n' &&
+self.r == 20 &&
+self.r == 20 {
+continue}
+
+	}`,
+		out: `fn foo() {
+	if self.r == eof ||
+		self.r != ' ' &&
+			self.r ==
+				"hello" ==
+				'a' &&
+			self.r != '\t' &&
+			self.r != '\v' ||
+		self.r != '\r' ||
+		self.r != '\n' &&
+			self.r == 20 &&
+			self.r == 20 {
+		continue
+	}
+}`,
+	},
+	{
+		data: `fn foo() {
+if self.r &&
+self.r ==
+"hello" &&
+'a' ||
+self.r != '\t' {
+continue
+	}}`,
+		out: `fn foo() {
+	if self.r &&
+		self.r ==
+			"hello" &&
+		'a' ||
+		self.r != '\t' {
+		continue
+	}
+}`,
+	},
 ])
 
 #test
