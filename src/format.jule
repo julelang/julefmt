@@ -2214,7 +2214,14 @@ impl exprFormatter {
 	fn subIdent(&self, mut si: &ast::SubIdentExpr) {
 		self.format(si.Expr)
 		self.write(".")
+		if self.fmt.row != si.Ident.Row {
+			self.fmt.addIndent()
+			defer { self.fmt.doneIndent() }
+			self.write("\n")
+			self.fmt.buf.Write(self.fmt.indent)!
+		}
 		self.write(si.Ident.Kind)
+		self.fmt.row = si.Ident.Row
 	}
 
 	fn binary(&self, mut bin: &ast::BinaryExpr) {
@@ -2227,11 +2234,30 @@ impl exprFormatter {
 			ret
 		}
 
+		// Save the indentation for the SubIdentExpr.
+		// Arguments should be handled in this indentation.
+		// But exceptional call handler scopes must avoid this indentation.
+		//
+		// Respect this kind of expression:
+		//	foo.
+		//		Bar().
+		//		Baz(
+		//			"foo",
+		//			"bar",
+		//			"baz") else {
+		//		println("error handling...")
+		//	}
+		sie, _ := f.Expr.Kind.(&ast::SubIdentExpr)
+		if sie != nil && sie.Expr.Token.Row != sie.Ident.Row {
+			self.fmt.addIndent()
+			defer { self.fmt.doneIndent() }
+		}
+
 		// save state of zip mode
 		zip := self.bf.zip
 		self.bf.zip = self.bf.zip || len(f.Args) > 1 // enable zip mode if arguments more than one
 
-		mut row := f.Token.Row
+		mut row := self.fmt.row
 		mut indented := false
 		for (i, mut arg) in f.Args {
 			if i > 0 {
@@ -2263,6 +2289,7 @@ impl exprFormatter {
 	}
 
 	fn fnCall(&self, mut f: &ast::FuncCallExpr) {
+		self.fmt.row = f.Token.Row
 		if f.IsCo {
 			self.write("co ")
 		}

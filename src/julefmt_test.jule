@@ -331,6 +331,99 @@ continue
 	}
 }`,
 	},
+	{
+		data: `fn foo() {
+foo.Foo().
+Bar(
+"foo", "bar").
+Baz().BarBaz()
+	}`,
+		out: `fn foo() {
+	foo.Foo().
+		Bar(
+			"foo", "bar").
+		Baz().BarBaz()
+}`,
+	},
+	{
+		data: `fn foo() {
+foo.Foo().Bar(
+"foo","bar").Baz().BarBaz()
+	}`,
+		out: `fn foo() {
+	foo.Foo().Bar(
+		"foo", "bar").Baz().BarBaz()
+}`,
+	},
+	{
+		data: `fn foo() {
+foo.Foo().Bar(
+"foo",
+"bar").Baz().BarBaz()
+	}`,
+		out: `fn foo() {
+	foo.Foo().Bar(
+		"foo",
+		"bar").Baz().BarBaz()
+}`,
+	},
+	{
+		data: `fn foo() {
+foo.Foo().Bar("foo",
+"bar").Baz().BarBaz()
+	}`,
+		out: `fn foo() {
+	foo.Foo().Bar("foo",
+		"bar").Baz().BarBaz()
+}`,
+	},
+	{
+		data: `fn foo() {
+foo.Foo().Bar("foo",
+"bar").
+Baz().
+BarBaz()
+	}`,
+		out: `fn foo() {
+	foo.Foo().Bar("foo",
+		"bar").
+		Baz().
+		BarBaz()
+}`,
+	},
+	{
+		data: `fn foo() {
+foo.Foo().Bar("foo","bar").
+Baz().
+BarBaz()
+	}`,
+		out: `fn foo() {
+	foo.Foo().Bar("foo", "bar").
+		Baz().
+		BarBaz()
+}`,
+	},
+	{
+		data: `fn foo() {
+foo.
+Bar().
+Baz(
+"foo",
+"bar",
+"baz") else {
+println("error handling...")
+}}`,
+		out: `fn foo() {
+	foo.
+		Bar().
+		Baz(
+			"foo",
+			"bar",
+			"baz") else {
+		println("error handling...")
+	}
+}`,
+	},
 ])
 
 #test
