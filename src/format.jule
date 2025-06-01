@@ -37,7 +37,6 @@ struct formatter {
 
 	mut ef: &exprFormatter
 	mut sf: &scopeFormatter
-	mut tf: &typeFormatter
 }
 
 impl formatter {
@@ -45,7 +44,6 @@ impl formatter {
 		mut fmt := new(formatter)
 		fmt.ef = exprFormatter.new(fmt)
 		fmt.sf = &scopeFormatter{fmt: fmt}
-		fmt.tf = &typeFormatter{fmt: fmt}
 		fmt.indentLen = 1
 		fmt.indentStr = "\t"
 		ret fmt
@@ -251,8 +249,8 @@ impl formatter {
 		self.ef.clean()
 	}
 
-	fn formatType(&self, mut &expr: &ast::Type) {
-		self.tf.format(expr.Kind)
+	fn formatType(&self, mut &expr: &ast::Expr) {
+		self.formatExpr(expr)
 	}
 
 	fn formatScope(&self, mut &scope: &ast::ScopeTree, options: scopeOption) {
@@ -517,6 +515,39 @@ impl formatter {
 		self.write(")")
 	}
 
+	fn result(&self, mut r: &ast::RetType) {
+		if len(r.Idents) == 0 {
+			self.formatType(r.Kind)
+			ret
+		}
+		if len(r.Idents) == 1 {
+			if jule::IsAnon(r.Idents[0].Kind) {
+				self.formatType(r.Kind)
+				ret
+			}
+			self.write("(")
+			self.write(r.Idents[0].Kind)
+			self.write(": ")
+			self.formatType(r.Kind)
+			self.write(")")
+			ret
+		}
+		mut types := r.Kind.Kind.(&ast::TupleExpr).Expr
+		self.write("(")
+		for (i, mut t) in types {
+			ident := r.Idents[i]
+			if !jule::IsAnon(ident.Kind) {
+				self.write(ident.Kind)
+				self.write(": ")
+			}
+			self.formatType(t)
+			if len(types)-i > 1 {
+				self.write(", ")
+			}
+		}
+		self.write(")")
+	}
+
 	fn fnDecl(&self, mut d: &ast::Func) {
 		if !d.IsAnon() {
 			self.writeCommentsExcept(d.Token.Row)
@@ -547,7 +578,7 @@ impl formatter {
 		}
 		if d.Result.Kind != nil {
 			self.write(": ")
-			self.tf.result(d.Result)
+			self.result(d.Result)
 		}
 		if d.Scope != nil {
 			self.write(" ")
@@ -1366,163 +1397,6 @@ impl formatter {
 	}
 }
 
-struct typeFormatter {
-	mut fmt: &formatter
-}
-
-impl typeFormatter {
-	fn write(self, s: str) {
-		self.fmt.buf.WriteStr(s)!
-	}
-
-	fn generics(self, mut g: []&ast::Type) {
-		if len(g) == 0 {
-			ret
-		}
-		self.write("[")
-		for (i, mut t) in g {
-			self.format(t.Kind)
-			if i+1 < len(g) {
-				self.write(", ")
-			}
-		}
-		self.write("]")
-	}
-
-	fn ident(self, mut id: &ast::IdentType) {
-		if id.Binded {
-			self.write("cpp.")
-		}
-		self.write(id.Ident)
-		self.generics(id.Generics)
-	}
-
-	fn namespace(self, mut ns: &ast::NamespaceType) {
-		self.write(ns.Namespace.Kind)
-		self.write("::")
-		self.format(ns.Kind.Kind)
-	}
-
-	fn sptr(self, mut sptr: &ast::SptrType) {
-		self.write("&")
-		self.format(sptr.Elem.Kind)
-	}
-
-	fn slice(self, mut slc: &ast::SliceType) {
-		self.write("[]")
-		self.format(slc.Elem.Kind)
-	}
-
-	fn ptr(self, mut ptr: &ast::PtrType) {
-		self.write("*")
-		if ptr.IsUnsafe() {
-			self.write("unsafe")
-			ret
-		}
-		self.format(ptr.Elem.Kind)
-	}
-
-	fn array(self, mut arr: &ast::ArrayType) {
-		self.write("[")
-		if arr.AutoSized() {
-			self.write("...")
-		} else {
-			self.fmt.formatExpr(arr.Size)
-		}
-		self.write("]")
-		self.format(arr.Elem.Kind)
-	}
-
-	fn mapType(self, mut m: &ast::MapType) {
-		self.write("map[")
-		self.format(m.Key.Kind)
-		self.write("]")
-		self.format(m.Val.Kind)
-	}
-
-	fn result(self, mut r: &ast::RetType) {
-		if len(r.Idents) == 0 {
-			self.format(r.Kind.Kind)
-			ret
-		}
-		if len(r.Idents) == 1 {
-			if jule::IsAnon(r.Idents[0].Kind) {
-				self.format(r.Kind.Kind)
-				ret
-			}
-			self.write("(")
-			self.write(r.Idents[0].Kind)
-			self.write(": ")
-			self.format(r.Kind.Kind)
-			self.write(")")
-			ret
-		}
-		mut types := r.Kind.Kind.(&ast::TupleType).Types
-		self.write("(")
-		for (i, mut t) in types {
-			ident := r.Idents[i]
-			if jule::IsAnon(ident.Kind) {
-				self.format(t.Kind)
-			} else {
-				self.write(ident.Kind)
-				self.write(": ")
-				self.format(t.Kind)
-			}
-			if len(types)-i > 1 {
-				self.write(", ")
-			}
-		}
-		self.write(")")
-	}
-
-	fn chanType(self, mut c: &ast::ChanType) {
-		mut range := false
-		if c.Recv && c.Send {
-			self.write("chan ")
-			elemChan, isChan := c.Elem.Kind.(&ast::ChanType)
-			if isChan {
-				if elemChan.Recv && !elemChan.Send {
-					range = true
-					self.write("(")
-				}
-			}
-		} else if c.Recv {
-			self.write("<-chan ")
-		} else {
-			self.write("chan<- ")
-		}
-		self.format(c.Elem.Kind)
-		if range {
-			self.write(")")
-		}
-	}
-
-	fn format(self, mut &kind: ast::TypeKind) {
-		match type kind {
-		| &ast::IdentType:
-			self.ident(kind.(&ast::IdentType))
-		| &ast::NamespaceType:
-			self.namespace(kind.(&ast::NamespaceType))
-		| &ast::SptrType:
-			self.sptr(kind.(&ast::SptrType))
-		| &ast::SliceType:
-			self.slice(kind.(&ast::SliceType))
-		| &ast::PtrType:
-			self.ptr(kind.(&ast::PtrType))
-		| &ast::ArrayType:
-			self.array(kind.(&ast::ArrayType))
-		| &ast::MapType:
-			self.mapType(kind.(&ast::MapType))
-		| &ast::Func:
-			self.fmt.fnDecl(kind.(&ast::Func))
-		| &ast::ChanType:
-			self.chanType(kind.(&ast::ChanType))
-		| &ast::TupleType:
-			// no-op
-		}
-	}
-}
-
 // Option flags for scope formatter.
 type scopeOption: int
 
@@ -2150,6 +2024,51 @@ impl exprFormatter {
 		}
 	}
 
+	fn sliceType(&self, mut slc: &ast::SliceType) {
+		self.write("[]")
+		self.format(slc.Elem)
+	}
+
+	fn arrayType(&self, mut arr: &ast::ArrayType) {
+		self.write("[")
+		if arr.AutoSized() {
+			self.write("...")
+		} else {
+			self.fmt.formatExpr(arr.Size)
+		}
+		self.write("]")
+		self.format(arr.Elem)
+	}
+
+	fn mapType(&self, mut m: &ast::MapType) {
+		self.write("map[")
+		self.format(m.Key)
+		self.write("]")
+		self.format(m.Val)
+	}
+
+	fn chanType(&self, mut c: &ast::ChanType) {
+		mut range := false
+		if c.Recv && c.Send {
+			self.write("chan ")
+			elemChan, isChan := c.Elem.Kind.(&ast::ChanType)
+			if isChan {
+				if elemChan.Recv && !elemChan.Send {
+					range = true
+					self.write("(")
+				}
+			}
+		} else if c.Recv {
+			self.write("<-chan ")
+		} else {
+			self.write("chan<- ")
+		}
+		self.format(c.Elem)
+		if range {
+			self.write(")")
+		}
+	}
+
 	fn lit(&self, l: &ast::LitExpr) {
 		self.write(l.Value)
 	}
@@ -2183,6 +2102,10 @@ impl exprFormatter {
 	}
 
 	fn unary(&self, mut u: &ast::UnaryExpr) {
+		if u.IsUnsafePtr() {
+			self.write("*unsafe")
+			ret
+		}
 		self.write(u.Op.Kind)
 		self.format(u.Expr)
 	}
@@ -2293,7 +2216,14 @@ impl exprFormatter {
 		if f.IsCo {
 			self.write("co ")
 		}
+		parent := isParentNeededForCall(f.Expr)
+		if parent {
+			self.write("(")
+		}
 		self.format(f.Expr)
+		if parent {
+			self.write(")")
+		}
 		self.write("(")
 		self.args(f)
 		self.write(")")
@@ -2600,9 +2530,6 @@ impl exprFormatter {
 			self.write("(")
 			self.formatKind(expr.Expr.Kind)
 			self.write(")")
-		| &ast::Type:
-			mut t := kind.(&ast::Type)
-			self.fmt.formatType(t)
 		| &ast::Func:
 			self.fmt.fnDecl(kind.(&ast::Func))
 		| &ast::IdentExpr:
@@ -2647,6 +2574,14 @@ impl exprFormatter {
 			self.chanSend(kind.(&ast::ChanSend))
 		| &ast::TypeAssertionExpr:
 			self.typeAssertion(kind.(&ast::TypeAssertionExpr))
+		| &ast::SliceType:
+			self.sliceType(kind.(&ast::SliceType))
+		| &ast::ArrayType:
+			self.arrayType(kind.(&ast::ArrayType))
+		| &ast::MapType:
+			self.mapType(kind.(&ast::MapType))
+		| &ast::ChanType:
+			self.chanType(kind.(&ast::ChanType))
 		}
 	}
 
@@ -2885,8 +2820,8 @@ fn paddingAbs(x: int): int {
 	ret x
 }
 
-fn isPrimType(&t: &ast::Type): bool {
-	name, ok := t.Kind.(&ast::IdentType)
+fn isPrimType(&t: &ast::Expr): bool {
+	name, ok := t.Kind.(&ast::IdentExpr)
 	ret ok && (name.Ident == types::I8 ||
 		name.Ident == types::I16 ||
 		name.Ident == types::I32 ||
@@ -2942,4 +2877,9 @@ fn indexRowBrake(rows: []int): int {
 		}
 	}
 	ret len(rows)
+}
+
+fn isParentNeededForCall(expr: &ast::Expr): bool {
+	f, _ := expr.Kind.(&ast::Func)
+	ret f != nil && f.IsDecl()
 }
