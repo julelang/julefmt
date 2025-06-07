@@ -10,7 +10,7 @@ use "std/os"
 use "std/os/filepath"
 use "std/strings"
 
-static mut _W = new(bool, false) // Flag -w
+let mut _W = new(bool, false) // Flag -w
 
 fn writeError(message: str) {
 	os::Stderr().WriteStr(message)!

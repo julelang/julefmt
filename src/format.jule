@@ -28,24 +28,26 @@ struct formatter {
 	indentLen: int
 	indentStr: str
 
-	mut i:      int
-	mut buf:    strings::Builder
-	mut f:      &ast::AST
-	mut indent: []byte
-	mut cm:     commentMap
-	mut row:    int
+	mut i:          int
+	mut buf:        strings::Builder
+	mut f:          &ast::AST
+	mut atomIndent: str    // Single indentation
+	mut indent:     []byte // Whole indentation based on the current indentation level
+	mut cm:         commentMap
+	mut row:        int
 
 	mut ef: &exprFormatter
 	mut sf: &scopeFormatter
 }
 
 impl formatter {
-	static fn new(): &formatter {
+	fn new(): &formatter {
 		mut fmt := new(formatter)
 		fmt.ef = exprFormatter.new(fmt)
 		fmt.sf = &scopeFormatter{fmt: fmt}
 		fmt.indentLen = 1
 		fmt.indentStr = "\t"
+		fmt.atomIndent = strings::Repeat(fmt.indentStr, fmt.indentLen)
 		ret fmt
 	}
 
@@ -62,8 +64,7 @@ impl formatter {
 	}
 
 	fn addIndent(&self) {
-		static indent = []byte(strings::Repeat(self.indentStr, self.indentLen))
-		self.indent = append(self.indent, indent...)
+		self.indent = append(self.indent, self.atomIndent...)
 	}
 
 	fn doneIndent(&self) {
@@ -557,9 +558,6 @@ impl formatter {
 			self.directives(d.Directives)
 			self.buf.Write(self.indent)!
 		}
-		if d.Statically {
-			self.write("static ")
-		}
 		if d.Binded {
 			self.write("cpp ")
 		}
@@ -757,8 +755,8 @@ impl formatter {
 			if d.Binded {
 				self.write("cpp let ")
 			} else {
-				if d.Statically {
-					self.write("static ")
+				if d.Static {
+					self.write("let ")
 				} else if d.Constant {
 					self.write("const ")
 				} else if d.Setter == nil || d.Setter.Id == token::Eq {
@@ -1997,7 +1995,7 @@ struct exprFormatter {
 }
 
 impl exprFormatter {
-	static fn new(&fmt: &formatter): &exprFormatter {
+	fn new(&fmt: &formatter): &exprFormatter {
 		mut ef := &exprFormatter{
 			fmt: unsafe { *(&fmt) },
 		}
@@ -2605,7 +2603,7 @@ struct binaryFormatter {
 
 impl binaryFormatter {
 	// Reports whether operator should take space for formatting.
-	static fn isOp(op: int): bool {
+	fn isOp(op: int): bool {
 		ret op == token::DblVline ||
 			op == token::DblAmper ||
 			op == token::Gt ||
@@ -2618,7 +2616,7 @@ impl binaryFormatter {
 
 	// Reports whether the operator is have high formatting precedence.
 	// Returns 1 for high precedence, otherwise returns 0.
-	static fn opPrec(op: int): int {
+	fn opPrec(op: int): int {
 		match op {
 		| token::Shl
 		| token::Shr
@@ -2633,7 +2631,7 @@ impl binaryFormatter {
 	}
 
 	// Reports whether operator zips operands.
-	static fn isHardZipOp(op: int): bool {
+	fn isHardZipOp(op: int): bool {
 		ret op == token::DblVline ||
 			op == token::DblAmper
 	}

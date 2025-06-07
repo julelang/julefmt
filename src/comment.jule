@@ -15,7 +15,7 @@ struct commentMap {
 }
 
 impl commentMap {
-	static fn build(mut &tokens: []&token::Token): commentMap {
+	fn build(mut &tokens: []&token::Token): commentMap {
 		mut cm := commentMap{
 			buf: make([]&comment, 0, 1<<8),
 		}

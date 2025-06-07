@@ -9,7 +9,7 @@ struct formatTest {
 	out:  str
 }
 
-static formatTests = []formatTest([
+let formatTests = []formatTest([
 	{
 		data: `	const 	(
 kind	: str       = types :: F32
