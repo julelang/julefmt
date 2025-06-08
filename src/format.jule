@@ -295,7 +295,7 @@ impl formatter {
 	}
 
 	fn useDecl(&self, d: &ast::Use) {
-		if d.Binded {
+		if d.Bind {
 			self.write("cpp ")
 		}
 		self.write("use ")
@@ -330,14 +330,14 @@ impl formatter {
 		// Sort imports.
 		// See formatter documentation how ordering will be made.
 		slices::SortFunc(self.f.UseDecls, fn(a: &ast::Use, b: &ast::Use): int {
-			if a.Binded != b.Binded {
-				if a.Binded {
+			if a.Bind != b.Bind {
+				if a.Bind {
 					ret +1
 				}
 				ret -1
 			}
-			// a.Binded == b.Binded
-			if a.Binded {
+			// a.Bind == b.Bind
+			if a.Bind {
 				ret strings::Compare(a.Path.Kind, b.Path.Kind)
 			}
 			const StdPrefix = `"std/`
@@ -352,13 +352,13 @@ impl formatter {
 			ret -1
 		})
 
-		mut binded := false // whether any binded import seen
+		mut bind := false // whether any bind import seen
 		for i, decl in self.f.UseDecls {
-			if !binded && decl.Binded {
-				binded = true
+			if !bind && decl.Bind {
+				bind = true
 				if i > 0 {
 					// ordinary import seen
-					// separate binded imports
+					// separate bind imports
 					self.write("\n")
 				}
 			}
@@ -376,7 +376,7 @@ impl formatter {
 		}
 		self.write("[")
 		for (i, mut t) in g {
-			self.write(t.Ident)
+			self.write(t.Name)
 			if t.Constraint != nil {
 				self.write(": ")
 				for (j, mut c) in t.Constraint.Mask {
@@ -396,25 +396,25 @@ impl formatter {
 	fn enumItem[T](&self, mut &item: T) {
 		const match type T {
 		| &ast::EnumItem:
-			self.write(item.Ident)
-			if !item.AutoExpr() {
+			self.write(item.Name)
+			if !item.IsAutoExpr() {
 				self.write(": ")
-				self.formatExpr(item.Expr)
+				self.formatExpr(item.X)
 			}
 		| &ast::TypeEnumItem:
-			self.formatType(item.Kind)
+			self.formatType(item.Type)
 		}
 		self.write(",")
 	}
 
 	fn enumDecl[T](&self, mut d: T) {
 		self.write("enum ")
-		self.write(d.Ident)
+		self.write(d.Name)
 		const match type T {
 		| &ast::Enum:
-			if !d.DefaultTyped() {
+			if !d.IsDefaultTyped() {
 				self.write(": ")
-				self.formatType(d.Kind)
+				self.formatType(d.Type)
 			}
 		| &ast::TypeEnum:
 			self.write(": type")
@@ -487,17 +487,17 @@ impl formatter {
 				}
 				self.write("self")
 			} else {
-				if !jule::IsAnon(p.Ident) {
-					self.write(p.Ident)
+				if !jule::IsAnon(p.Name) {
+					self.write(p.Name)
 					self.write(": ")
 				} else if p.Reference {
 					self.write("_: ")
 				}
-				self.popRowCommentsByC(p.Kind.Token.Row, p.Kind.Token.Column)
+				self.popRowCommentsByC(p.Type.Token.Row, p.Type.Token.Column)
 				if p.Variadic {
 					self.write("...")
 				}
-				self.formatType(p.Kind)
+				self.formatType(p.Type)
 			}
 			if i+1 < len(f.Params) {
 				self.write(",")
@@ -517,28 +517,28 @@ impl formatter {
 	}
 
 	fn result(&self, mut r: &ast::RetType) {
-		if len(r.Idents) == 0 {
-			self.formatType(r.Kind)
+		if len(r.Names) == 0 {
+			self.formatType(r.Type)
 			ret
 		}
-		if len(r.Idents) == 1 {
-			if jule::IsAnon(r.Idents[0].Kind) {
-				self.formatType(r.Kind)
+		if len(r.Names) == 1 {
+			if jule::IsAnon(r.Names[0].Kind) {
+				self.formatType(r.Type)
 				ret
 			}
 			self.write("(")
-			self.write(r.Idents[0].Kind)
+			self.write(r.Names[0].Kind)
 			self.write(": ")
-			self.formatType(r.Kind)
+			self.formatType(r.Type)
 			self.write(")")
 			ret
 		}
-		mut types := r.Kind.Kind.(&ast::TupleExpr).Expr
+		mut types := r.Type.Data.(&ast::TupleExpr).X
 		self.write("(")
 		for (i, mut t) in types {
-			ident := r.Idents[i]
-			if !jule::IsAnon(ident.Kind) {
-				self.write(ident.Kind)
+			name := r.Names[i]
+			if !jule::IsAnon(name.Kind) {
+				self.write(name.Kind)
 				self.write(": ")
 			}
 			self.formatType(t)
@@ -558,32 +558,32 @@ impl formatter {
 			self.directives(d.Directives)
 			self.buf.Write(self.indent)!
 		}
-		if d.Binded {
+		if d.Bind {
 			self.write("cpp ")
 		}
-		if d.Unsafety {
+		if d.Unsafe {
 			self.write("unsafe ")
 		}
 		self.write("fn")
-		if !jule::IsAnon(d.Ident) {
+		if !jule::IsAnon(d.Name) {
 			self.write(" ")
-			self.write(d.Ident)
+			self.write(d.Name)
 		}
 		self.generics(d.Generics)
 		self.params(d)
 		if d.Exceptional {
 			self.write("!")
 		}
-		if d.Result.Kind != nil {
+		if d.Result.Type != nil {
 			self.write(": ")
 			self.result(d.Result)
 		}
 		if d.Scope != nil {
 			self.write(" ")
-			unsafety := d.Unsafety
-			d.Scope.Unsafety = false // Avoid unsafe keyword beginning of scope.
+			_unsafe := d.Unsafe
+			d.Scope.Unsafe = false // Avoid unsafe keyword beginning of scope.
 			self.formatScope(d.Scope, scopeDefault|scopePopByC)
-			d.Scope.Unsafety = unsafety
+			d.Scope.Unsafe = _unsafe
 			self.row = d.Scope.End.Row
 			self.popRowCommentsBy(self.row)
 		}
@@ -597,14 +597,14 @@ impl formatter {
 			self.write("mut ")
 			fieldMax -= 4
 		}
-		self.write(f.f.Ident)
-		fieldMax -= utf8::RuneCountStr(f.f.Ident)
+		self.write(f.f.Name)
+		fieldMax -= utf8::RuneCountStr(f.f.Name)
 		self.write(": ")
 		if fieldMax > 0 {
 			self.write(strings::Repeat(" ", fieldMax))
 		}
 		n := len(self.ubuf())
-		self.formatType(f.f.Kind)
+		self.formatType(f.f.Type)
 		typeMax -= utf8::RuneCount(self.ubuf()[n:])
 		if len(f.tag) != 0 {
 			if typeMax > 0 {
@@ -648,11 +648,11 @@ impl formatter {
 				self.write("\n")
 			}
 		}
-		if d.Binded {
+		if d.Bind {
 			self.write("cpp ")
 		}
 		self.write("struct ")
-		self.write(d.Ident)
+		self.write(d.Name)
 		self.generics(d.Generics)
 		if len(d.Fields) == 0 {
 			self.write("{}")
@@ -672,7 +672,7 @@ impl formatter {
 
 	fn traitDecl(&self, mut d: &ast::Trait) {
 		self.write("trait ")
-		self.write(d.Ident)
+		self.write(d.Name)
 		if len(d.Methods) == 0 && len(d.Inherits) == 0 {
 			self.write("{}")
 			self.popRowComments(d.End.Row)
@@ -727,17 +727,17 @@ impl formatter {
 	}
 
 	fn typeAliasDecl(&self, mut d: &ast::TypeAlias) {
-		if d.Binded {
+		if d.Bind {
 			self.write("cpp ")
 		}
 		self.write("type ")
-		self.write(d.Ident)
+		self.write(d.Name)
 		if d.Strict {
 			self.write(": ")
 		} else {
 			self.write(" = ")
 		}
-		self.formatType(d.Kind)
+		self.formatType(d.Type)
 	}
 
 	fn varDecl(&self, mut d: &ast::Var, head: bool, mut counts: [5]int) {
@@ -752,14 +752,14 @@ impl formatter {
 			if len(d.Directives) != 0 {
 				self.directives(d.Directives)
 			}
-			if d.Binded {
+			if d.Bind {
 				self.write("cpp let ")
 			} else {
 				if d.Static {
 					self.write("let ")
-				} else if d.Constant {
+				} else if d.Const {
 					self.write("const ")
-				} else if d.Setter == nil || d.Setter.Id == token::Eq {
+				} else if d.Op == nil || d.Op.Id == token::Eq {
 					self.write("let ")
 				}
 			}
@@ -770,11 +770,11 @@ impl formatter {
 				self.write("&")
 			}
 		}
-		nameLen := utf8::RuneCountStr(d.Ident)
-		self.write(d.Ident)
+		nameLen := utf8::RuneCountStr(d.Name)
+		self.write(d.Name)
 		self.row = d.Token.Row
 		mut typ := 0
-		if d.Kind != nil {
+		if d.Type != nil {
 			self.write(": ")
 			// If typeAnnoMax>0, add the missing leading spaces for type annotation.
 			if typeAnnoMax > 0 {
@@ -784,27 +784,27 @@ impl formatter {
 				}
 			}
 			n := len(self.ubuf())
-			self.formatType(d.Kind)
+			self.formatType(d.Type)
 			typ = utf8::RuneCount(self.ubuf()[n:]) // subtract the runes of type
-			self.row = d.Kind.Token.Row
+			self.row = d.Type.Token.Row
 		}
-		if d.Expr != nil {
+		if d.X != nil {
 			// If nameMax>0, we have to do alignment.
 			if nameMax > 0 {
-				// If typeMax>0 and d.Kind==nil, we have type alignment.
+				// If typeMax>0 and d.Type==nil, we have type alignment.
 				// But this variable have not type annotation.
 				// Add spaces for the missing ": " part of type annotations.
-				if (nameMaxHaveType || table) && typeMax > 0 && d.Kind == nil {
+				if (nameMaxHaveType || table) && typeMax > 0 && d.Type == nil {
 					nameMax += 2
 				}
 				// If the maximum name have not type annotation and this variable have,
 				// remove the spaces of the ": " part of type annotations.
-				if !nameMaxHaveType && d.Kind != nil {
+				if !nameMaxHaveType && d.Type != nil {
 					nameMax -= 2
 				}
 				// If we have type alignment and this variable have type annotation,
 				// add missing trailing spaces to reach maximum type annotation length.
-				if typeMax > 0 && d.Kind != nil {
+				if typeMax > 0 && d.Type != nil {
 					diff := typeMax - typ
 					if diff > 0 {
 						self.write(strings::Repeat(" ", diff))
@@ -818,7 +818,7 @@ impl formatter {
 				// remove the spaces of annotation alignment, because type annotation is aligned.
 				// Otherwise, remove spaces for name length,
 				// there are still missing spaces for type annotations.
-				if typeAnnoMax > 0 && d.Kind != nil {
+				if typeAnnoMax > 0 && d.Type != nil {
 					nameMax -= typeAnnoMax
 				} else {
 					nameMax -= nameLen
@@ -828,10 +828,10 @@ impl formatter {
 				}
 			}
 			self.write(" ")
-			self.write(d.Setter.Kind)
+			self.write(d.Op.Kind)
 			self.write(" ")
-			self.formatExpr(d.Expr)
-			self.row = d.Expr.End.Row
+			self.formatExpr(d.X)
+			self.row = d.X.End.Row
 		}
 	}
 
@@ -875,8 +875,8 @@ impl formatter {
 			if decl.f.Mutable {
 				fm += len("mut ")
 			}
-			fm += utf8::RuneCountStr(decl.f.Ident)
-			self.formatType(decl.f.Kind)
+			fm += utf8::RuneCountStr(decl.f.Name)
+			self.formatType(decl.f.Type)
 			tm := utf8::RuneCount(self.ubuf()[n:])
 			self.setBuf(self.ubuf()[:n])
 			if row != -1 && decl.token.Row != self.row {
@@ -950,7 +950,7 @@ impl formatter {
 			counts = counts[:unsafe { i }-start] // use all capacity of counts
 			for j > start {
 				v := vars[j-1]
-				if v.Kind != nil {
+				if v.Type != nil {
 					j--
 				} else {
 					break
@@ -958,7 +958,7 @@ impl formatter {
 			}
 			for j < unsafe { i }; j++ {
 				mut v := vars[j]
-				if v.Kind != nil {
+				if v.Type != nil {
 					name := counts[j-start][0]
 					if name > nameMax {
 						nameMax = name
@@ -976,7 +976,7 @@ impl formatter {
 			counts = counts[:unsafe { i }-start] // use all capacity of counts
 			for j > start {
 				v := vars[j-1]
-				if v.Expr != nil || self.isPopsRowCommentsByF(v.Token.Row, -1) {
+				if v.X != nil || self.isPopsRowCommentsByF(v.Token.Row, -1) {
 					j--
 				} else {
 					break
@@ -988,7 +988,7 @@ impl formatter {
 			for j < unsafe { i }; j++ {
 				mut v := vars[j]
 				comment := self.isPopsRowCommentsByF(v.Token.Row, -1)
-				if v.Expr == nil && !comment {
+				if v.X == nil && !comment {
 					break
 				}
 				fullComment = fullComment && comment
@@ -997,7 +997,7 @@ impl formatter {
 				if maxPlainName < t {
 					maxPlainName = t
 				}
-				if v.Kind != nil {
+				if v.Type != nil {
 					if maxNameWithType < t {
 						maxNameWithType = t
 					}
@@ -1040,18 +1040,18 @@ impl formatter {
 				break
 			}
 			self.row = v.Token.Row
-			mut name := utf8::RuneCountStr(v.Ident)
+			mut name := utf8::RuneCountStr(v.Name)
 			mut typ := 0
-			if v.Kind != nil {
-				self.formatType(v.Kind)
+			if v.Type != nil {
+				self.formatType(v.Type)
 				typ = utf8::RuneCount(self.ubuf()[n:])
 				self.setBuf(self.ubuf()[:n])
 				if row != -1 && v.Token.Row != self.row {
 					break
 				}
 			}
-			if v.Expr != nil {
-				self.formatExpr(v.Expr)
+			if v.X != nil {
+				self.formatExpr(v.X)
 				self.setBuf(self.ubuf()[:n])
 				if row != -1 && v.Token.Row != self.row {
 					break
@@ -1412,13 +1412,13 @@ impl scopeFormatter {
 
 	fn usexpr(&self, mut u: &ast::UseExpr) {
 		self.write("use ")
-		self.fmt.formatExpr(u.Expr)
+		self.fmt.formatExpr(u.X)
 	}
 
 	fn label(&self, l: &ast::Label) {
 		// Remove one indentation.
 		self.fmt.setBuf(self.fmt.ubuf()[:self.fmt.buf.Len()-self.fmt.indentLen])
-		self.write(l.Ident)
+		self.write(l.Name)
 		self.write(":")
 	}
 
@@ -1449,9 +1449,9 @@ impl scopeFormatter {
 
 	fn retSt(&self, mut r: &ast::Ret) {
 		self.write("ret")
-		if r.Expr != nil {
+		if r.X != nil {
 			self.write(" ")
-			self.fmt.formatExpr(r.Expr)
+			self.fmt.formatExpr(r.X)
 		}
 	}
 
@@ -1460,13 +1460,13 @@ impl scopeFormatter {
 			self.write("const ")
 		}
 		self.write("for ")
-		if !it.IsInf() {
+		if !it.IsInfinite() {
 			match type it.Kind {
 			| &ast::WhileKind:
 				mut wk := it.Kind.(&ast::WhileKind)
-				if wk.Expr != nil {
-					self.fmt.popRowCommentsByC(wk.Expr.Token.Row, wk.Expr.Token.Column)
-					self.fmt.formatExpr(wk.Expr)
+				if wk.X != nil {
+					self.fmt.popRowCommentsByC(wk.X.Token.Row, wk.X.Token.Column)
+					self.fmt.formatExpr(wk.X)
 				}
 				if wk.Next != nil {
 					self.write("; ")
@@ -1475,34 +1475,34 @@ impl scopeFormatter {
 				self.write(" ")
 			| &ast::RangeKind:
 				mut rk := it.Kind.(&ast::RangeKind)
-				p := (rk.KeyA != nil && rk.KeyA.Mutable) || (rk.KeyB != nil && rk.KeyB.Mutable)
+				p := (rk.A != nil && rk.A.Mutable) || (rk.B != nil && rk.B.Mutable)
 				if p {
 					self.write("(")
 				}
-				if rk.KeyA != nil {
-					self.fmt.popRowCommentsByC(rk.KeyA.Token.Row, rk.KeyA.Token.Column)
-					if rk.KeyA.Mutable {
+				if rk.A != nil {
+					self.fmt.popRowCommentsByC(rk.A.Token.Row, rk.A.Token.Column)
+					if rk.A.Mutable {
 						self.write("mut ")
 					}
-					self.write(rk.KeyA.Ident)
+					self.write(rk.A.Name)
 				}
-				if rk.KeyB != nil {
+				if rk.B != nil {
 					self.write(", ")
-					self.fmt.popRowCommentsByC(rk.KeyB.Token.Row, rk.KeyB.Token.Column)
-					if rk.KeyB.Mutable {
+					self.fmt.popRowCommentsByC(rk.B.Token.Row, rk.B.Token.Column)
+					if rk.B.Mutable {
 						self.write("mut ")
 					}
-					self.write(rk.KeyB.Ident)
+					self.write(rk.B.Name)
 				}
 				if p {
 					self.write(") ")
-				} else if rk.KeyA != nil || rk.KeyB != nil {
+				} else if rk.A != nil || rk.B != nil {
 					self.write(" ")
 				}
 				self.fmt.popRowCommentsByC(rk.InToken.Row, rk.InToken.Column)
 				self.write("in ")
-				self.fmt.popRowCommentsByC(rk.Expr.Token.Row, rk.Expr.Token.Column)
-				self.fmt.formatExpr(rk.Expr)
+				self.fmt.popRowCommentsByC(rk.X.Token.Row, rk.X.Token.Column)
+				self.fmt.formatExpr(rk.X)
 				self.write(" ")
 			}
 		}
@@ -1521,8 +1521,8 @@ impl scopeFormatter {
 
 	fn conditionalCase(&self, mut c: &ast::If) {
 		self.write("if ")
-		self.fmt.popRowCommentsByC(c.Expr.Token.Row, c.Expr.Token.Column)
-		self.fmt.formatExpr(c.Expr)
+		self.fmt.popRowCommentsByC(c.X.Token.Row, c.X.Token.Column)
+		self.fmt.formatExpr(c.X)
 		self.write(" {")
 		self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
 			self.write(" ")
@@ -1537,10 +1537,10 @@ impl scopeFormatter {
 	}
 
 	fn conditional(&self, mut c: &ast::Conditional) {
-		self.conditionalCase(c.Head)
-		for (_, mut t) in c.Tail {
+		self.conditionalCase(c.Tail[0])
+		for (_, mut t) in c.Tail[1:] {
 			self.write(" ")
-			self.fmt.popRowCommentsByC(t.Expr.Token.Row, t.Expr.Token.Column)
+			self.fmt.popRowCommentsByC(t.X.Token.Row, t.X.Token.Column)
 			self.write("else ")
 			self.conditionalCase(t)
 		}
@@ -1566,18 +1566,18 @@ impl scopeFormatter {
 			self.write("const ")
 		}
 		self.write("match ")
-		if mc.TypeMatch {
+		if mc.Type {
 			self.write("type ")
 		}
-		if mc.Expr != nil {
-			self.fmt.popRowCommentsByC(mc.Expr.Token.Row, mc.Expr.Token.Column)
-			self.fmt.formatExpr(mc.Expr)
+		if mc.X != nil {
+			self.fmt.popRowCommentsByC(mc.X.Token.Row, mc.X.Token.Column)
+			self.fmt.formatExpr(mc.X)
 			self.write(" ")
 		}
 		self.write("{\n")
 		for (_, mut c) in mc.Cases {
-			mut row := c.Exprs[0].Token.Row
-			for (i, mut expr) in c.Exprs {
+			mut row := c.X[0].Token.Row
+			for (i, mut expr) in c.X {
 				if row != expr.Token.Row {
 					self.fmt.popRowComments(row)
 				}
@@ -1634,8 +1634,8 @@ impl scopeFormatter {
 		}
 		self.write("select {\n")
 		for (_, mut c) in slct.Cases {
-			mut row := c.Exprs[0].Token.Row
-			for (i, mut expr) in c.Exprs {
+			mut row := c.X[0].Token.Row
+			for (i, mut expr) in c.X {
 				if row != expr.Token.Row {
 					self.fmt.popRowComments(row)
 				}
@@ -1683,31 +1683,31 @@ impl scopeFormatter {
 	}
 
 	fn postfix(&self, mut &a: &ast::Assign) {
-		mut expr := a.Left[0].Expr
+		mut expr := a.X[0].X
 		self.fmt.formatExpr(expr)
-		self.write(a.Setter.Kind)
+		self.write(a.Op.Kind)
 	}
 
 	fn singleAssign(&self, mut &a: &ast::Assign) {
-		if jule::IsBlank(a.Left[0].Ident) {
+		if jule::IsBlank(a.X[0].Name) {
 			self.write("_ ")
 		} else {
-			mut expr := a.Left[0].Expr
+			mut expr := a.X[0].X
 			self.fmt.formatExpr(expr)
 			self.write(" ")
 		}
-		self.write(a.Setter.Kind)
+		self.write(a.Op.Kind)
 		self.write(" ")
-		self.fmt.formatExpr(a.Right)
+		self.fmt.formatExpr(a.Y)
 	}
 
 	fn multiAssign(&self, mut &a: &ast::Assign) {
-		letKwUsed := a.Setter.Id == token::Eq
-		if a.Declarative && letKwUsed {
+		letKwUsed := a.Op.Id == token::Eq
+		if a.Decl && letKwUsed {
 			self.write("let (")
 		}
-		for (i, mut l) in a.Left {
-			if l.Ident != "" {
+		for (i, mut l) in a.X {
+			if l.Name != "" {
 				if l.Mutable {
 					self.write("mut ")
 				}
@@ -1717,12 +1717,12 @@ impl scopeFormatter {
 			}
 			// Do not write range parentheses for expression parts.
 			// Expression formatter will add.
-			self.fmt.formatExpr(l.Expr)
-			if len(a.Left)-i > 1 {
+			self.fmt.formatExpr(l.X)
+			if len(a.X)-i > 1 {
 				self.write(", ")
 			}
 		}
-		if a.Declarative {
+		if a.Decl {
 			if letKwUsed {
 				self.write(") = ")
 			} else {
@@ -1732,19 +1732,19 @@ impl scopeFormatter {
 			self.write(" = ")
 		}
 		zip := self.fmt.ef.bf.zip
-		_, isTup := a.Right.Kind.(&ast::TupleExpr)
+		_, isTup := a.Y.Data.(&ast::TupleExpr)
 		if isTup {
-			self.fmt.ef.bf.zip = len(a.Right.Kind.(&ast::TupleExpr).Expr) > 1
+			self.fmt.ef.bf.zip = len(a.Y.Data.(&ast::TupleExpr).X) > 1
 		}
-		self.fmt.formatExpr(a.Right)
+		self.fmt.formatExpr(a.Y)
 		self.fmt.ef.bf.zip = zip
 	}
 
 	fn assign(&self, mut a: &ast::Assign) {
 		match {
-		| token::IsPostfixOp(a.Setter.Id):
+		| token::IsPostfixOp(a.Op.Id):
 			self.postfix(a)
-		| len(a.Left) == 1 && !a.Declarative:
+		| len(a.X) == 1 && !a.Decl:
 			self.singleAssign(a)
 		|:
 			self.multiAssign(a)
@@ -1875,7 +1875,7 @@ impl scopeFormatter {
 	}
 
 	fn format(&self, mut scope: &ast::ScopeTree, options: scopeOption) {
-		if scope.Unsafety {
+		if scope.Unsafe {
 			self.write("unsafe ")
 		}
 		if scope.Deferred {
@@ -2014,9 +2014,9 @@ impl exprFormatter {
 	}
 
 	fn tuple(&self, mut tup: &ast::TupleExpr) {
-		for (i, mut expr) in tup.Expr {
+		for (i, mut expr) in tup.X {
 			self.format(expr)
-			if i+1 < len(tup.Expr) {
+			if i+1 < len(tup.X) {
 				self.write(", ")
 			}
 		}
@@ -2024,34 +2024,34 @@ impl exprFormatter {
 
 	fn sliceType(&self, mut slc: &ast::SliceType) {
 		self.write("[]")
-		self.format(slc.Elem)
+		self.format(slc.Value)
 	}
 
 	fn arrayType(&self, mut arr: &ast::ArrayType) {
 		self.write("[")
-		if arr.AutoSized() {
+		if arr.IsAutoSized() {
 			self.write("...")
 		} else {
 			self.fmt.formatExpr(arr.Size)
 		}
 		self.write("]")
-		self.format(arr.Elem)
+		self.format(arr.Value)
 	}
 
 	fn mapType(&self, mut m: &ast::MapType) {
 		self.write("map[")
 		self.format(m.Key)
 		self.write("]")
-		self.format(m.Val)
+		self.format(m.Value)
 	}
 
 	fn chanType(&self, mut c: &ast::ChanType) {
 		mut range := false
 		if c.Recv && c.Send {
 			self.write("chan ")
-			elemChan, isChan := c.Elem.Kind.(&ast::ChanType)
+			valueChan, isChan := c.Value.Data.(&ast::ChanType)
 			if isChan {
-				if elemChan.Recv && !elemChan.Send {
+				if valueChan.Recv && !valueChan.Send {
 					range = true
 					self.write("(")
 				}
@@ -2061,7 +2061,7 @@ impl exprFormatter {
 		} else {
 			self.write("chan<- ")
 		}
-		self.format(c.Elem)
+		self.format(c.Value)
 		if range {
 			self.write(")")
 		}
@@ -2073,7 +2073,7 @@ impl exprFormatter {
 
 	fn unsafexpr(&self, mut u: &ast::UnsafeExpr) {
 		self.write("unsafe {")
-		line := u.Expr.Token.Row != u.Expr.End.Row
+		line := u.X.Token.Row != u.X.End.Row
 		if line {
 			self.fmt.addIndent()
 			self.write("\n")
@@ -2081,7 +2081,7 @@ impl exprFormatter {
 		} else {
 			self.write(" ")
 		}
-		self.format(u.Expr)
+		self.format(u.X)
 		if line {
 			self.fmt.doneIndent()
 			self.write("\n")
@@ -2092,11 +2092,11 @@ impl exprFormatter {
 		self.write("}")
 	}
 
-	fn ident(&self, id: &ast::IdentExpr) {
-		if id.Binded {
+	fn name(&self, id: &ast::NameExpr) {
+		if id.Bind {
 			self.write("cpp.")
 		}
-		self.write(id.Ident)
+		self.write(id.Name)
 	}
 
 	fn unary(&self, mut u: &ast::UnaryExpr) {
@@ -2105,44 +2105,44 @@ impl exprFormatter {
 			ret
 		}
 		self.write(u.Op.Kind)
-		self.format(u.Expr)
+		self.format(u.X)
 	}
 
 	fn variadic(&self, mut v: &ast::VariadicExpr) {
-		self.format(v.Expr)
+		self.format(v.X)
 		self.write("...")
 	}
 
 	fn cast(&self, mut c: &ast::CastExpr) {
-		if isPrimType(c.Kind) {
-			self.fmt.formatType(c.Kind)
+		if isPrimType(c.Type) {
+			self.fmt.formatType(c.Type)
 		} else {
 			self.write("(")
-			self.fmt.formatType(c.Kind)
+			self.fmt.formatType(c.Type)
 			self.write(")")
 		}
 		self.write("(")
-		self.format(c.Expr)
+		self.format(c.X)
 		self.write(")")
 	}
 
 	fn namespace(&self, ns: &ast::NamespaceExpr) {
 		self.write(ns.Namespace.Kind)
 		self.write("::")
-		self.write(ns.Ident.Kind)
+		self.write(ns.Name.Kind)
 	}
 
-	fn subIdent(&self, mut si: &ast::SubIdentExpr) {
+	fn selector(&self, mut si: &ast::SelectorExpr) {
 		self.format(si.Expr)
 		self.write(".")
-		if self.fmt.row != si.Ident.Row {
+		if self.fmt.row != si.Name.Row {
 			self.fmt.addIndent()
 			defer { self.fmt.doneIndent() }
 			self.write("\n")
 			self.fmt.buf.Write(self.fmt.indent)!
 		}
-		self.write(si.Ident.Kind)
-		self.fmt.row = si.Ident.Row
+		self.write(si.Name.Kind)
+		self.fmt.row = si.Name.Row
 	}
 
 	fn binary(&self, mut bin: &ast::BinaryExpr) {
@@ -2150,7 +2150,7 @@ impl exprFormatter {
 		self.bf.binary(bin)
 	}
 
-	fn args(&self, mut &f: &ast::FuncCallExpr) {
+	fn args(&self, mut &f: &ast::CallExpr) {
 		if len(f.Args) == 0 {
 			ret
 		}
@@ -2168,8 +2168,8 @@ impl exprFormatter {
 		//			"baz") else {
 		//		println("error handling...")
 		//	}
-		sie, _ := f.Expr.Kind.(&ast::SubIdentExpr)
-		if sie != nil && sie.Expr.Token.Row != sie.Ident.Row {
+		sie, _ := f.Func.Data.(&ast::SelectorExpr)
+		if sie != nil && sie.Expr.Token.Row != sie.Name.Row {
 			self.fmt.addIndent()
 			defer { self.fmt.doneIndent() }
 		}
@@ -2209,16 +2209,16 @@ impl exprFormatter {
 		self.bf.zip = zip
 	}
 
-	fn fnCall(&self, mut f: &ast::FuncCallExpr) {
+	fn call(&self, mut f: &ast::CallExpr) {
 		self.fmt.row = f.Token.Row
 		if f.IsCo {
 			self.write("co ")
 		}
-		parent := isParentNeededForCall(f.Expr)
+		parent := isParentNeededForCall(f.Func)
 		if parent {
 			self.write("(")
 		}
-		self.format(f.Expr)
+		self.format(f.Func)
 		if parent {
 			self.write(")")
 		}
@@ -2239,21 +2239,21 @@ impl exprFormatter {
 			self.write(pair.Field.Kind)
 			self.write(": ")
 		}
-		self.format(pair.Expr)
+		self.format(pair.X)
 	}
 
 	fn typedBraceLit(&self, mut lit: &ast::TypedBraceLit) {
-		self.fmt.formatType(lit.Kind)
-		if len(lit.Lit.Exprs) == 0 {
+		self.fmt.formatType(lit.Type)
+		if len(lit.Lit.X) == 0 {
 			self.write("{}")
 			self.fmt.row = lit.Lit.End.Row
 			ret
 		}
 		mut newline := false
-		for _, expr in lit.Lit.Exprs {
+		for _, expr in lit.Lit.X {
 			// Compare with kind row. Because kind and brace should be same line.
 			// Therefore, kind row also means brace row.
-			if expr.Token.Row != lit.Kind.Token.Row {
+			if expr.Token.Row != lit.Type.Token.Row {
 				newline = true
 				break
 			}
@@ -2263,8 +2263,8 @@ impl exprFormatter {
 			self.write("\n")
 		}
 		self.fmt.addIndent()
-		for (i, mut expr) in lit.Lit.Exprs {
-			diff := len(lit.Lit.Exprs) - i
+		for (i, mut expr) in lit.Lit.X {
+			diff := len(lit.Lit.X) - i
 			if newline {
 				if !self.ibc {
 					self.fmt.addGlobalPaddingForComment(expr.Token.Row)
@@ -2278,7 +2278,7 @@ impl exprFormatter {
 			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
 			if newline {
 				self.write(",")
-				if diff < 2 || lit.Lit.Exprs[i+1].Token.Row != self.fmt.row {
+				if diff < 2 || lit.Lit.X[i+1].Token.Row != self.fmt.row {
 					self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
 						self.write(" ")
 						self.fmt.writeComment(c)
@@ -2303,7 +2303,7 @@ impl exprFormatter {
 	}
 
 	fn responsiveExprs[T](&self, mut &lit: T) {
-		if len(lit.Exprs) == 0 {
+		if len(lit.X) == 0 {
 			ret
 		}
 		const Cap = 1 << 8
@@ -2321,7 +2321,7 @@ impl exprFormatter {
 		mut lined := false
 
 		self.fmt.addIndent()
-		for (i, mut expr) in lit.Exprs {
+		for (i, mut expr) in lit.X {
 			if row != expr.Token.Row {
 				lined = true
 				mut line := cloneBuf(self.fmt.ubuf()[n:])
@@ -2346,7 +2346,7 @@ impl exprFormatter {
 			self.format(expr)
 			row = expr.Token.Row
 			col = expr.End.Column
-			if lined || len(lit.Exprs)-i > 1 {
+			if lined || len(lit.X)-i > 1 {
 				self.write(",")
 			}
 		}
@@ -2369,7 +2369,7 @@ impl exprFormatter {
 		defer {
 			self.fmt.row = fmtRow
 		}
-		if lit.Token.Row != lit.Exprs[0].Token.Row {
+		if lit.Token.Row != lit.X[0].Token.Row {
 			self.write("\n")
 		}
 		self.fmt.row = rows[0].row
@@ -2423,10 +2423,10 @@ impl exprFormatter {
 		self.write("}")
 	}
 
-	fn keyValPair(&self, mut pair: &ast::KeyValPair) {
+	fn keyValPair(&self, mut pair: &ast::KeyValueExpr) {
 		self.format(pair.Key)
 		self.write(": ")
-		self.format(pair.Val)
+		self.format(pair.Value)
 	}
 
 	fn slice(&self, mut s: &ast::SliceExpr) {
@@ -2435,8 +2435,8 @@ impl exprFormatter {
 		self.write("]")
 	}
 
-	fn indexing(&self, mut i: &ast::IndexingExpr) {
-		self.format(i.Expr)
+	fn index(&self, mut i: &ast::IndexExpr) {
+		self.format(i.X)
 		self.write("[")
 
 		zip := self.bf.zip
@@ -2452,52 +2452,52 @@ impl exprFormatter {
 		defer { self.bf.zip = zip }
 
 		mut lb, mut rb, mut cb := false, false, false
-		lr, rr, cr := isRanged(i.Start), isRanged(i.To), isRanged(i.Cap)
-		if !lr && i.Start != nil {
-			_, isBinary := i.Start.Kind.(&ast::BinaryExpr)
+		lr, rr, cr := isRanged(i.Low), isRanged(i.High), isRanged(i.Max)
+		if !lr && i.Low != nil {
+			_, isBinary := i.Low.Data.(&ast::BinaryExpr)
 			if isBinary {
 				lb = true
 			}
 		}
-		if !rr && i.To != nil {
-			_, isBinary := i.To.Kind.(&ast::BinaryExpr)
+		if !rr && i.High != nil {
+			_, isBinary := i.High.Data.(&ast::BinaryExpr)
 			if isBinary {
 				rb = true
 			}
 		}
-		if !cr && i.Cap != nil {
-			_, isBinary := i.Cap.Kind.(&ast::BinaryExpr)
+		if !cr && i.Max != nil {
+			_, isBinary := i.Max.Data.(&ast::BinaryExpr)
 			if isBinary {
 				cb = true
 			}
 		}
 
-		self.format(i.Expr)
+		self.format(i.X)
 		self.write("[")
 
 		self.bf.zip = zip || !lr
-		self.format(i.Start)
+		self.format(i.Low)
 
 		padding := !zip && (lb || rb || cb)
-		if padding && i.Start != nil && i.To != nil {
+		if padding && i.Low != nil && i.High != nil {
 			self.write(" : ")
-		} else if padding && i.Start == nil && i.Cap != nil {
+		} else if padding && i.Low == nil && i.Max != nil {
 			self.write(": ")
 		} else {
 			self.write(":")
 		}
 
 		self.bf.zip = zip || !rr
-		self.format(i.To)
+		self.format(i.High)
 
-		if i.Cap != nil {
+		if i.Max != nil {
 			if padding {
 				self.write(" : ")
 			} else {
 				self.write(":")
 			}
 			self.bf.zip = zip || !cr
-			self.format(i.Cap)
+			self.format(i.Max)
 		}
 
 		self.write("]")
@@ -2505,19 +2505,19 @@ impl exprFormatter {
 
 	fn chanRecv(&self, mut c: &ast::ChanRecv) {
 		self.write("<-")
-		self.format(c.Expr)
+		self.format(c.X)
 	}
 
 	fn chanSend(&self, mut c: &ast::ChanSend) {
 		self.fmt.formatExpr(c.Chan)
 		self.write(" <- ")
-		self.fmt.formatExpr(c.Data)
+		self.fmt.formatExpr(c.X)
 	}
 
 	fn typeAssertion(&self, mut a: &ast::TypeAssertionExpr) {
-		self.fmt.formatExpr(a.Expr)
+		self.fmt.formatExpr(a.X)
 		self.write(".(")
-		self.fmt.formatType(a.Kind)
+		self.fmt.formatType(a.Type)
 		self.write(")")
 	}
 
@@ -2526,12 +2526,12 @@ impl exprFormatter {
 		| &ast::RangeExpr:
 			mut expr := kind.(&ast::RangeExpr)
 			self.write("(")
-			self.formatKind(expr.Expr.Kind)
+			self.formatKind(expr.X.Data)
 			self.write(")")
 		| &ast::Func:
 			self.fmt.fnDecl(kind.(&ast::Func))
-		| &ast::IdentExpr:
-			self.ident(kind.(&ast::IdentExpr))
+		| &ast::NameExpr:
+			self.name(kind.(&ast::NameExpr))
 		| &ast::TupleExpr:
 			self.tuple(kind.(&ast::TupleExpr))
 		| &ast::LitExpr:
@@ -2546,24 +2546,24 @@ impl exprFormatter {
 			self.cast(kind.(&ast::CastExpr))
 		| &ast::NamespaceExpr:
 			self.namespace(kind.(&ast::NamespaceExpr))
-		| &ast::SubIdentExpr:
-			self.subIdent(kind.(&ast::SubIdentExpr))
+		| &ast::SelectorExpr:
+			self.selector(kind.(&ast::SelectorExpr))
 		| &ast::BinaryExpr:
 			self.binary(kind.(&ast::BinaryExpr))
-		| &ast::FuncCallExpr:
-			self.fnCall(kind.(&ast::FuncCallExpr))
+		| &ast::CallExpr:
+			self.call(kind.(&ast::CallExpr))
 		| &ast::FieldExprPair:
 			self.fieldExprPair(kind.(&ast::FieldExprPair))
 		| &ast::TypedBraceLit:
 			self.typedBraceLit(kind.(&ast::TypedBraceLit))
 		| &ast::BraceLit:
 			self.braceLit(kind.(&ast::BraceLit))
-		| &ast::KeyValPair:
-			self.keyValPair(kind.(&ast::KeyValPair))
+		| &ast::KeyValueExpr:
+			self.keyValPair(kind.(&ast::KeyValueExpr))
 		| &ast::SliceExpr:
 			self.slice(kind.(&ast::SliceExpr))
-		| &ast::IndexingExpr:
-			self.indexing(kind.(&ast::IndexingExpr))
+		| &ast::IndexExpr:
+			self.index(kind.(&ast::IndexExpr))
 		| &ast::SlicingExpr:
 			self.slicing(kind.(&ast::SlicingExpr))
 		| &ast::ChanRecv:
@@ -2588,7 +2588,7 @@ impl exprFormatter {
 			ret
 		}
 		self.fmt.row = expr.Token.Row
-		self.formatKind(expr.Kind)
+		self.formatKind(expr.Data)
 		self.fmt.row = expr.End.Row
 	}
 }
@@ -2675,8 +2675,8 @@ impl binaryFormatter {
 	}
 
 	fn head(&self, mut &bin: &ast::BinaryExpr) {
-		self.ef.fmt.popRowCommentsByC(bin.Left.Token.Row, bin.Left.Token.Column)
-		self.format(bin.Left)
+		self.ef.fmt.popRowCommentsByC(bin.X.Token.Row, bin.X.Token.Column)
+		self.format(bin.X)
 		self.op = binaryFormatter.isOp(bin.Op.Id)
 		self.writeSpace()
 		self.ef.fmt.popRowCommentsByC(bin.Op.Row, bin.Op.Column)
@@ -2686,21 +2686,21 @@ impl binaryFormatter {
 	fn binary(&self, mut bin: &ast::BinaryExpr) {
 		self.bin = bin
 		self.head(self.bin)
-		if self.bin.Op.Row == self.bin.Right.Token.Row {
+		if self.bin.Op.Row == self.bin.Y.Token.Row {
 			self.writeSpace()
-			self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
-			self.format(self.bin.Right)
+			self.ef.fmt.popRowCommentsByC(self.bin.Y.Token.Row, self.bin.Y.Token.Column)
+			self.format(self.bin.Y)
 			ret
 		}
 		self.ef.fmt.addIndent()
 		self.ef.fmt.popRowCommentsBy(self.bin.Op.Row)
 		self.write("\n")
 		self.ef.fmt.buf.Write(self.ef.fmt.indent)!
-		self.ef.fmt.popRowCommentsByC(self.bin.Right.Token.Row, self.bin.Right.Token.Column)
-		match type self.bin.Right.Kind {
+		self.ef.fmt.popRowCommentsByC(self.bin.Y.Token.Row, self.bin.Y.Token.Column)
+		match type self.bin.Y.Data {
 		| &ast::BinaryExpr:
-			bin = self.bin.Right.Kind.(&ast::BinaryExpr)
-			if self.bin.Op.Row != self.bin.Right.Token.Row {
+			bin = self.bin.Y.Data.(&ast::BinaryExpr)
+			if self.bin.Op.Row != self.bin.Y.Token.Row {
 				self.binary(bin)
 				self.ef.fmt.doneIndent()
 			} else {
@@ -2708,8 +2708,8 @@ impl binaryFormatter {
 				self.binary(bin)
 			}
 		|:
-			self.format(self.bin.Right)
-			self.ef.fmt.row = self.bin.Right.Token.Row
+			self.format(self.bin.Y)
+			self.ef.fmt.row = self.bin.Y.Token.Row
 			self.ef.fmt.doneIndent()
 		}
 	}
@@ -2721,7 +2721,7 @@ impl binaryFormatter {
 			if binaryFormatter.isHardZipOp(bin.Op.Id) {
 				ret true
 			}
-			ret self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
+			ret self.isZip(bin.X.Data) || self.isZip(bin.Y.Data)
 		|:
 			ret false
 		}
@@ -2734,11 +2734,11 @@ impl binaryFormatter {
 			if first != binaryFormatter.opPrec(bin.Op.Id) {
 				ret -1
 			}
-			mut prec := self.isPrec(first, bin.Left.Kind)
+			mut prec := self.isPrec(first, bin.X.Data)
 			if first != prec {
 				ret -1
 			}
-			prec = self.isPrec(first, bin.Right.Kind)
+			prec = self.isPrec(first, bin.Y.Data)
 			if first != prec {
 				ret -1
 			}
@@ -2757,7 +2757,7 @@ impl binaryFormatter {
 			self.zip = true
 			ret
 		}
-		self.zip = self.isZip(bin.Left.Kind) || self.isZip(bin.Right.Kind)
+		self.zip = self.isZip(bin.X.Data) || self.isZip(bin.Y.Data)
 		if self.zip {
 			// skip if zipped, no need to detect following
 			ret
@@ -2767,7 +2767,7 @@ impl binaryFormatter {
 		if !self.prec {
 			// enable prec formatting if all operators is not have same prec
 			first := binaryFormatter.opPrec(bin.Op.Id)
-			self.prec = first != self.isPrec(first, bin.Left.Kind) || first != self.isPrec(first, bin.Right.Kind)
+			self.prec = first != self.isPrec(first, bin.X.Data) || first != self.isPrec(first, bin.Y.Data)
 		}
 	}
 
@@ -2784,11 +2784,11 @@ impl binaryFormatter {
 		mut bin := self.bin
 
 		// format expression
-		match type expr.Kind {
+		match type expr.Data {
 		| &ast::BinaryExpr:
 			// keep prec mode for tail
 			break
-		| &ast::FuncCallExpr
+		| &ast::CallExpr
 		| &ast::CastExpr:
 			self.zip = true
 
@@ -2819,30 +2819,30 @@ fn paddingAbs(x: int): int {
 }
 
 fn isPrimType(&t: &ast::Expr): bool {
-	name, ok := t.Kind.(&ast::IdentExpr)
-	ret ok && (name.Ident == types::I8 ||
-		name.Ident == types::I16 ||
-		name.Ident == types::I32 ||
-		name.Ident == types::I64 ||
-		name.Ident == types::U8 ||
-		name.Ident == types::U16 ||
-		name.Ident == types::U32 ||
-		name.Ident == types::U64 ||
-		name.Ident == types::Int ||
-		name.Ident == types::Uint ||
-		name.Ident == types::Uintptr ||
-		name.Ident == types::F32 ||
-		name.Ident == types::F64 ||
-		name.Ident == types::Bool ||
-		name.Ident == types::Str ||
-		name.Ident == types::Any)
+	name, ok := t.Data.(&ast::NameExpr)
+	ret ok && (name.Name == types::I8 ||
+		name.Name == types::I16 ||
+		name.Name == types::I32 ||
+		name.Name == types::I64 ||
+		name.Name == types::U8 ||
+		name.Name == types::U16 ||
+		name.Name == types::U32 ||
+		name.Name == types::U64 ||
+		name.Name == types::Int ||
+		name.Name == types::Uint ||
+		name.Name == types::Uintptr ||
+		name.Name == types::F32 ||
+		name.Name == types::F64 ||
+		name.Name == types::Bool ||
+		name.Name == types::Str ||
+		name.Name == types::Any)
 }
 
 fn isRanged(&e: &ast::Expr): bool {
 	if e == nil {
 		ret false
 	}
-	_, ok := e.Kind.(&ast::RangeExpr)
+	_, ok := e.Data.(&ast::RangeExpr)
 	ret ok
 }
 
@@ -2878,6 +2878,6 @@ fn indexRowBrake(rows: []int): int {
 }
 
 fn isParentNeededForCall(expr: &ast::Expr): bool {
-	f, _ := expr.Kind.(&ast::Func)
+	f, _ := expr.Data.(&ast::Func)
 	ret f != nil && f.IsDecl()
 }
