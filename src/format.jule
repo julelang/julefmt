@@ -265,9 +265,9 @@ impl formatter {
 			match {
 			| i == 0:
 				self.write(" ")
-			| arg.Id != token::RParent &&
-				d.Args[i-1].Id != token::LParent &&
-				d.Args[i-1].Id != token::Excl:
+			| arg.Id != token::RPAREN &&
+				d.Args[i-1].Id != token::LPAREN &&
+				d.Args[i-1].Id != token::NOT:
 				self.write(" ")
 			}
 			self.write(arg.Kind)
@@ -759,7 +759,7 @@ impl formatter {
 					self.write("let ")
 				} else if d.Const {
 					self.write("const ")
-				} else if d.Op == nil || d.Op.Id == token::Eq {
+				} else if d.Op == nil || d.Op.Id == token::ASSIGN {
 					self.write("let ")
 				}
 			}
@@ -1702,7 +1702,7 @@ impl scopeFormatter {
 	}
 
 	fn multiAssign(&self, mut &a: &ast::Assign) {
-		letKwUsed := a.Op.Id == token::Eq
+		letKwUsed := a.Op.Id == token::ASSIGN
 		if a.Decl && letKwUsed {
 			self.write("let (")
 		}
@@ -2594,26 +2594,26 @@ struct binaryFormatter {
 impl binaryFormatter {
 	// Reports whether operator should take space for formatting.
 	fn isOp(op: int): bool {
-		ret op == token::DblVline ||
-			op == token::DblAmper ||
-			op == token::Gt ||
-			op == token::Lt ||
-			op == token::LtEq ||
-			op == token::GtEq ||
-			op == token::DblEq ||
-			op == token::NotEq
+		ret op == token::LOR ||
+			op == token::LAND ||
+			op == token::GTR ||
+			op == token::LSS ||
+			op == token::LEQ ||
+			op == token::GEQ ||
+			op == token::EQL ||
+			op == token::NEQ
 	}
 
 	// Reports whether the operator is have high formatting precedence.
 	// Returns 1 for high precedence, otherwise returns 0.
 	fn opPrec(op: int): int {
 		match op {
-		| token::Shl
-		| token::Shr
-		| token::Star
-		| token::Solidus
-		| token::Percent
-		| token::Amper:
+		| token::SHL
+		| token::SHR
+		| token::MUL
+		| token::QUO
+		| token::REM
+		| token::AND:
 			ret 1
 		|:
 			ret 0
@@ -2622,8 +2622,8 @@ impl binaryFormatter {
 
 	// Reports whether operator zips operands.
 	fn isHardZipOp(op: int): bool {
-		ret op == token::DblVline ||
-			op == token::DblAmper
+		ret op == token::LOR ||
+			op == token::LAND
 	}
 
 	fn write(&self, s: str) {
