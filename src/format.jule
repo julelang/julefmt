@@ -2046,25 +2046,14 @@ impl exprFormatter {
 	}
 
 	fn chanType(&self, mut c: &ast::ChanType) {
-		mut range := false
-		if c.Recv && c.Send {
+		if c.Dir&(ast::RECV|ast::SEND) == ast::RECV|ast::SEND {
 			self.write("chan ")
-			valueChan, isChan := c.Value.Data.(&ast::ChanType)
-			if isChan {
-				if valueChan.Recv && !valueChan.Send {
-					range = true
-					self.write("(")
-				}
-			}
-		} else if c.Recv {
+		} else if c.Dir&ast::RECV == ast::RECV {
 			self.write("<-chan ")
 		} else {
 			self.write("chan<- ")
 		}
 		self.format(c.Value)
-		if range {
-			self.write(")")
-		}
 	}
 
 	fn lit(&self, l: &ast::LitExpr) {
@@ -2111,19 +2100,6 @@ impl exprFormatter {
 	fn variadic(&self, mut v: &ast::VariadicExpr) {
 		self.format(v.X)
 		self.write("...")
-	}
-
-	fn cast(&self, mut c: &ast::CastExpr) {
-		if isPrimType(c.Type) {
-			self.fmt.formatType(c.Type)
-		} else {
-			self.write("(")
-			self.fmt.formatType(c.Type)
-			self.write(")")
-		}
-		self.write("(")
-		self.format(c.X)
-		self.write(")")
 	}
 
 	fn namespace(&self, ns: &ast::NamespaceExpr) {
@@ -2495,11 +2471,6 @@ impl exprFormatter {
 		self.write("]")
 	}
 
-	fn chanRecv(&self, mut c: &ast::ChanRecv) {
-		self.write("<-")
-		self.format(c.X)
-	}
-
 	fn chanSend(&self, mut c: &ast::ChanSend) {
 		self.fmt.formatExpr(c.Chan)
 		self.write(" <- ")
@@ -2534,8 +2505,6 @@ impl exprFormatter {
 			self.unary(kind.(&ast::UnaryExpr))
 		| &ast::VariadicExpr:
 			self.variadic(kind.(&ast::VariadicExpr))
-		| &ast::CastExpr:
-			self.cast(kind.(&ast::CastExpr))
 		| &ast::NamespaceExpr:
 			self.namespace(kind.(&ast::NamespaceExpr))
 		| &ast::SelectorExpr:
@@ -2556,8 +2525,6 @@ impl exprFormatter {
 			self.index(kind.(&ast::IndexExpr))
 		| &ast::SlicingExpr:
 			self.slicing(kind.(&ast::SlicingExpr))
-		| &ast::ChanRecv:
-			self.chanRecv(kind.(&ast::ChanRecv))
 		| &ast::ChanSend:
 			self.chanSend(kind.(&ast::ChanSend))
 		| &ast::TypeAssertionExpr:
@@ -2778,8 +2745,7 @@ impl binaryFormatter {
 		| &ast::BinaryExpr:
 			// keep prec mode for tail
 			break
-		| &ast::CallExpr
-		| &ast::CastExpr:
+		| &ast::CallExpr:
 			self.zip = true
 
 			// disable prec mode for non-tail expressions
