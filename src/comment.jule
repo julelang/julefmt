@@ -22,7 +22,7 @@ impl commentMap {
 		mut i := 0
 		for i < len(tokens) {
 			token := tokens[i]
-			if token.Id != token::COMMENT {
+			if token.ID != token::COMMENT {
 				i++
 				continue
 			}
