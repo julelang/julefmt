@@ -456,11 +456,17 @@ impl formatter {
 	}
 
 	fn params(&self, mut &f: &ast::Func) {
+		short := f.IsShort()
+		mut open, mut close := "(", ")"
+		if short {
+			open, close = "|", "|"
+		}
 		if len(f.Params) == 0 {
-			self.write("()")
+			self.write(open)
+			self.write(close)
 			ret
 		}
-		self.write("(")
+		self.write(open)
 		mut indented := false
 		self.row = f.Token.Row
 		for (i, mut p) in f.Params {
@@ -478,26 +484,30 @@ impl formatter {
 			if p.Mutable {
 				self.write("mut ")
 			}
-			if p.Reference {
-				self.write("&")
-			}
-			if p.IsSelf() {
-				if p.IsRef() {
+			if short {
+				self.write(p.Name)
+			} else {
+				if p.Reference {
 					self.write("&")
 				}
-				self.write("self")
-			} else {
-				if !jule::IsAnon(p.Name) {
-					self.write(p.Name)
-					self.write(": ")
-				} else if p.Reference {
-					self.write("_: ")
+				if p.IsSelf() {
+					if p.IsRef() {
+						self.write("&")
+					}
+					self.write("self")
+				} else {
+					if !jule::IsAnon(p.Name) {
+						self.write(p.Name)
+						self.write(": ")
+					} else if p.Reference {
+						self.write("_: ")
+					}
+					self.popRowCommentsByC(p.Type.Token.Row, p.Type.Token.Column)
+					if p.Variadic {
+						self.write("...")
+					}
+					self.formatType(p.Type)
 				}
-				self.popRowCommentsByC(p.Type.Token.Row, p.Type.Token.Column)
-				if p.Variadic {
-					self.write("...")
-				}
-				self.formatType(p.Type)
 			}
 			if i+1 < len(f.Params) {
 				self.write(",")
@@ -513,7 +523,7 @@ impl formatter {
 		if indented {
 			self.doneIndent()
 		}
-		self.write(")")
+		self.write(close)
 	}
 
 	fn result(&self, mut r: &ast::RetType) {
@@ -578,7 +588,13 @@ impl formatter {
 			self.write(": ")
 			self.result(d.Result)
 		}
-		if d.Scope != nil {
+		if d.IsShort() && d.Scope.Deferred {
+			// one-liner body
+			self.write(" ")
+			mut e := d.Scope.Stmts[0].Data.(&ast::Expr)
+			self.formatExpr(e)
+			self.row = e.End.Row
+		} else if d.Scope != nil {
 			self.write(" ")
 			_unsafe := d.Unsafe
 			d.Scope.Unsafe = false // Avoid unsafe keyword beginning of scope.
