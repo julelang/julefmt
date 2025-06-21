@@ -592,7 +592,15 @@ impl formatter {
 			// one-liner body
 			self.write(" ")
 			mut e := d.Scope.Stmts[0].Data.(&ast::Expr)
+			// Special case: list expressions must be in range for one-line short function literals.
+			_, isTuple := e.Data.(&ast::TupleExpr)
+			if isTuple {
+				self.write("(")
+			}
 			self.formatExpr(e)
+			if isTuple {
+				self.write(")")
+			}
 			self.row = e.End.Row
 		} else if d.Scope != nil {
 			self.write(" ")
