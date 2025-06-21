@@ -609,7 +609,9 @@ impl formatter {
 			self.formatScope(d.Scope, scopeDefault|scopePopByC)
 			d.Scope.Unsafe = _unsafe
 			self.row = d.Scope.End.Row
-			self.popRowCommentsBy(self.row)
+			if !d.IsAnon() {
+				self.popRowCommentsBy(self.row)
+			}
 		}
 	}
 
