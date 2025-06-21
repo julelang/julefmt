@@ -205,10 +205,10 @@ impl formatter {
 		}
 	}
 
-	fn popRowCommentsByF(&self, row: int, col: int, f: fn(&comment)) {
+	fn popRowCommentsByF(&self, row: int, col: int, f: fn(mut &comment)) {
 		mut i := 0
 		for i < len(self.cm.buf) {
-			c := self.cm.buf[i]
+			mut c := self.cm.buf[i]
 			if c.row == row && (col == -1 || c.col < col) {
 				f(c)
 				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
@@ -859,14 +859,14 @@ impl formatter {
 		}
 	}
 
-	fn getMax(self, lines: [][]byte, rows: []int): (max: int, n: int) {
-		if !self.isPopsRowCommentsByF(rows[0], -1) {
+	fn getMax(self, lines: [][]byte, rows: []int, comments: [][]&comment): (max: int, n: int) {
+		if len(comments[0]) == 0 {
 			ret
 		}
 		max = utf8::RuneCount(lines[0])
 		n = 1
 		for n < len(lines); n++ {
-			if rows[n-1] == rows[n] || !self.isPopsRowCommentsByF(rows[n], -1) {
+			if rows[n-1] == rows[n] || len(comments[n]) == 0 {
 				break
 			}
 			diff := utf8::RuneCount(lines[n])
@@ -880,6 +880,7 @@ impl formatter {
 	fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
 		mut lines := make([][]byte, 0, len(fields))
 		mut rows := make([]int, 0, len(fields))
+		mut comments := make([][]&comment, 0, len(fields))
 
 		mut start := i
 		self.row = -1
@@ -914,6 +915,12 @@ impl formatter {
 			if row != -1 && decl.token.Row != self.row {
 				break
 			}
+			mut rowComments := make([]&comment, 0)
+			mut &_rowComments := rowComments // for closure
+			self.popRowCommentsByF(decl.token.Row, -1, fn(mut c: &comment) {
+				unsafe { _rowComments = append(_rowComments, c) }
+			})
+			comments = append(comments, rowComments)
 			rows = append(rows, decl.token.Row)
 			if fm > fieldMax {
 				fieldMax = fm
@@ -944,13 +951,13 @@ impl formatter {
 			// to last statement of inline statements.
 			if len(lines)-k < 2 || rows[k] != rows[k+1] {
 				if n == 0 {
-					max, n = self.getMax(lines[k:], rows[k:])
+					max, n = self.getMax(lines[k:], rows[k:], comments[k:])
 				}
 				if n > 0 {
-					self.popRowCommentsByF(row, -1, fn(c: &comment) {
+					for _, c in comments[k] {
 						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
 						self.writeComment(c)
-					})
+					}
 					n--
 				}
 			}
@@ -964,6 +971,7 @@ impl formatter {
 		mut lines := make([][]byte, 0, len(vars[i:]))
 		mut rows := make([]int, 0, len(vars[i:]))
 		mut counts := make([][2]int, 0, len(vars[i:]))
+		mut comments := make([][]&comment, 0, len(vars[i:]))
 
 		start := i
 		mut n := self.buf.Len()
@@ -1093,6 +1101,21 @@ impl formatter {
 			rows = append(rows, self.row)
 			self.setBuf(self.ubuf()[:n])
 		}
+
+		// Collects comments separately.
+		// For line collection, they are needed.
+		n = 0
+		z = start
+		for z < i; z++ {
+			mut rowComments := make([]&comment, 0)
+			mut &_rowComments := rowComments // for closure
+			self.popRowCommentsByF(rows[n], -1, fn(mut c: &comment) {
+				unsafe { _rowComments = append(_rowComments, c) }
+			})
+			comments = append(comments, rowComments)
+			n++
+		}
+
 		n = 0
 		mut max := 0
 		mut rowBreak := indexRowBrake(rows)
@@ -1110,13 +1133,13 @@ impl formatter {
 			// to last statement of inline statements.
 			if len(lines)-j < 2 || rows[j] != rows[j+1] {
 				if n == 0 {
-					max, n = self.getMax(lines[j:rowBreak], rows[j:rowBreak])
+					max, n = self.getMax(lines[j:rowBreak], rows[j:rowBreak], comments[j:rowBreak])
 				}
 				if n > 0 {
-					self.popRowCommentsByF(row, -1, fn(c: &comment) {
+					for _, c in comments[j] {
 						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
 						self.writeComment(c)
-					})
+					}
 					n--
 				}
 			}
@@ -1179,6 +1202,7 @@ impl formatter {
 		const Cap = 1 << 4
 		mut lines := make([][]byte, 0, Cap)
 		mut rows := make([]int, 0, Cap)
+		mut comments := make([][]&comment, 0, Cap)
 
 		all := i == -1
 		if all {
@@ -1231,6 +1255,12 @@ impl formatter {
 			writer(decl)
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
+			mut rowComments := make([]&comment, 0)
+			mut &_rowComments := rowComments // for closure
+			self.popRowCommentsByF(row, -1, fn(mut c: &comment) {
+				unsafe { _rowComments = append(_rowComments, c) }
+			})
+			comments = append(comments, rowComments)
 			rows = append(rows, self.row)
 			self.setBuf(self.ubuf()[:n])
 			i++
@@ -1246,21 +1276,19 @@ impl formatter {
 		n = 0
 		mut max := 0
 		for j, line in lines {
-			row := rows[j]
-			self.writeCommentsExcept(row)
 			self.buf.Write(line)!
 			// Handle comments if same-line condition is not appear or
 			// current row is not same as next row. So, we can move line comments
 			// to last statement of inline statements.
 			if len(lines)-j < 2 || rows[j] != rows[j+1] {
 				if n == 0 {
-					max, n = self.getMax(lines[j:], rows[j:])
+					max, n = self.getMax(lines[j:], rows[j:], comments[j:])
 				}
 				if n > 0 {
-					self.popRowCommentsByF(row, -1, fn(c: &comment) {
+					for _, c in comments[j] {
 						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
 						self.writeComment(c)
-					})
+					}
 					n--
 				}
 			}

@@ -424,6 +424,30 @@ println("error handling...")
 	}
 }`,
 	},
+	{
+		data: `fn main() {
+	data 			= append ( data, 0) // foo
+foo(	)else{} 						// bar
+}`,
+		out: `fn main() {
+	data = append(data, 0) // foo
+	foo() else {} // bar
+}`,
+	},
+	{
+		data: `fn 	main(
+		) {data= 		append(data, 0) // foo
+bar()// bar
+baz()// baz
+	foo()else{} // bar
+}`,
+		out: `fn main() {
+	data = append(data, 0) // foo
+	bar()                  // bar
+	baz()                  // baz
+	foo() else {} // bar
+}`,
+	},
 ])
 
 #test
