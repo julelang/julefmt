@@ -2255,9 +2255,14 @@ impl exprFormatter {
 		self.write("(")
 		self.args(f)
 		self.write(")")
-		if f.Ignored() {
+		match f.Exception {
+		| nil:
+			// no-op
+		| ast::Ignored:
 			self.write("!")
-		} else if f.Exception != nil {
+		| ast::Forwarded:
+			self.write("?")
+		|:
 			self.write(" else ")
 			self.fmt.formatScope(f.Exception, scopeDefault)
 			self.fmt.row = f.Exception.End.Row
