@@ -46,7 +46,7 @@ fn format(path: str, mut data: []byte): []byte {
 		ret nil
 	}
 
-	mut cm := commentMap.build(file.Tokens)
+	mut cm := commentMap.build(&file.Tokens)
 	mut finfo := parser::ParseFile(file)
 	if len(finfo.Errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path)

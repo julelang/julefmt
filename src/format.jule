@@ -51,11 +51,11 @@ impl formatter {
 		ret fmt
 	}
 
-	fn ubuf(self): []byte {
+	fn ubuf(*self): []byte {
 		ret unsafe { self.buf.Buf() }
 	}
 
-	fn setBuf(self, mut b: []byte) {
+	fn setBuf(*self, mut b: []byte) {
 		unsafe { self.buf.SetBuf(b) }
 	}
 
@@ -71,7 +71,7 @@ impl formatter {
 		self.indent = self.indent[:len(self.indent)-self.indentLen]
 	}
 
-	fn writeComment(&self, &c: &comment) {
+	fn writeComment(&self, c: &comment) {
 		if len(self.indent) > 0 && c.txt[1] == '*' {
 			// Range comment should be checked.
 			// Ending is should be padded by indentation.
@@ -176,7 +176,7 @@ impl formatter {
 		self.writeCommentsExcept(-1)
 	}
 
-	fn isPopsRowCommentsByF(self, row: int, col: int): bool {
+	fn isPopsRowCommentsByF(*self, row: int, col: int): bool {
 		mut i := 0
 		for i < len(self.cm.buf); i++ {
 			c := self.cm.buf[i]
@@ -245,20 +245,20 @@ impl formatter {
 		}
 	}
 
-	fn formatExpr(&self, mut &expr: &ast::Expr) {
+	fn formatExpr(&self, mut expr: &ast::Expr) {
 		self.ef.format(expr)
 		self.ef.clean()
 	}
 
-	fn formatType(&self, mut &expr: &ast::Expr) {
+	fn formatType(&self, mut expr: &ast::Expr) {
 		self.formatExpr(expr)
 	}
 
-	fn formatScope(&self, mut &scope: &ast::ScopeTree, options: scopeOption) {
+	fn formatScope(&self, mut scope: &ast::ScopeTree, options: scopeOption) {
 		self.sf.format(scope, options)
 	}
 
-	fn directive(&self, &d: &ast::Directive) {
+	fn directive(&self, d: &ast::Directive) {
 		self.write("#")
 		self.write(d.Tag.Kind)
 		for i, arg in d.Args {
@@ -370,7 +370,7 @@ impl formatter {
 		}
 	}
 
-	fn generics(&self, mut &g: []&ast::Generic) {
+	fn generics(&self, mut g: []&ast::Generic) {
 		if len(g) == 0 {
 			ret
 		}
@@ -393,7 +393,7 @@ impl formatter {
 		self.write("]")
 	}
 
-	fn enumItem[T](&self, mut &item: T) {
+	fn enumItem[T](&self, mut item: T) {
 		const match type T {
 		| &ast::EnumItem:
 			self.write(item.Name)
@@ -429,12 +429,12 @@ impl formatter {
 				item := d.Items[i]
 				const match type T {
 				| &ast::Enum:
-					self.groupDecls[&ast::EnumItem, &ast::EnumItem](d.Items, i, fn(mut &d: &ast::EnumItem) {
+					self.groupDecls[&ast::EnumItem, &ast::EnumItem](d.Items, &i, fn(mut d: &ast::EnumItem) {
 						self.buf.Write(self.indent)!
 						self.enumItem[&ast::EnumItem](d)
 					})
 				| &ast::TypeEnum:
-					self.groupDecls[&ast::TypeEnumItem, &ast::TypeEnumItem](d.Items, i, fn(mut &d: &ast::TypeEnumItem) {
+					self.groupDecls[&ast::TypeEnumItem, &ast::TypeEnumItem](d.Items, &i, fn(mut d: &ast::TypeEnumItem) {
 						self.buf.Write(self.indent)!
 						self.enumItem[&ast::TypeEnumItem](d)
 					})
@@ -455,7 +455,7 @@ impl formatter {
 		self.row = d.End.Row
 	}
 
-	fn params(&self, mut &f: &ast::Func) {
+	fn params(&self, mut f: &ast::Func) {
 		short := f.IsShort()
 		mut open, mut close := "(", ")"
 		if short {
@@ -491,8 +491,13 @@ impl formatter {
 					self.write("&")
 				}
 				if p.IsSelf() {
-					if p.IsRef() {
+					match {
+					| p.IsSmartptr():
 						self.write("&")
+					| p.IsRefptr():
+						self.write("*")
+					|:
+						panic("unreachable")
 					}
 					self.write("self")
 				} else {
@@ -641,7 +646,7 @@ impl formatter {
 		}
 	}
 
-	fn fields(&self, mut &fields: []&ast::Field) {
+	fn fields(&self, mut fields: []&ast::Field) {
 		if len(fields) == 0 {
 			ret
 		}
@@ -655,7 +660,7 @@ impl formatter {
 		mut i := 0
 		for i < len(flds) {
 			old := i
-			self.fieldGroupDecls(flds, i)
+			self.fieldGroupDecls(flds, &i)
 			if old != i {
 				if i < len(flds) {
 					self.write("\n")
@@ -861,7 +866,7 @@ impl formatter {
 		}
 	}
 
-	fn getMax(self, lines: [][]byte, rows: []int, comments: [][]&comment): (max: int, n: int) {
+	fn getMax(*self, lines: [][]byte, rows: []int, comments: [][]&comment): (max: int, n: int) {
 		if len(comments[0]) == 0 {
 			ret
 		}
@@ -879,22 +884,22 @@ impl formatter {
 		ret
 	}
 
-	fn fieldGroupDecls(&self, mut fields: []&field, mut &i: int) {
+	fn fieldGroupDecls(&self, mut fields: []&field, mut &i: *int) {
 		mut lines := make([][]byte, 0, len(fields))
 		mut rows := make([]int, 0, len(fields))
 		mut comments := make([][]&comment, 0, len(fields))
 
-		mut start := i
+		mut start := *i
 		self.row = -1
 		mut fieldMax := 0
 		mut typeMax := 0
 		mut n := self.buf.Len()
-		for i < len(fields) {
-			mut decl := fields[i]
+		for *i < len(fields) {
+			mut decl := fields[*i]
 			row := self.row // save the first row data to after use
 			// If the row is not first, compare current row with the previous one.
 			// If the difference greatest than one row, end the iteration.
-			if row != -1 && decl.token.Row-rows[(i-start)-1] > 1 {
+			if row != -1 && decl.token.Row-rows[(*i-start)-1] > 1 {
 				break
 			}
 			self.row = decl.token.Row
@@ -918,9 +923,9 @@ impl formatter {
 				break
 			}
 			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := rowComments // for closure
+			mut &_rowComments := &rowComments // for closure
 			self.popRowCommentsByF(decl.token.Row, -1, fn(mut c: &comment) {
-				unsafe { _rowComments = append(_rowComments, c) }
+				unsafe { *_rowComments = append(*_rowComments, c) }
 			})
 			comments = append(comments, rowComments)
 			rows = append(rows, decl.token.Row)
@@ -930,11 +935,11 @@ impl formatter {
 			if tm > typeMax {
 				typeMax = tm
 			}
-			i++
+			*i++
 		}
 
 		mut j := start
-		for j < i; j++ {
+		for j < *i; j++ {
 			mut f := fields[j]
 			self.field(f, fieldMax, typeMax)
 			mut line := cloneBuf(self.ubuf()[n:])
@@ -968,20 +973,20 @@ impl formatter {
 		}
 	}
 
-	fn varSubGroup(&self, mut vars: []&ast::Var, mut &i: int) {
+	fn varSubGroup(&self, mut vars: []&ast::Var, mut &i: *int) {
 		// Do not increase the i, because all grouped variables are represented by the root.
-		mut lines := make([][]byte, 0, len(vars[i:]))
-		mut rows := make([]int, 0, len(vars[i:]))
-		mut counts := make([][2]int, 0, len(vars[i:]))
-		mut comments := make([][]&comment, 0, len(vars[i:]))
+		mut lines := make([][]byte, 0, len(vars[*i:]))
+		mut rows := make([]int, 0, len(vars[*i:]))
+		mut counts := make([][2]int, 0, len(vars[*i:]))
+		mut comments := make([][]&comment, 0, len(vars[*i:]))
 
-		start := i
+		start := *i
 		mut n := self.buf.Len()
 
 		// Returns maximum length of identifiers for type annotation alignment.
 		// j is the current varaible.
 		getTypeAnnoMax := fn(mut j: int): (nameMax: int) {
-			counts = counts[:unsafe { i }-start] // use all capacity of counts
+			counts = counts[:unsafe { *i }-start] // use all capacity of counts
 			for j > start {
 				v := vars[j-1]
 				if v.Type != nil {
@@ -990,7 +995,7 @@ impl formatter {
 					break
 				}
 			}
-			for j < unsafe { i }; j++ {
+			for j < unsafe { *i }; j++ {
 				mut v := vars[j]
 				if v.Type != nil {
 					name := counts[j-start][0]
@@ -1006,8 +1011,8 @@ impl formatter {
 
 		// Returns maximum length of assignment alignment.
 		// j is the current varaible
-		getAssignMax := fn(mut j: int, mut &typeAnnoMax: int): (nameMax: int, nameMaxHaveType: int, typeMax: int, table: int) {
-			counts = counts[:unsafe { i }-start] // use all capacity of counts
+		getAssignMax := fn(mut j: int, mut &typeAnnoMax: *int): (nameMax: int, nameMaxHaveType: int, typeMax: int, table: int) {
+			counts = counts[:unsafe { *i }-start] // use all capacity of counts
 			for j > start {
 				v := vars[j-1]
 				if v.X != nil || self.isPopsRowCommentsByF(v.Token.Row, -1) {
@@ -1018,8 +1023,8 @@ impl formatter {
 			}
 			mut fullComment := true // whether the all group members have comment
 			mut maxPlainName := 0
-			mut maxNameWithType := typeAnnoMax
-			for j < unsafe { i }; j++ {
+			mut maxNameWithType := *typeAnnoMax
+			for j < unsafe { *i }; j++ {
 				mut v := vars[j]
 				comment := self.isPopsRowCommentsByF(v.Token.Row, -1)
 				if v.X == nil && !comment {
@@ -1043,9 +1048,9 @@ impl formatter {
 			if fullComment {
 				table = 1
 				// typeAnnoMax must strore the maximum length of the group for type alignment.
-				typeAnnoMax = maxNameWithType
-				if typeAnnoMax < maxPlainName {
-					typeAnnoMax = maxPlainName
+				*typeAnnoMax = maxNameWithType
+				if *typeAnnoMax < maxPlainName {
+					*typeAnnoMax = maxPlainName
 				}
 				// add typeMax to maxPlainName for type alignment.
 				// Because all the group must be aligned column-by-column.
@@ -1065,12 +1070,12 @@ impl formatter {
 		}
 
 		self.row = -1
-		for i < len(vars); i++ {
-			mut v := vars[i]
+		for *i < len(vars); *i++ {
+			mut v := vars[*i]
 			row := self.row // save the first row data to after use
 			// If the row is not first, compare current row with the previous one.
 			// If the difference greatest than one row, end the iteration.
-			if row != -1 && v.Token.Row-vars[i-1].Token.Row > 1 {
+			if row != -1 && v.Token.Row-vars[*i-1].Token.Row > 1 {
 				break
 			}
 			self.row = v.Token.Row
@@ -1094,9 +1099,9 @@ impl formatter {
 			counts = append(counts, [name, typ])
 		}
 		mut z := start
-		for z < i; z++ {
+		for z < *i; z++ {
 			mut typeAnnoMax := getTypeAnnoMax(z)
-			nameMax, nameMaxHaveType, typeMax, table := getAssignMax(z, typeAnnoMax)
+			nameMax, nameMaxHaveType, typeMax, table := getAssignMax(z, &typeAnnoMax)
 			self.varDecl(vars[z], false, [typeAnnoMax, nameMax, nameMaxHaveType, typeMax, table])
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
@@ -1108,11 +1113,11 @@ impl formatter {
 		// For line collection, they are needed.
 		n = 0
 		z = start
-		for z < i; z++ {
+		for z < *i; z++ {
 			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := rowComments // for closure
+			mut &_rowComments := &rowComments // for closure
 			self.popRowCommentsByF(rows[n], -1, fn(mut c: &comment) {
-				unsafe { _rowComments = append(_rowComments, c) }
+				unsafe { *_rowComments = append(*_rowComments, c) }
 			})
 			comments = append(comments, rowComments)
 			n++
@@ -1150,7 +1155,7 @@ impl formatter {
 		self.row = rows[len(rows)-1] + 1 // Add +1 offset for "\n)" suffix.
 	}
 
-	fn varGroup(&self, mut root: &ast::Var, mut &i: int) {
+	fn varGroup(&self, mut root: &ast::Var, mut &i: *int) {
 		// Do not increase the i, because all grouped variables are represented by the root.
 		self.buf.Write(self.indent)!
 		self.write("const (\n")
@@ -1158,7 +1163,7 @@ impl formatter {
 		mut j := 0
 		for j < len(root.Group) {
 			old := j
-			self.varSubGroup(root.Group, j)
+			self.varSubGroup(root.Group, &j)
 			if old != j {
 				if j < len(root.Group) {
 					self.write("\n")
@@ -1172,7 +1177,7 @@ impl formatter {
 		self.write(")")
 	}
 
-	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: int, writer: fn(mut &d: T)) {
+	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: *int, writer: fn(mut d: T)) {
 		if len(nodes) == 0 {
 			ret
 		}
@@ -1182,19 +1187,19 @@ impl formatter {
 		| &ast::Var:
 			const match type Node {
 			| &ast::Var:
-				if nodes[i].Group != nil {
-					self.varGroup(nodes[i], i)
+				if nodes[*i].Group != nil {
+					self.varGroup(nodes[*i], i)
 					ret
 				}
 			| ast::Node | ast::Stmt:
-				mut v, ok := nodes[i].Data.(T)
+				mut v, ok := nodes[*i].Data.(T)
 				if ok && v.Group != nil {
 					self.varGroup(v, i)
 					ret
 				}
 			}
 		| ast::Node | ast::Stmt:
-			mut v, ok := nodes[i].Data.(&ast::Var)
+			mut v, ok := nodes[*i].Data.(&ast::Var)
 			if ok && v.Group != nil {
 				self.varGroup(v, i)
 				ret
@@ -1206,30 +1211,30 @@ impl formatter {
 		mut rows := make([]int, 0, Cap)
 		mut comments := make([][]&comment, 0, Cap)
 
-		all := i == -1
+		all := *i == -1
 		if all {
-			i = 0
+			*i = 0
 		}
 
 		self.row = -1
 		mut n := self.buf.Len()
 	loop:
-		for i < len(nodes) {
+		for *i < len(nodes) {
 			let mut decl: T
 			mut row := -1
 			const match type Node {
 			| &ast::Var:
-				if nodes[i].Group != nil {
+				if nodes[*i].Group != nil {
 					break loop
 				}
 				fall
 			| &ast::EnumItem
 			| &ast::TypeEnumItem
 			| &ast::Func:
-				decl = nodes[i]
+				decl = nodes[*i]
 				row = decl.Token.Row
 			| ast::Stmt:
-				decl = nodes[i]
+				decl = nodes[*i]
 				if !isGroupStmt(decl) {
 					break loop
 				}
@@ -1239,10 +1244,10 @@ impl formatter {
 				}
 				row = decl.End.Row
 			| ast::Node:
-				node := nodes[i]
+				node := nodes[*i]
 				match type node.Data {
 				| T:
-					decl = nodes[i].Data.(T)
+					decl = nodes[*i].Data.(T)
 					row = decl.Token.Row
 				|:
 					break loop
@@ -1258,14 +1263,14 @@ impl formatter {
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
 			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := rowComments // for closure
+			mut &_rowComments := &rowComments // for closure
 			self.popRowCommentsByF(row, -1, fn(mut c: &comment) {
-				unsafe { _rowComments = append(_rowComments, c) }
+				unsafe { *_rowComments = append(*_rowComments, c) }
 			})
 			comments = append(comments, rowComments)
 			rows = append(rows, self.row)
 			self.setBuf(self.ubuf()[:n])
-			i++
+			*i++
 			const match type Node {
 			| ast::Stmt:
 				if decl.Token.Row != decl.End.Row {
@@ -1298,11 +1303,11 @@ impl formatter {
 		}
 	}
 
-	fn writeImplNodes[T](&self, mut &nodes: []T, writer: fn(mut &d: T)) {
+	fn writeImplNodes[T](&self, mut nodes: []T, writer: fn(mut d: T)) {
 		self.write("\n")
 		mut j := 0
 		for j < len(nodes) {
-			self.groupDecls[T, T](nodes, j, writer)
+			self.groupDecls[T, T](nodes, &j, writer)
 			if j < len(nodes) {
 				self.write("\n")
 			}
@@ -1324,7 +1329,7 @@ impl formatter {
 
 		self.write(" {")
 		self.addIndent()
-		self.writeImplNodes[&ast::Func](d.Methods, fn(mut &d: &ast::Func) {
+		self.writeImplNodes[&ast::Func](d.Methods, fn(mut d: &ast::Func) {
 			self.fnDecl(d)
 		})
 		self.addGlobalPaddingForComment(d.End.Row)
@@ -1334,7 +1339,7 @@ impl formatter {
 		self.popRowComments(d.End.Row)
 	}
 
-	fn groupNode[T](&self, &node: ast::Node, writer: fn(mut &d: T)) {
+	fn groupNode[T](&self, node: ast::Node, writer: fn(mut d: T)) {
 		mut row := node.Token.Row
 		const match type T {
 		| &ast::TypeAlias:
@@ -1348,25 +1353,25 @@ impl formatter {
 		if row-self.writeCommentsExcept(row) > 1 {
 			self.write("\n")
 		}
-		self.groupDecls[T, ast::Node](self.f.Nodes, self.i, writer)
+		self.groupDecls[T, ast::Node](self.f.Nodes, &self.i, writer)
 	}
 
-	fn node(&self, mut &node: ast::Node) {
+	fn node(&self, mut node: ast::Node) {
 		match type node.Data {
 		| &ast::TypeAlias:
-			self.groupNode[&ast::TypeAlias](node, fn(mut &d: &ast::TypeAlias) {
+			self.groupNode[&ast::TypeAlias](node, fn(mut d: &ast::TypeAlias) {
 				self.buf.Write(self.indent)!
 				self.typeAliasDecl(d)
 			})
 			ret
 		| &ast::Var:
-			self.groupNode[&ast::Var](node, fn(mut &d: &ast::Var) {
+			self.groupNode[&ast::Var](node, fn(mut d: &ast::Var) {
 				self.buf.Write(self.indent)!
 				self.varDecl(d, true, [])
 			})
 			ret
 		| &ast::Func:
-			self.groupNode[&ast::Func](node, fn(mut &d: &ast::Func) {
+			self.groupNode[&ast::Func](node, fn(mut d: &ast::Func) {
 				self.fnDecl(d)
 			})
 			ret
@@ -1435,7 +1440,7 @@ impl formatter {
 		self.writeRemainingComments()
 	}
 
-	fn format(&self, mut &f: &ast::AST, mut &cm: commentMap): []byte {
+	fn format(&self, mut f: &ast::AST, mut cm: commentMap): []byte {
 		self.cm = cm
 		self.f = f
 		self.directives(self.f.TopDirectives)
@@ -1736,13 +1741,13 @@ impl scopeFormatter {
 		self.write("}")
 	}
 
-	fn postfix(&self, mut &a: &ast::Assign) {
+	fn postfix(&self, mut a: &ast::Assign) {
 		mut expr := a.X[0].X
 		self.fmt.formatExpr(expr)
 		self.write(a.Op.Kind)
 	}
 
-	fn singleAssign(&self, mut &a: &ast::Assign) {
+	fn singleAssign(&self, mut a: &ast::Assign) {
 		if jule::IsBlank(a.X[0].Name) {
 			self.write("_ ")
 		} else {
@@ -1755,7 +1760,7 @@ impl scopeFormatter {
 		self.fmt.formatExpr(a.Y)
 	}
 
-	fn multiAssign(&self, mut &a: &ast::Assign) {
+	fn multiAssign(&self, mut a: &ast::Assign) {
 		letKwUsed := a.Op.ID == token::ASSIGN
 		if a.Decl && letKwUsed {
 			self.write("let (")
@@ -1805,7 +1810,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn formatStmt(&self, mut &stmt: ast::StmtData, options: scopeOption) {
+	fn formatStmt(&self, mut stmt: ast::StmtData, options: scopeOption) {
 		match type stmt {
 		| &ast::Var:
 			self.fmt.varDecl(stmt.(&ast::Var), true, [])
@@ -1843,7 +1848,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn emptyScope(&self, mut &scope: &ast::ScopeTree) {
+	fn emptyScope(&self, mut scope: &ast::ScopeTree) {
 		// Lookup for first comment.
 		c := self.fmt.seekCommentExcept(scope.End.Row)
 
@@ -1863,7 +1868,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn formatStmts(&self, mut &scope: &ast::ScopeTree, inline: bool) {
+	fn formatStmts(&self, mut scope: &ast::ScopeTree, inline: bool) {
 		defer {
 			self.fmt.row = scope.End.Row
 		}
@@ -1893,7 +1898,7 @@ impl scopeFormatter {
 			z = i
 			self.fmt.row = stmt.Token.Row
 			if !inline && isGroupStmt(stmt) {
-				self.fmt.groupDecls[ast::Stmt, ast::Stmt](scope.Stmts, i, fn(mut &d: ast::Stmt) {
+				self.fmt.groupDecls[ast::Stmt, ast::Stmt](scope.Stmts, &i, fn(mut d: ast::Stmt) {
 					self.fmt.buf.Write(self.fmt.indent)!
 					self.formatStmt(d.Data, scopeDefault)
 				})
@@ -2049,7 +2054,7 @@ struct exprFormatter {
 }
 
 impl exprFormatter {
-	fn new(&fmt: &formatter): &exprFormatter {
+	fn new(fmt: &formatter): &exprFormatter {
 		mut ef := &exprFormatter{
 			fmt: unsafe { *(&fmt) },
 		}
@@ -2180,7 +2185,7 @@ impl exprFormatter {
 		self.bf.binary(bin)
 	}
 
-	fn args(&self, mut &f: &ast::CallExpr) {
+	fn args(&self, mut f: &ast::CallExpr) {
 		if len(f.Args) == 0 {
 			ret
 		}
@@ -2329,7 +2334,7 @@ impl exprFormatter {
 		self.fmt.row = lit.Lit.End.Row
 	}
 
-	fn responsiveExprs[T](&self, mut &lit: T) {
+	fn responsiveExprs[T](&self, mut lit: T) {
 		if len(lit.X) == 0 {
 			ret
 		}
@@ -2543,7 +2548,7 @@ impl exprFormatter {
 		self.write(")")
 	}
 
-	fn formatKind(&self, mut &kind: ast::ExprData) {
+	fn formatKind(&self, mut kind: ast::ExprData) {
 		match type kind {
 		| &ast::RangeExpr:
 			mut expr := kind.(&ast::RangeExpr)
@@ -2599,7 +2604,7 @@ impl exprFormatter {
 		}
 	}
 
-	fn format(&self, mut &expr: &ast::Expr) {
+	fn format(&self, mut expr: &ast::Expr) {
 		if expr == nil {
 			ret
 		}
@@ -2690,7 +2695,7 @@ impl binaryFormatter {
 		}
 	}
 
-	fn head(&self, mut &bin: &ast::BinaryExpr) {
+	fn head(&self, mut bin: &ast::BinaryExpr) {
 		self.ef.fmt.popRowCommentsByC(bin.X.Token.Row, bin.X.Token.Column)
 		self.format(bin.X)
 		self.op = binaryFormatter.isOp(bin.Op.ID)
@@ -2730,7 +2735,7 @@ impl binaryFormatter {
 		}
 	}
 
-	fn isZip(&self, mut &kind: ast::ExprData): bool {
+	fn isZip(&self, mut kind: ast::ExprData): bool {
 		match type kind {
 		| &ast::BinaryExpr:
 			mut bin := kind.(&ast::BinaryExpr)
@@ -2743,7 +2748,7 @@ impl binaryFormatter {
 		}
 	}
 
-	fn isPrec(&self, first: int, &kind: ast::ExprData): int {
+	fn isPrec(&self, first: int, kind: ast::ExprData): int {
 		match type kind {
 		| &ast::BinaryExpr:
 			bin := kind.(&ast::BinaryExpr)
@@ -2764,7 +2769,7 @@ impl binaryFormatter {
 		}
 	}
 
-	fn new(&self, mut &bin: &ast::BinaryExpr) {
+	fn new(&self, mut bin: &ast::BinaryExpr) {
 		if self.zip {
 			ret
 		}
@@ -2789,7 +2794,7 @@ impl binaryFormatter {
 
 	// Formats expression.
 	// It designed for binary expressions operands only.
-	fn format(&self, mut &expr: &ast::Expr) {
+	fn format(&self, mut expr: &ast::Expr) {
 		if expr == nil {
 			ret
 		}
@@ -2833,7 +2838,7 @@ fn paddingAbs(x: int): int {
 	ret x
 }
 
-fn isPrimType(&t: &ast::Expr): bool {
+fn isPrimType(t: &ast::Expr): bool {
 	name, ok := t.Data.(&ast::NameExpr)
 	ret ok && (name.Name == types::I8 ||
 		name.Name == types::I16 ||
@@ -2853,7 +2858,7 @@ fn isPrimType(&t: &ast::Expr): bool {
 		name.Name == types::Any)
 }
 
-fn isRanged(&e: &ast::Expr): bool {
+fn isRanged(e: &ast::Expr): bool {
 	if e == nil {
 		ret false
 	}
@@ -2861,7 +2866,7 @@ fn isRanged(&e: &ast::Expr): bool {
 	ret ok
 }
 
-fn isEmptyImpl(&imp: &ast::Impl): bool {
+fn isEmptyImpl(imp: &ast::Impl): bool {
 	ret len(imp.Methods) == 0
 }
 
