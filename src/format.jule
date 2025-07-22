@@ -763,6 +763,7 @@ impl formatter {
 		}
 		self.write("type ")
 		self.write(d.Name)
+		self.generics(d.Generics)
 		if d.Strict {
 			self.write(": ")
 		} else {

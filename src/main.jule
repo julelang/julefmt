@@ -3,6 +3,7 @@
 // license that can be found in the LICENSE file.
 
 use "std/flag"
+use "std/io"
 use "std/jule"
 use "std/jule/parser"
 use "std/jule/token"
@@ -112,8 +113,7 @@ fn cliMode() {
 			writeError("error: could not read from stdin")
 			ret
 		}
-		if n == 0 {
-			// EOF
+		if n == io::EOF {
 			break
 		}
 		i += n
