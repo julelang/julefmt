@@ -380,7 +380,10 @@ impl formatter {
 			if t.Constraint != nil {
 				self.write(": ")
 				for (j, mut c) in t.Constraint.Mask {
-					self.formatType(c)
+					if c.Deep {
+						self.write("~")
+					}
+					self.formatType(c.Type)
 					if len(t.Constraint.Mask)-j > 1 {
 						self.write(" | ")
 					}
