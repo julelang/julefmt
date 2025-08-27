@@ -1639,7 +1639,11 @@ impl scopeFormatter {
 		}
 		self.write("{\n")
 		for (_, mut c) in mc.Cases {
-			mut row := c.X[0].Token.Row
+			mut row := c.Token.Row
+			// Respect space between cases.
+			if row-self.fmt.row > 1 {
+				self.write("\n")
+			}
 			for (i, mut expr) in c.X {
 				if row != expr.Token.Row {
 					self.fmt.popRowComments(row)
@@ -1663,12 +1667,18 @@ impl scopeFormatter {
 			self.fmt.addIndent()
 			self.formatStmts(c.Scope, false)
 			self.fmt.doneIndent()
+			self.fmt.row = c.Scope.End.Row
 		}
 		if mc.Default != nil {
+			// Respect space between cases.
+			if mc.Default.Token.Row-self.fmt.row > 1 {
+				self.write("\n")
+			}
 			self.fmt.buf.Write(self.fmt.indent)!
 			self.write("|:\n")
 			self.fmt.addIndent()
 			self.formatStmts(mc.Default.Scope, false)
+			self.fmt.row = mc.Default.Scope.End.Row
 			self.fmt.doneIndent()
 		}
 
