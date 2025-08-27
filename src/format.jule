@@ -71,7 +71,9 @@ impl formatter {
 		self.indent = self.indent[:len(self.indent)-self.indentLen]
 	}
 
-	fn writeComment(&self, c: &comment) {
+	// Writes comment and returns adjustment for row.
+	// Adding adjustment to the row data gives the row with comment adjusted.
+	fn writeComment(&self, c: &comment): (adjustment: int) {
 		if len(self.indent) > 0 && c.txt[1] == '*' {
 			// Range comment should be checked.
 			// Ending is should be padded by indentation.
@@ -88,6 +90,7 @@ impl formatter {
 					self.write(cmt)
 					self.buf.Write(self.indent)!
 					self.write("*/")
+					adjustment = strings::Count(cmt, "\n")
 					ret
 				|:
 					break lookup
@@ -100,6 +103,7 @@ impl formatter {
 			ret
 		}
 		self.write(c.txt)
+		ret 0
 	}
 
 	fn seekCommentExcept(&self, row: int): &comment {
@@ -189,10 +193,10 @@ impl formatter {
 		ret false
 	}
 
-	fn popRowCommentsUntilByF(&self, row: int, col: int, f: fn(&comment)) {
+	fn popRowCommentsUntilByF(&self, row: int, col: int, f: fn(mut &comment)) {
 		mut i := 0
 		for i < len(self.cm.buf) {
-			c := self.cm.buf[i]
+			mut c := self.cm.buf[i]
 			if c.row > row {
 				break
 			}
@@ -2074,11 +2078,6 @@ impl scopeFormatter {
 struct exprFormatter {
 	mut fmt: &formatter
 	mut bf:  &binaryFormatter
-
-	// Ignore begin comments.
-	// It will skips comments for begin.
-	// Useful for slice literal elements.
-	mut ibc: bool
 }
 
 impl exprFormatter {
@@ -2326,11 +2325,9 @@ impl exprFormatter {
 		for (i, mut expr) in lit.Lit.X {
 			diff := len(lit.Lit.X) - i
 			if newline {
-				if !self.ibc {
-					self.fmt.addGlobalPaddingForComment(expr.Token.Row)
-					const Pad = true
-					self.fmt.writeCommentsExceptL(expr.Token.Row-1, expr.Token.Row, Pad)
-				}
+				self.fmt.addGlobalPaddingForComment(expr.Token.Row)
+				const Pad = true
+				self.fmt.writeCommentsExceptL(expr.Token.Row-1, expr.Token.Row, Pad)
 				self.fmt.buf.Write(self.fmt.indent)!
 			}
 			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
@@ -2349,11 +2346,9 @@ impl exprFormatter {
 				self.write(", ")
 			}
 		}
-		if !self.ibc {
-			self.fmt.addGlobalPaddingForComment(lit.Lit.End.Row)
-			const Pad = true
-			self.fmt.writeCommentsExceptL(lit.Lit.End.Row, lit.Lit.End.Row, Pad)
-		}
+		self.fmt.addGlobalPaddingForComment(lit.Lit.End.Row)
+		const Pad = true
+		self.fmt.writeCommentsExceptL(lit.Lit.End.Row, lit.Lit.End.Row, Pad)
 		self.fmt.doneIndent()
 		if newline {
 			self.fmt.buf.Write(self.fmt.indent)!
@@ -2366,13 +2361,10 @@ impl exprFormatter {
 		if len(lit.X) == 0 {
 			ret
 		}
-		const Cap = 1 << 8
-		mut exprs := make([][]byte, 0, Cap)
-		mut rows := make([]rowAlign, 0, Cap)
-
-		old := self.ibc
-		self.ibc = true
-		mut sibc := !old // self.ibc setted to true by this routine.
+		mut exprs := make([][]byte, 0)
+		mut rows := make([]rowAlign, 0)
+		mut leadingComments := make([]&comment, 0)
+		mut trailingComments := make([]&comment, 0)
 
 		n := self.fmt.buf.Len()
 		mut max := 0
@@ -2380,10 +2372,17 @@ impl exprFormatter {
 		mut row := lit.Token.Row
 		mut lined := false
 
+		for (_, mut expr) in lit.X {
+			if row != expr.Token.Row {
+				lined = true
+				break
+			}
+			row = expr.Token.Row
+		}
+
 		self.fmt.addIndent()
 		for (i, mut expr) in lit.X {
 			if row != expr.Token.Row {
-				lined = true
 				mut line := cloneBuf(self.fmt.ubuf()[n:])
 				diff := utf8::RuneCount(line)
 				if diff > 0 {
@@ -2393,8 +2392,8 @@ impl exprFormatter {
 					exprs = append(exprs, line)
 					self.fmt.setBuf(self.fmt.ubuf()[:n])
 					rows = append(rows, rowAlign{
-						end: expr.Token.Row,
-						row: self.fmt.row,
+						end: self.fmt.row,
+						row: row,
 						col: col,
 						max: self.fmt.row == row,
 					})
@@ -2402,8 +2401,29 @@ impl exprFormatter {
 			} else if i > 0 {
 				self.write(" ")
 			}
+
+			// Collect leading comments, except inline.
+			// Use [expr.Token.Row-1] to exclude the row of the current expression.
+			mut &_leadingComments := &leadingComments // for closure
+			self.fmt.popRowCommentsUntilByF(expr.Token.Row-1, -1, fn(mut c: &comment) {
+				unsafe { *_leadingComments = append(*_leadingComments, c) }
+			})
+
+			// Write leading inline row comments before expression.
 			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
+
 			self.format(expr)
+
+			// Collect trailing comments inline.
+			mut &_trailingComments := &trailingComments // for closure
+			col = expr.End.Column
+			if lined {
+				col = -1
+			}
+			self.fmt.popRowCommentsByF(expr.End.Row, col, fn(mut c: &comment) {
+				unsafe { *_trailingComments = append(*_trailingComments, c) }
+			})
+
 			row = expr.Token.Row
 			col = expr.End.Column
 			if lined || len(lit.X)-i > 1 {
@@ -2418,8 +2438,9 @@ impl exprFormatter {
 			}
 			exprs = append(exprs, line)
 			rows = append(rows, rowAlign{
-				end: row,
-				row: self.fmt.row,
+				end: self.fmt.row,
+				row: row,
+				col: col,
 				max: self.fmt.row == row,
 			})
 			self.fmt.setBuf(self.fmt.ubuf()[:n])
@@ -2432,39 +2453,67 @@ impl exprFormatter {
 		if lit.Token.Row != lit.X[0].Token.Row {
 			self.write("\n")
 		}
-		self.fmt.row = rows[0].row
+		self.fmt.row = lit.Token.Row
 		for i, expr in exprs {
 			erow := rows[i]
-			if !self.ibc || sibc || lined {
-				self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, erow.row)
-				const Pad = true
-				self.fmt.writeCommentsExceptL(lit.Token.Row, erow.row, Pad)
+
+			// Write leading comments.
+			mut j := 0
+			for j < len(leadingComments); j++ {
+				c := leadingComments[j]
+				if c.row <= erow.row {
+					// Respect space between cases.
+					if  c.row-self.fmt.row > 1 {
+						self.write("\n")
+						self.fmt.buf.Write(self.fmt.indent)!
+					}
+					if self.fmt.ubuf()[self.fmt.buf.Len()-1] == '\n' {
+						self.fmt.buf.Write(self.fmt.indent)!
+					}
+					self.fmt.row = c.row + self.fmt.writeComment(c)
+					self.write("\n")
+				} else {
+					break
+				}
+			}
+			leadingComments = leadingComments[j:]
+			// Respect space between cases.
+			if  erow.row-self.fmt.row > 1 {
+				self.write("\n")
+				self.fmt.buf.Write(self.fmt.indent)!
 			}
 			if self.fmt.ubuf()[self.fmt.buf.Len()-1] == '\n' {
 				self.fmt.buf.Write(self.fmt.indent)!
 			}
-			col = erow.col
-			if lined {
-				col = -1
-			}
+
 			self.fmt.buf.Write(expr)!
-			self.fmt.popRowCommentsByF(erow.row, col, fn(c: &comment) {
-				if erow.max {
-					self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(expr))+1))
+
+			// Write inline trailing comments.
+			j = 0
+			for j < len(trailingComments); j++ {
+				c := trailingComments[j]
+				if c.row <= erow.end {
+					if erow.max {
+						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(expr))+1))
+					} else {
+						self.write(" ")
+					}
+					self.fmt.writeComment(c)
 				} else {
-					self.write(" ")
+					break
 				}
-				self.fmt.writeComment(c)
-			})
+			}
+			trailingComments = trailingComments[j:]
+
 			if len(exprs)-i > 1 {
 				self.write("\n")
 			}
-			self.fmt.row = erow.row
+			self.fmt.row = erow.end
 		}
 		if self.fmt.ubuf()[self.fmt.buf.Len()-1] != '\n' && lined {
 			self.write("\n")
 		}
-		if !self.ibc || sibc || lined {
+		if lined {
 			self.fmt.addGlobalPaddingForCommentL(lit.Token.Row, lit.End.Row)
 			const Pad = true
 			self.fmt.writeCommentsExceptL(lit.Token.Row, lit.End.Row, Pad)
@@ -2473,8 +2522,6 @@ impl exprFormatter {
 		if lined {
 			self.fmt.buf.Write(self.fmt.indent)!
 		}
-
-		self.ibc = old
 	}
 
 	fn braceLit(&self, mut lit: &ast::BraceLit) {
