@@ -1640,6 +1640,12 @@ impl scopeFormatter {
 		self.write("{\n")
 		for (_, mut c) in mc.Cases {
 			mut row := c.Token.Row
+
+			// Write trailing comments of the previous scope.
+			self.fmt.addIndent()
+			self.fmt.row = self.fmt.writeCommentsExcept(row)
+			self.fmt.doneIndent()
+
 			// Respect space between cases.
 			if row-self.fmt.row > 1 {
 				self.write("\n")
@@ -1670,10 +1676,18 @@ impl scopeFormatter {
 			self.fmt.row = c.Scope.End.Row
 		}
 		if mc.Default != nil {
+			row := mc.Default.Token.Row
+
+			// Write trailing comments of the previous scope.
+			self.fmt.addIndent()
+			self.fmt.row = self.fmt.writeCommentsExcept(row)
+			self.fmt.doneIndent()
+
 			// Respect space between cases.
-			if mc.Default.Token.Row-self.fmt.row > 1 {
+			if row-self.fmt.row > 1 {
 				self.write("\n")
 			}
+
 			self.fmt.buf.Write(self.fmt.indent)!
 			self.write("|:\n")
 			self.fmt.addIndent()
