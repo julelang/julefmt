@@ -2357,6 +2357,27 @@ impl exprFormatter {
 		self.fmt.row = lit.Lit.End.Row
 	}
 
+	fn getMax(*self, lines: [][]byte, rows: []rowAlign, comments: [][]&comment): (max: int, n: int) {
+		if len(comments) == 0 || len(comments[0]) == 0 {
+			ret
+		}
+		max = utf8::RuneCount(lines[0])
+		n = 1
+		for n < len(lines); n++ {
+			if rows[n-1].row == rows[n].row || len(comments[n]) == 0 {
+				break
+			}
+			diff := utf8::RuneCount(lines[n])
+			if max < diff {
+				max = diff
+			}
+			if rows[n].row-rows[n-1].row > 1 {
+				break
+			}
+		}
+		ret
+	}
+
 	fn responsiveExprs[T](&self, mut lit: T) {
 		if len(lit.X) == 0 {
 			ret
@@ -2364,12 +2385,13 @@ impl exprFormatter {
 		mut exprs := make([][]byte, 0)
 		mut rows := make([]rowAlign, 0)
 		mut leadingComments := make([]&comment, 0)
-		mut trailingComments := make([]&comment, 0)
+		mut trailingComments := make([][]&comment, 0)
 
-		n := self.fmt.buf.Len()
+		mut n := self.fmt.buf.Len()
 		mut max := 0
 		mut col := 0
 		mut row := lit.Token.Row
+		mut endRow := lit.Token.Row
 		mut lined := false
 
 		for (_, mut expr) in lit.X {
@@ -2382,7 +2404,19 @@ impl exprFormatter {
 
 		self.fmt.addIndent()
 		for (i, mut expr) in lit.X {
-			if row != expr.Token.Row {
+			if i > 0 && row != expr.Token.Row {
+				// Collect trailing comments inline for whole row.
+				mut rowComments := make([]&comment, 0)
+				mut &_rowComments := &rowComments // for closure
+				mut col2 := col
+				if lined {
+					col2 = -1
+				}
+				self.fmt.popRowCommentsByF(endRow, col2, fn(mut c: &comment) {
+					unsafe { *_rowComments = append(*_rowComments, c) }
+				})
+				trailingComments = append(trailingComments, rowComments)
+
 				mut line := cloneBuf(self.fmt.ubuf()[n:])
 				diff := utf8::RuneCount(line)
 				if diff > 0 {
@@ -2414,23 +2448,26 @@ impl exprFormatter {
 
 			self.format(expr)
 
-			// Collect trailing comments inline.
-			mut &_trailingComments := &trailingComments // for closure
-			col = expr.End.Column
-			if lined {
-				col = -1
-			}
-			self.fmt.popRowCommentsByF(expr.End.Row, col, fn(mut c: &comment) {
-				unsafe { *_trailingComments = append(*_trailingComments, c) }
-			})
-
 			row = expr.Token.Row
+			endRow = expr.End.Row
 			col = expr.End.Column
 			if lined || len(lit.X)-i > 1 {
 				self.write(",")
 			}
 		}
 		if n != self.fmt.buf.Len() {
+			// Collect trailing comments inline for whole row.
+			mut rowComments := make([]&comment, 0)
+			mut &_rowComments := &rowComments // for closure
+			mut col2 := col
+			if lined {
+				col2 = -1
+			}
+			self.fmt.popRowCommentsByF(endRow, col2, fn(mut c: &comment) {
+				unsafe { *_rowComments = append(*_rowComments, c) }
+			})
+			trailingComments = append(trailingComments, rowComments)
+
 			mut line := cloneBuf(self.fmt.ubuf()[n:])
 			diff := utf8::RuneCount(line)
 			if max < diff && self.fmt.row == row {
@@ -2454,6 +2491,8 @@ impl exprFormatter {
 			self.write("\n")
 		}
 		self.fmt.row = lit.Token.Row
+		n = 0
+		max = 0
 		for i, expr in exprs {
 			erow := rows[i]
 
@@ -2463,7 +2502,7 @@ impl exprFormatter {
 				c := leadingComments[j]
 				if c.row <= erow.row {
 					// Respect space between cases.
-					if  c.row-self.fmt.row > 1 {
+					if c.row-self.fmt.row > 1 {
 						self.write("\n")
 						self.fmt.buf.Write(self.fmt.indent)!
 					}
@@ -2478,7 +2517,7 @@ impl exprFormatter {
 			}
 			leadingComments = leadingComments[j:]
 			// Respect space between cases.
-			if  erow.row-self.fmt.row > 1 {
+			if erow.row-self.fmt.row > 1 {
 				self.write("\n")
 				self.fmt.buf.Write(self.fmt.indent)!
 			}
@@ -2489,21 +2528,21 @@ impl exprFormatter {
 			self.fmt.buf.Write(expr)!
 
 			// Write inline trailing comments.
-			j = 0
-			for j < len(trailingComments); j++ {
-				c := trailingComments[j]
-				if c.row <= erow.end {
-					if erow.max {
+			// Handle comments if same-line condition is not appear or
+			// current row is not same as next row. So, we can move line comments
+			// to last statement of inline statements.
+			if len(exprs)-i < 2 || rows[i].row != rows[i+1].row {
+				if n == 0 {
+					max, n = self.getMax(exprs[i:], rows[i:], trailingComments[i:])
+				}
+				if n > 0 {
+					for _, c in trailingComments[i] {
 						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(expr))+1))
-					} else {
-						self.write(" ")
+						self.fmt.writeComment(c)
 					}
-					self.fmt.writeComment(c)
-				} else {
-					break
+					n--
 				}
 			}
-			trailingComments = trailingComments[j:]
 
 			if len(exprs)-i > 1 {
 				self.write("\n")

@@ -647,10 +647,10 @@ b",§"ccc"
 		// baz
 
 
-		{0xd800, true},        // surr1
-		{0xdc00, true},        // surr2
-		{0xe000, false},       // surr3
-		{0xdfff, true},        // surr3-1
+		{0xd800, true},  // surr1
+		{0xdc00, true},  // surr2
+		{0xe000, false}, // surr3
+		{0xdfff, true},  // surr3-1
 	]`,
 		out: `let surrogateCases: []surrogateTest = [
 
@@ -668,11 +668,71 @@ b",§"ccc"
 	// bar
 	// baz
 
-	{0xd800, true},        // surr1
-	{0xdc00, true},        // surr2
-	{0xe000, false},       // surr3
-	{0xdfff, true},        // surr3-1
+	{0xd800, true},  // surr1
+	{0xdc00, true},  // surr2
+	{0xe000, false}, // surr3
+	{0xdfff, true},  // surr3-1
 ]`,
+	},
+	{
+		data: `
+		
+		// Information about the first byte in a UTF-8 sequence.
+let first: [256]byte = [
+	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x00-0x0F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x10-0x1F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x20-0x2F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x30-0x3F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x40-0x4F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x50-0x5F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x60-0x6F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x70-0x7F
+		//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0x80-0x8F
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0x90-0x9F
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0xA0-0xAF
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0xB0-0xBF
+	xx, xx, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, // 0xC0-0xCF
+	s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, // 0xD0-0xDF
+	s2, s3, s3, s3, s3, s3, s3, s3, s3, s3, s3, s3, s3, s4, s3, s3, // 0xE0-0xEF
+	s5, s6, s6, s6, s7, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0xF0-0xFF
+]
+		
+		`,
+		out: `// Information about the first byte in a UTF-8 sequence.
+let first: [256]byte = [
+	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x00-0x0F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x10-0x1F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x20-0x2F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x30-0x3F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x40-0x4F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x50-0x5F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x60-0x6F
+	as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, as, // 0x70-0x7F
+	//   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0x80-0x8F
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0x90-0x9F
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0xA0-0xAF
+	xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0xB0-0xBF
+	xx, xx, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, // 0xC0-0xCF
+	s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, s1, // 0xD0-0xDF
+	s2, s3, s3, s3, s3, s3, s3, s3, s3, s3, s3, s3, s3, s4, s3, s3, // 0xE0-0xEF
+	s5, s6, s6, s6, s7, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, xx, // 0xF0-0xFF
+]`,
+	},
+	{
+		data: `let x={1,100,
+"933262154439441526816992388562667004907159682643816214685929" +
+"638952175999932299156089414639761565182862536979208272237582" + // foo
+"51185210916864000000000000000000000000", // 100!
+}`,
+		out: `let x = {1, 100,
+	"933262154439441526816992388562667004907159682643816214685929" +
+		"638952175999932299156089414639761565182862536979208272237582" + // foo
+		"51185210916864000000000000000000000000", // 100!
+}`,
 	},
 ])
 
