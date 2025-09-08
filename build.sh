@@ -4,7 +4,7 @@
 # license that can be found in the LICENSE file.
 
 if [ -f ./src/main.jule ]; then
-  julec --opt-deadcode -o julefmt ./src
+  julec build --opt-deadcode -o julefmt ./src
 else
   echo "error: working directory is not root directory"
   exit

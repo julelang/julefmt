@@ -16,4 +16,4 @@ jobs:
 
       - name: Build JuleFmt
         run: |
-          julec src
+          julec build src
