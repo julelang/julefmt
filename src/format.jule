@@ -299,8 +299,8 @@ impl formatter {
 	}
 
 	fn useDecl(&self, d: &ast::Use) {
-		if d.Bind {
-			self.write("cpp ")
+		if d.Extern {
+			self.write("extern ")
 		}
 		self.write("use ")
 		if d.Alias != nil {
@@ -334,14 +334,14 @@ impl formatter {
 		// Sort imports.
 		// See formatter documentation how ordering will be made.
 		slices::SortFunc(self.f.UseDecls, fn(a: &ast::Use, b: &ast::Use): int {
-			if a.Bind != b.Bind {
-				if a.Bind {
+			if a.Extern != b.Extern {
+				if a.Extern {
 					ret +1
 				}
 				ret -1
 			}
-			// a.Bind == b.Bind
-			if a.Bind {
+			// a.Extern == b.Extern
+			if a.Extern {
 				ret strings::Compare(a.Path.Kind, b.Path.Kind)
 			}
 			const StdPrefix = `"std/`
@@ -356,13 +356,13 @@ impl formatter {
 			ret -1
 		})
 
-		mut bind := false // whether any bind import seen
+		mut _extern := false // whether any external import seen
 		for i, decl in self.f.UseDecls {
-			if !bind && decl.Bind {
-				bind = true
+			if !_extern && decl.Extern {
+				_extern = true
 				if i > 0 {
 					// ordinary import seen
-					// separate bind imports
+					// separate external imports
 					self.write("\n")
 				}
 			}
@@ -580,8 +580,8 @@ impl formatter {
 			self.directives(d.Directives)
 			self.buf.Write(self.indent)!
 		}
-		if d.Bind {
-			self.write("cpp ")
+		if d.Extern {
+			self.write("extern ")
 		}
 		if d.Unsafe {
 			self.write("unsafe ")
@@ -686,8 +686,8 @@ impl formatter {
 				self.write("\n")
 			}
 		}
-		if d.Bind {
-			self.write("cpp ")
+		if d.Extern {
+			self.write("extern ")
 		}
 		self.write("struct ")
 		self.write(d.Name)
@@ -765,8 +765,8 @@ impl formatter {
 	}
 
 	fn typeAliasDecl(&self, mut d: &ast::TypeAlias) {
-		if d.Bind {
-			self.write("cpp ")
+		if d.Extern {
+			self.write("extern ")
 		}
 		self.write("type ")
 		self.write(d.Name)
@@ -791,8 +791,8 @@ impl formatter {
 			if len(d.Directives) != 0 {
 				self.directives(d.Directives)
 			}
-			if d.Bind {
-				self.write("cpp let ")
+			if d.Extern {
+				self.write("extern let ")
 			} else {
 				if d.Static {
 					self.write("let ")
@@ -2168,8 +2168,8 @@ impl exprFormatter {
 	}
 
 	fn name(&self, id: &ast::NameExpr) {
-		if id.Bind {
-			self.write("cpp.")
+		if id.Extern {
+			self.write("extern.")
 		}
 		self.write(id.Name)
 	}
