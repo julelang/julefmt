@@ -1725,23 +1725,17 @@ impl scopeFormatter {
 		}
 		self.write("select {\n")
 		for (_, mut c) in slct.Cases {
-			mut row := c.X[0].Token.Row
-			for (i, mut expr) in c.X {
-				if row != expr.Token.Row {
-					self.fmt.popRowComments(row)
-				}
-				self.fmt.writeCommentsExcept(expr.Token.Row)
-				if row != expr.Token.Row {
-					self.write("\n")
-					self.fmt.buf.Write(self.fmt.indent)!
-				} else if i == 0 {
-					self.fmt.buf.Write(self.fmt.indent)!
-				} else if i > 0 {
-					self.write(" ")
-				}
-				row = expr.Token.Row
-				self.write("| ")
-				self.fmt.formatExpr(expr)
+			// Write trailing comments of the previous scope.
+			self.fmt.addIndent()
+			self.fmt.row = self.fmt.writeCommentsExcept(c.Token.Row)
+			self.fmt.doneIndent()
+
+			self.fmt.buf.Write(self.fmt.indent)!
+			self.write("| ")
+			if c.Stmt == nil {
+				self.fmt.formatExpr(c.X[0])
+			} else {
+				self.formatStmt(c.Stmt, scopeDefault)
 			}
 			self.write(":")
 			self.fmt.popRowComments(self.fmt.row)
@@ -1749,12 +1743,14 @@ impl scopeFormatter {
 			self.fmt.addIndent()
 			self.formatStmts(c.Scope, false)
 			self.fmt.doneIndent()
+			self.fmt.row = c.Scope.End.Row
 		}
 		if slct.Default != nil {
 			self.fmt.buf.Write(self.fmt.indent)!
 			self.write("|:\n")
 			self.fmt.addIndent()
 			self.formatStmts(slct.Default.Scope, false)
+			self.fmt.row = slct.Default.Scope.End.Row
 			self.fmt.doneIndent()
 		}
 
