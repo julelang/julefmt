@@ -2323,7 +2323,7 @@ impl exprFormatter {
 			if newline {
 				self.fmt.addGlobalPaddingForComment(expr.Token.Row)
 				const Pad = true
-				self.fmt.writeCommentsExceptL(expr.Token.Row-1, expr.Token.Row, Pad)
+				self.fmt.writeCommentsExceptL(self.fmt.row, expr.Token.Row, Pad)
 				self.fmt.buf.Write(self.fmt.indent)!
 			}
 			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
