@@ -166,13 +166,20 @@ impl formatter {
 		}
 	}
 
-	fn addGlobalPaddingForComment(&self, row: int): bool {
+	// padded: whether padding added
+	// tight: whether comment is exist but not spaced
+	fn addGlobalPaddingForComment(&self, row: int): (padded: bool, tight: bool) {
 		c := self.cm.first(row)
-		if c != nil && c.row-self.row > 1 {
-			self.write("\n")
-			ret true
+		if c != nil {
+			if c.row-self.row > 1 {
+				self.write("\n")
+				padded = true
+				ret
+			} else {
+				tight = true
+			}
 		}
-		ret false
+		ret
 	}
 
 	fn writeRemainingComments(&self) {
@@ -289,6 +296,30 @@ impl formatter {
 		for i, d in dvs {
 			if i > 0 {
 				self.buf.Write(self.indent)!
+			}
+			self.writeCommentsExcept(d.Tag.Row)
+			self.directive(d)
+			self.popRowComments(d.Tag.Row)
+			self.write("\n")
+			self.row = d.Tag.Row
+		}
+	}
+
+	fn topDirectives(&self, dvs: []&ast::Directive) {
+		if len(dvs) == 0 {
+			ret
+		}
+		first := dvs[0]
+		self.row = self.writeCommentsExcept(first.Tag.Row)
+		for i, d in dvs {
+			if i > 0 {
+				self.buf.Write(self.indent)!
+			}
+			padded, tight := self.addGlobalPaddingForComment(d.Tag.Row)
+			if !padded {
+				if !tight && d.Tag.Row-self.row > 1 {
+					self.write("\n")
+				}
 			}
 			self.writeCommentsExcept(d.Tag.Row)
 			self.directive(d)
@@ -447,7 +478,8 @@ impl formatter {
 					})
 				}
 				if i < len(d.Items) {
-					if !self.addGlobalPaddingForComment(d.End.Row) && old != i {
+					padded, _ := self.addGlobalPaddingForComment(d.End.Row)
+					if !padded && old != i {
 						self.write("\n")
 					}
 				}
@@ -747,7 +779,8 @@ impl formatter {
 		// Function declaration formatting won't add new-line.
 		// So add a new-line to complete "\n\n" if needed.
 		// addGlobalPaddingForComment adds one "\n" if needed.
-		pad := self.addGlobalPaddingForComment(d.End.Row) || self.seekCommentExcept(d.End.Row) != nil
+		padded, _ := self.addGlobalPaddingForComment(d.End.Row)
+		pad := padded || self.seekCommentExcept(d.End.Row) != nil
 		if pad {
 			self.write("\n")
 		}
@@ -1451,7 +1484,7 @@ impl formatter {
 	fn format(&self, mut f: &ast::AST, mut cm: commentMap): []byte {
 		self.cm = cm
 		self.f = f
-		self.directives(self.f.TopDirectives)
+		self.topDirectives(self.f.TopDirectives)
 		if len(self.f.TopDirectives) > 0 {
 			self.setBuf(self.ubuf()[:self.buf.Len()-1]) // Remove trailing newline.
 		}

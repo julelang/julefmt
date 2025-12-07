@@ -784,6 +784,104 @@ let first: [256]byte = [
 	"[bad.unmatched.bracket:": "error",
 }`,
 	},
+	{
+		data: `// Link libraries.
+#pass "-lssl"
+#pass "-lcrypto"
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+		out: `// Link libraries.
+#pass "-lssl"
+#pass "-lcrypto"
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+	},
+
+	{
+		data: `// Link libraries.
+
+
+#pass "-lssl"
+#pass "-lcrypto"
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+
+
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+		out: `// Link libraries.
+
+#pass "-lssl"
+#pass "-lcrypto"
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+	},
+
+	{
+		data: `// Link libraries.
+#pass "-lssl"
+#pass "-lcrypto"
+
+
+
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+
+
+#pass "-I/opt/homebrew/opt/openssl/include"
+
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+		out: `// Link libraries.
+#pass "-lssl"
+#pass "-lcrypto"
+
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+
+#pass "-I/opt/homebrew/opt/openssl/include"
+
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+	},
+	{
+		data: `// Link libraries.
+#pass "-lssl"
+#pass "-lcrypto"
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+
+
+
+
+#pass "-I/opt/homebrew/opt/openssl/include"
+
+
+
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+		out: `// Link libraries.
+#pass "-lssl"
+#pass "-lcrypto"
+// Brew OpenSSL installation.
+#pass "-I/opt/homebrew/opt/openssl/include"
+#pass "-L/opt/homebrew/opt/openssl/lib"
+
+#pass "-I/opt/homebrew/opt/openssl/include"
+
+#pass "-L/opt/homebrew/opt/openssl/lib"`,
+	},
 ])
 
 #test
