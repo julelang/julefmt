@@ -13,24 +13,24 @@ use "std/strings"
 
 let mut _W = new(bool, false) // Flag -w
 
-fn writeError(message: str) {
-	os::Stderr().WriteStr(message)!
-	os::Stderr().WriteStr("\n")!
+async fn writeError(message: str) {
+	os::Stderr().WriteStr(message).await!
+	os::Stderr().WriteStr("\n").await!
 }
 
 // Prints formatted data to relevant file.
-fn printFormat(path: str, data: []byte) {
+async fn printFormat(path: str, data: []byte) {
 	if data == nil {
 		ret
 	}
 	if *_W {
-		os::WriteFile(path, data, 0o660) else {
-			writeError("error: could not write to file: " + path)
+		os::WriteFile(path, data, 0o660).await else {
+			writeError("error: could not write to file: " + path).await
 			ret
 		}
 	} else {
-		os::Stdout().Write(data) else {
-			writeError("error: could not write stdout")
+		os::Stdout().Write(data).await else {
+			writeError("error: could not write stdout").await
 			ret
 		}
 	}
@@ -38,19 +38,19 @@ fn printFormat(path: str, data: []byte) {
 
 // Formats data with path, and returns result.
 // If result is nil, we have an error(s).
-fn format(path: str, mut data: []byte): []byte {
+async fn format(path: str, mut data: []byte): []byte {
 	mut file := token::FileSet.New(path)
 	unsafe { file.FillMut(data) }
 	mut errors := token::ScanAll(file, token::Comments)
 	if len(errors) > 0 {
-		writeError("error: file could not formatted, have error(s): " + path)
+		writeError("error: file could not formatted, have error(s): " + path).await
 		ret nil
 	}
 
 	mut cm := commentMap.build(&file.Tokens)
 	mut finfo := parser::ParseFile(file)
 	if len(finfo.Errors) > 0 {
-		writeError("error: file could not formatted, have error(s): " + path)
+		writeError("error: file could not formatted, have error(s): " + path).await
 		ret nil
 	}
 
@@ -58,18 +58,18 @@ fn format(path: str, mut data: []byte): []byte {
 	ret fmt.format(finfo.AST, cm)
 }
 
-fn formatFile(path: str) {
-	mut ctx := os::ReadFile(path) else {
-		writeError("error: file could not read: " + path)
+async fn formatFile(path: str) {
+	mut ctx := os::ReadFile(path).await else {
+		writeError("error: file could not read: " + path).await
 		ret
 	}
-	data := format(path, ctx)
-	printFormat(path, data)
+	data := format(path, ctx).await
+	printFormat(path, data).await
 }
 
-fn parsePackage(path: str) {
+async fn parsePackage(path: str) {
 	mut dirents := os::ReadDir(path) else {
-		writeError("error: connot read package directory: " + path)
+		writeError("error: connot read package directory: " + path).await
 		ret
 	}
 	for _, dirent in dirents {
@@ -78,39 +78,39 @@ fn parsePackage(path: str) {
 			continue
 		}
 		filepath := filepath::Join(path, dirent.Name)
-		formatFile(filepath)
+		formatFile(filepath).await
 	}
 }
 
-fn parse(path: str) {
+async fn parse(path: str) {
 	stat := os::Stat(path) else {
-		writeError("error: connot read path: " + path)
+		writeError("error: connot read path: " + path).await
 		ret
 	}
 	m := stat.Mode()
 	match {
 	| m.IsDir():
-		parsePackage(path)
+		parsePackage(path).await
 		ret
 	| m.IsRegular():
 		if strings::HasSuffix(path, jule::Ext) {
-			formatFile(path)
+			formatFile(path).await
 			ret
 		}
 	}
-	writeError("error: path is not supported: " + path)
+	writeError("error: path is not supported: " + path).await
 }
 
-fn cliMode() {
+async fn cliMode() {
 	if *_W {
-		writeError("error: -w argument cannot used with stdout mode")
+		writeError("error: -w argument cannot used with stdout mode").await
 		ret
 	}
 	mut i := 0
 	mut buf := make([]byte, 1024)
 	for {
-		n := os::Stdin().Read(buf[i:]) else {
-			writeError("error: could not read from stdin")
+		n := os::Stdin().Read(buf[i:]).await else {
+			writeError("error: could not read from stdin").await
 			ret
 		}
 		if n == io::EOF {
@@ -125,18 +125,18 @@ fn cliMode() {
 		}
 	}
 	buf = buf[:i]
-	printFormat("<stdin>", format("<stdin>", buf))
+	printFormat("<stdin>", format("<stdin>", buf).await).await
 }
 
-fn main() {
+async fn main() {
 	mut args := os::Args()
 	args = args[1:] // Skip program path.
 	mut flag := flag::FlagSet.New()
 	flag.AddVar(_W, "write", 'w', "write result to (source) file instead of stdout")
 	args = flag.Parse(args)!
 	if len(args) == 0 {
-		cliMode()
+		cliMode().await
 	} else {
-		parse(args[0])
+		parse(args[0]).await
 	}
 }
