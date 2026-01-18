@@ -885,9 +885,9 @@ let first: [256]byte = [
 ])
 
 #test
-fn testFormat(t: &testing::T) {
+async fn testFormat(t: &testing::T) {
 	for i, c in formatTests {
-		out := format("<test-input>", []byte(c.data))
+		out := format("<test-input>", []byte(c.data)).await
 		if str(out) != c.out {
 			t.Errorf("#{} failed", i)
 		}
