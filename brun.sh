@@ -14,5 +14,5 @@ if [ $? -eq 0 ]; then
   ./julefmt $@
 else
   echo "-----------------------------------------------------------------------"
-  echo "An unexpected error occurred while compiling JuleFmt. Check errors above."
+  echo "An unexpected error occurred while compiling julefmt. Check errors above."
 fi
