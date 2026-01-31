@@ -882,6 +882,68 @@ let first: [256]byte = [
 
 #pass "-L/opt/homebrew/opt/openssl/lib"`,
 	},
+	{
+		data: `fn main(
+	
+) {
+				println("hello world")
+		// foo
+}`,
+		out: `fn main() {
+	println("hello world")
+	// foo
+}`,
+	},
+	{
+		data: `fn main(
+	
+) {
+				println("hello world")
+		// foo
+
+
+
+	// foo
+			// foo
+		// foo
+// foo
+}`,
+		out: `fn main() {
+	println("hello world")
+	// foo
+
+	// foo
+	// foo
+	// foo
+	// foo
+}`,
+	},
+	{
+		data: `fn main(
+	
+) {
+				println("hello world")
+		
+		// foo
+
+
+
+	// foo
+			// foo
+		// foo
+// foo
+}`,
+		out: `fn main() {
+	println("hello world")
+
+	// foo
+
+	// foo
+	// foo
+	// foo
+	// foo
+}`,
+	},
 ])
 
 #test

@@ -1994,6 +1994,7 @@ impl scopeFormatter {
 			}
 		}
 
+		self.fmt.addGlobalPaddingForComment(scope.End.Row)
 		self.fmt.writeCommentsExcept(scope.End.Row)
 	}
 
