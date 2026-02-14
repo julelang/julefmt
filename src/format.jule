@@ -815,13 +815,51 @@ impl formatter {
 		self.formatType(d.Type)
 	}
 
+	// Formats a single variable declaration inside a declaration group.
+	//
+	// The formatter supports vertical alignment of names, type annotations,
+	// and assignment expressions so grouped declarations can be rendered in a
+	// readable column layout:
+	//
+	//	let a    : i32   = 1
+	//	let long : i32   = 2
+	//	let x            = 3
+	//
+	// Layout decisions are NOT computed here. They are pre-analysed by the caller
+	// and passed via `counts`. This function is a pure "layout consumer":
+	// it must not mutate or reinterpret those values.
+	//
+	// ----------------------------------------------------------------------------
+	// counts layout contract (analysis-phase output)
+	//
+	//	counts[0] -> typeAnnoMax
+	//		Maximum identifier width among declarations that participate in
+	//		':' alignment. Defines where the ':' column should appear.
+	//
+	//	counts[1] -> nameMax
+	//		Target width of the region before the assignment operator.
+	//		This effectively defines the column where '=' must land.
+	//
+	//	counts[2] -> nameMaxHaveType (0/1)
+	//		Whether the declaration that determined nameMax had a type annotation.
+	//		Needed to compensate for the extra width of ": " in mixed groups.
+	//
+	//	counts[3] -> typeMax
+	//		Maximum rendered width of all type annotations.
+	//		Used to right-pad shorter types so expressions align.
+	//
+	//	counts[4] -> table (0/1)
+	//		Enables strict table-style alignment even if some rows omit types.
+	//		When enabled, missing annotations are treated as empty cells.
+	//
+	// These values are immutable constraints.
+	// Each row computes its own padding relative to them.
 	fn varDecl(&self, mut d: &ast::Var, head: bool, mut counts: [5]int) {
-		// Layout of counts.
-		mut typeAnnoMax := counts[0]      // maximum name length for type alignment column
-		mut nameMax := counts[1]          // maximum name length of the group
-		nameMaxHaveType := counts[2] == 1 // whether nameMax owner have type annotation
-		mut typeMax := counts[3]          // maximum length of the type annotations
-		table := counts[4] == 1           // whether the alignment is like table, column-by-column
+		typeAnnoMax := counts[0]          // width reserved for ':' alignment column
+		nameMax := counts[1]              // target width before assignment operator
+		nameMaxHaveType := counts[2] == 1 // whether widest entry had a type
+		typeMax := counts[3]              // width of the type column
+		table := counts[4] == 1           // strict column layout mode
 
 		if head {
 			if len(d.Directives) != 0 {
@@ -848,60 +886,77 @@ impl formatter {
 		nameLen := utf8::RuneCountStr(d.Name)
 		self.write(d.Name)
 		self.row = d.Token.Row
-		mut typ := 0
+		mut typ := 0 // rendered rune width of the formatted type (if present)
 		if d.Type != nil {
 			self.write(": ")
-			// If typeAnnoMax>0, add the missing leading spaces for type annotation.
+
+			// Shift ':' so all annotations start at the same column.
 			if typeAnnoMax > 0 {
-				diff := typeAnnoMax - nameLen
+				mut diff := typeAnnoMax - nameLen
+
+				// If the reference row had no type, ": " already consumed space.
+				if !nameMaxHaveType {
+					diff--
+				}
 				if diff > 0 {
 					self.write(strings::Repeat(" ", diff))
 				}
 			}
+
+			// Measure actual formatted width of the type.
 			n := len(self.ubuf())
 			self.formatType(d.Type)
-			typ = utf8::RuneCount(self.ubuf()[n:]) // subtract the runes of type
+			typ = utf8::RuneCount(self.ubuf()[n:])
 			self.row = d.Type.Token.Row
 		}
+
 		if d.X != nil {
-			// If nameMax>0, we have to do alignment.
 			if nameMax > 0 {
-				// If typeMax>0 and d.Type==nil, we have type alignment.
-				// But this variable have not type annotation.
-				// Add spaces for the missing ": " part of type annotations.
+				// The remaining width budget before '=' column.
+				mut align := nameMax
+
+				// Rows missing a type must simulate the width of ":"
+				// when strict alignment is requested.
 				if (nameMaxHaveType || table) && typeMax > 0 && d.Type == nil {
-					nameMax += 2
+					align++ // Add alignment for the ":" token.
+					// If the maximum name length have a type annotation,
+					// also add alignment for the separator space
+					// after the ":" token.
+					if nameMaxHaveType {
+						align++
+					}
 				}
-				// If the maximum name have not type annotation and this variable have,
-				// remove the spaces of the ": " part of type annotations.
+
+				// If this row has a type but the reference row did not,
+				// cancel the implicit ": " shift.
 				if !nameMaxHaveType && d.Type != nil {
-					nameMax -= 2
+					align -= 2
 				}
-				// If we have type alignment and this variable have type annotation,
-				// add missing trailing spaces to reach maximum type annotation length.
+
+				// Pad type to the maximum type width.
 				if typeMax > 0 && d.Type != nil {
 					diff := typeMax - typ
 					if diff > 0 {
 						self.write(strings::Repeat(" ", diff))
 					}
-					// Remove the added spaces from alignment.
-					nameMax -= diff
+					align -= diff
 				}
-				// Remove the spaces of type annotation length of this variable.
-				nameMax -= typ
-				// If type annotation alignemnt exist and this variable have type annotation,
-				// remove the spaces of annotation alignment, because type annotation is aligned.
-				// Otherwise, remove spaces for name length,
-				// there are still missing spaces for type annotations.
+
+				// Subtract already emitted content from alignment budget.
+				align -= typ
+
 				if typeAnnoMax > 0 && d.Type != nil {
-					nameMax -= typeAnnoMax
+					align -= typeAnnoMax
 				} else {
-					nameMax -= nameLen
+					align -= nameLen
 				}
-				if nameMax > 0 {
-					self.write(strings::Repeat(" ", nameMax))
+
+				// Final padding so '=' lands in the target column.
+				if align > 0 {
+					self.write(strings::Repeat(" ", align))
 				}
 			}
+
 			self.write(" ")
 			self.write(d.Op.Kind)
 			self.write(" ")
@@ -1055,7 +1110,7 @@ impl formatter {
 
 		// Returns maximum length of assignment alignment.
 		// j is the current varaible
-		getAssignMax := fn(mut j: int, mut &typeAnnoMax: *int): (nameMax: int, nameMaxHaveType: int, typeMax: int, table: int) {
+		getAssignMax := fn(mut j: int, mut &typeAnnoMax: *int, shouldTable: bool): (nameMax: int, nameMaxHaveType: int, typeMax: int, table: int) {
 			counts = counts[:unsafe { *i }-start] // use all capacity of counts
 			for j > start {
 				v := vars[j-1]
@@ -1089,7 +1144,7 @@ impl formatter {
 					typeMax = c[1]
 				}
 			}
-			if fullComment {
+			if fullComment || shouldTable {
 				table = 1
 				// typeAnnoMax must strore the maximum length of the group for type alignment.
 				*typeAnnoMax = maxNameWithType
@@ -1145,7 +1200,7 @@ impl formatter {
 		mut z := start
 		for z < *i; z++ {
 			mut typeAnnoMax := getTypeAnnoMax(z)
-			nameMax, nameMaxHaveType, typeMax, table := getAssignMax(z, &typeAnnoMax)
+			nameMax, nameMaxHaveType, typeMax, table := getAssignMax(z, &typeAnnoMax, true)
 			self.varDecl(vars[z], false, [typeAnnoMax, nameMax, nameMaxHaveType, typeMax, table])
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
@@ -1215,6 +1270,7 @@ impl formatter {
 				j++
 			}
 		}
+		self.row++ // Increase for "\n)" suffix.
 		self.doneIndent()
 		self.buf.Write(self.indent)!
 		self.write(")")
