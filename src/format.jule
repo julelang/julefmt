@@ -1196,7 +1196,6 @@ impl formatter {
 			}
 			self.write("\n")
 		}
-		self.row = rows[len(rows)-1] + 1 // Add +1 offset for "\n)" suffix.
 	}
 
 	fn varGroup(&self, mut root: &ast::Var, mut &i: *int) {
@@ -1209,7 +1208,7 @@ impl formatter {
 			old := j
 			self.varSubGroup(root.Group, &j)
 			if old != j {
-				if j < len(root.Group) {
+				if j < len(root.Group) && root.Group[j].Token.Row-self.row > 1 {
 					self.write("\n")
 				}
 			} else {
