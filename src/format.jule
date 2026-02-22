@@ -2285,9 +2285,15 @@ impl exprFormatter {
 	fn selector(&self, mut si: &ast::SelectorExpr) {
 		self.format(si.X)
 		self.write(".")
+		mut indent := false
+		defer {
+			if indent {
+				self.fmt.doneIndent()
+			}
+		}
 		if self.fmt.row != si.Name.Row {
+			indent = true
 			self.fmt.addIndent()
-			defer { self.fmt.doneIndent() }
 			self.write("\n")
 			self.fmt.buf.Write(self.fmt.indent)!
 		}
@@ -2318,10 +2324,16 @@ impl exprFormatter {
 		//			"baz") else {
 		//		println("error handling...")
 		//	}
+		mut indent := false
+		defer {
+			if indent {
+				self.fmt.doneIndent()
+			}
+		}
 		sie, _ := f.Func.Data.(&ast::SelectorExpr)
 		if sie != nil && sie.X.Token.Row != sie.Name.Row {
+			indent = true
 			self.fmt.addIndent()
-			defer { self.fmt.doneIndent() }
 		}
 
 		// save state of zip mode
