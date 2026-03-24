@@ -1929,6 +1929,11 @@ impl scopeFormatter {
 		}
 	}
 
+	fn throwStmt(&self, mut t: &ast::Throw) {
+		self.write("throw ")
+		self.fmt.formatExpr(t.Error)
+	}
+
 	fn formatStmt(&self, mut stmt: ast::StmtData, options: scopeOption) {
 		match type stmt {
 		| &ast::Var:
@@ -1964,6 +1969,8 @@ impl scopeFormatter {
 			self.selectCase(stmt.(&ast::Select))
 		| &ast::Assign:
 			self.assign(stmt.(&ast::Assign))
+		| &ast::Throw:
+			self.throwStmt(stmt.(&ast::Throw))
 		}
 	}
 
