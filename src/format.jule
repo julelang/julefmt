@@ -1188,12 +1188,8 @@ impl formatter {
 					break
 				}
 			}
-			if v.X != nil {
-				self.formatExpr(v.X)
-				self.setBuf(self.ubuf()[:n])
-				if row != -1 && v.Token.Row != self.row {
-					break
-				}
+			if row != -1 && v.X != nil && v.Token.Row != v.X.End.Row {
+				break
 			}
 			counts = append(counts, [name, typ])
 		}
