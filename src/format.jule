@@ -695,7 +695,7 @@ impl formatter {
 		mut flds := make([]&field, 0, len(fields))
 		for (_, mut f) in fields {
 			flds = append(flds, &field{
-				f: f,
+				f:     f,
 				token: f.Token,
 			})
 		}
@@ -2411,60 +2411,184 @@ impl exprFormatter {
 		}
 	}
 
-	fn typedBraceLit(&self, mut lit: &ast::TypedBraceLit) {
-		self.fmt.formatType(lit.Type)
-		if len(lit.Lit.X) == 0 {
+	fn keyValSubGroup(&self, mut pairs: []&ast::Expr, mut &i: *int, newline: bool) {
+		mut lines := make([][2]str, 0, len(pairs[*i:]))
+		mut comments := make([][]&comment, 0, len(pairs[*i:]))
+		mut counts := make([][]int, 0, len(pairs[*i:]))
+		mut nameMax := 0
+		mut lineMax := 0
+
+		mut n := self.fmt.buf.Len()
+		start := *i
+
+		self.fmt.row = -1
+		for *i < len(pairs); *i++ {
+			mut p := pairs[*i]
+			if *i != start {
+				// If the row is not first, compare current row with the previous one.
+				// If the difference greatest than one row, end the iteration.
+				if p.Token.Row-pairs[*i-1].End.Row > 1 {
+					break
+				}
+				// Break grouping if expression have new-lines.
+				if p.Token.Row != p.End.Row {
+					break
+				}
+			}
+
+			mut kvx := p.Data.(&ast::KeyValueExpr)
+
+			self.fmt.formatExpr(kvx.Key)
+			mut name := str(self.fmt.ubuf()[n:])
+			self.fmt.setBuf(self.fmt.ubuf()[:n])
+			namelen := utf8::RuneCountStr(name)
+			self.fmt.row = p.Token.Row
+
+			if nameMax < namelen {
+				nameMax = namelen
+			}
+
+			self.fmt.formatExpr(kvx.Value)
+			mut line := str(self.fmt.ubuf()[n:])
+			linelen := utf8::RuneCountStr(line)
+			self.fmt.setBuf(self.fmt.ubuf()[:n])
+
+			// Collect trailing comments.
+			mut rowComments := make([]&comment, 0)
+			mut &_rowComments := &rowComments // for closure
+			self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(mut c: &comment) {
+				unsafe { *_rowComments = append(*_rowComments, c) }
+			})
+			comments = append(comments, rowComments)
+
+			if lineMax < linelen {
+				lineMax = linelen
+			}
+
+			lines = append(lines, [name, line])
+			counts = append(counts, [namelen, linelen])
+
+			// Break grouping if expression have new-lines.
+			if p.Token.Row != p.End.Row {
+				// This one is the first iteration.
+				// Advance to skip.
+				if *i == start {
+					*i++
+				}
+				break
+			}
+		}
+
+		n = 0
+		mut max := 0
+		mut comma := false
+		for j, pline in lines {
+			if j > 0 {
+				if !comma {
+					self.write(",")
+				}
+				if newline {
+					self.write("\n")
+				} else {
+					self.write(" ")
+				}
+			}
+			comma = false
+			if newline {
+				self.fmt.buf.Write(self.fmt.indent)!
+			}
+			name, line := pline[0], pline[1]
+			pcounts := counts[j]
+			namelen, linelen := pcounts[0], pcounts[1]
+
+			self.fmt.buf.WriteStr(name)!
+			self.write(": ")
+			// Add padding for newline mode.
+			if newline {
+				self.write(strings::Repeat(" ", nameMax-namelen))
+			}
+			self.fmt.buf.WriteStr(line)!
+
+			pcomments := comments[j]
+			if len(pcomments) > 0 {
+				self.write(",")
+				comma = true
+				if n == 0 {
+					max, n = self.getMax2(lines[j:], comments[j:])
+				}
+				self.write(strings::Repeat(" ", paddingAbs(max-linelen)))
+				for _, c in pcomments {
+					self.write(" ")
+					self.fmt.writeComment(c)
+					n--
+				}
+			} else if j+1 >= len(lines) && newline {
+				// Add comma for the last line.
+				self.write(",")
+			}
+		}
+	}
+
+	fn responsiveKeyVals(&self, mut lit: &ast::BraceLit) {
+		if len(lit.X) == 0 {
 			self.write("{}")
-			self.fmt.row = lit.Lit.End.Row
+			self.fmt.row = lit.End.Row
 			ret
 		}
-		mut newline := false
-		for _, expr in lit.Lit.X {
-			// Compare with kind row. Because kind and brace should be same line.
-			// Therefore, kind row also means brace row.
-			if expr.Token.Row != lit.Type.Token.Row {
-				newline = true
-				break
+		mut row := lit.X[0].Token.Row
+		// Break inlining if expression have new-lines.
+		mut newline := row != lit.Token.Row || row != lit.X[0].End.Row
+		if !newline {
+			for _, expr in lit.X {
+				// Compare with kind row. Because kind and brace should be same line.
+				// Therefore, kind row also means brace row.
+				if expr.Token.Row != row {
+					newline = true
+					break
+				}
 			}
 		}
 		self.write("{")
 		if newline {
 			self.write("\n")
+			self.fmt.addIndent()
 		}
-		self.fmt.addIndent()
-		for (i, mut expr) in lit.Lit.X {
-			diff := len(lit.Lit.X) - i
-			if newline {
-				self.fmt.addGlobalPaddingForComment(expr.Token.Row)
-				const Pad = true
-				self.fmt.writeCommentsExceptL(self.fmt.row, expr.Token.Row, Pad)
-				self.fmt.buf.Write(self.fmt.indent)!
-			}
-			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
-			self.format(expr)
-			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
-			if newline {
-				self.write(",")
-				if diff < 2 || lit.Lit.X[i+1].Token.Row != self.fmt.row {
-					self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(c: &comment) {
-						self.write(" ")
-						self.fmt.writeComment(c)
-					})
-				}
+		mut j := 0
+		for j < len(lit.X) {
+			if j > 0 && newline {
 				self.write("\n")
-			} else if diff > 1 {
-				self.write(", ")
+			}
+			row = lit.X[j].Token.Row
+
+			// Lookup for first comment.
+			c := self.fmt.seekCommentExcept(row)
+
+			if row-self.fmt.row > 1 && (c == nil || c.row-self.fmt.row > 1) {
+				self.write("\n")
+			}
+
+			self.fmt.row = self.fmt.writeCommentsExcept(row)
+			if row-self.fmt.row > 1 {
+				self.write("\n")
+			}
+			old := j
+			self.keyValSubGroup(lit.X, &j, newline)
+			if old == j {
+				j++
 			}
 		}
-		self.fmt.addGlobalPaddingForComment(lit.Lit.End.Row)
-		const Pad = true
-		self.fmt.writeCommentsExceptL(lit.Lit.End.Row, lit.Lit.End.Row, Pad)
-		self.fmt.doneIndent()
 		if newline {
+			self.fmt.doneIndent()
+			self.write("\n")
 			self.fmt.buf.Write(self.fmt.indent)!
 		}
 		self.write("}")
-		self.fmt.row = lit.Lit.End.Row
+		self.fmt.row = lit.End.Row
+	}
+
+	fn typedBraceLit(&self, mut lit: &ast::TypedBraceLit) {
+		self.fmt.formatType(lit.Type)
+		self.braceLit(lit.Lit)
 	}
 
 	fn getMax(*self, lines: [][]byte, rows: []rowAlign, comments: [][]&comment): (max: int, n: int) {
@@ -2483,6 +2607,24 @@ impl exprFormatter {
 			}
 			if rows[n].row-rows[n-1].row > 1 {
 				break
+			}
+		}
+		ret
+	}
+
+	fn getMax2(*self, lines: [][2]str, comments: [][]&comment): (max: int, n: int) {
+		if len(comments) == 0 || len(comments[0]) == 0 {
+			ret
+		}
+		max = utf8::RuneCountStr(lines[0][1])
+		n = 1
+		for n < len(lines); n++ {
+			if len(comments[n]) == 0 {
+				break
+			}
+			diff := utf8::RuneCountStr(lines[n][1])
+			if max < diff {
+				max = diff
 			}
 		}
 		ret
@@ -2674,15 +2816,20 @@ impl exprFormatter {
 	}
 
 	fn braceLit(&self, mut lit: &ast::BraceLit) {
+		if len(lit.X) > 0 {
+			_, ok := lit.X[0].Data.(&ast::KeyValueExpr)
+			if ok {
+				self.responsiveKeyVals(lit)
+				ret
+			}
+		}
 		self.write("{")
 		self.responsiveExprs[&ast::BraceLit](lit)
 		self.write("}")
 	}
 
 	fn keyValPair(&self, mut pair: &ast::KeyValueExpr) {
-		self.format(pair.Key)
-		self.write(": ")
-		self.format(pair.Value)
+		panic("should-be-unreachable")
 	}
 
 	fn slice(&self, mut s: &ast::SliceExpr) {

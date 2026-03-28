@@ -760,6 +760,138 @@ let first: [256]byte = [
 	"[bad.unmatched.bracket:": "error",
 }`,
 		out: `let canonicalHostTests = map[str]str{
+	"www.example.com":         "www.example.com",
+	"WWW.EXAMPLE.COM":         "www.example.com",
+	"wWw.eXAmple.CoM":         "www.example.com",
+	"www.example.com:80":      "www.example.com",
+	"192.168.0.10":            "192.168.0.10",
+	"192.168.0.5:8080":        "192.168.0.5",
+	"2001:4860:0:2001::68":    "2001:4860:0:2001::68",
+	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
+	"www.bücher.de":           "www.xn--bcher-kva.de",
+	"www.example.com.":        "www.example.com",
+	// TODO: Fix canonicalHost so that all of the following malformed
+	// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+	".":                       "",
+	"..":                      ".",
+	"...":                     "..",
+	".net":                    ".net",
+	".net.":                   ".net",
+	"a..":                     "a.",
+	"b.a..":                   "b.a.",
+	"weird.stuff...":          "weird.stuff..",
+	"[bad.unmatched.bracket:": "error",
+}`,
+	},
+	{
+		data: `let canonicalHostTests = map[str]str{
+	"www.example.com": "www.example.com",
+	"WWW.EXAMPLE.COM": "www.example.com",
+	"wWw.eXAmple.CoM": "www.example.com",
+	"www.example.com:80": "www.example.com",
+	"192.168.0.10": "192.168.0.10",
+	"192.168.0.5:8080": "192.168.0.5",
+	"2001:4860:0:2001::68": "2001:4860:0:2001::68",
+	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
+	"www.bücher.de": "www.xn--bcher-kva.de",
+	"www.example.com.": "www.example.com",
+
+	// TODO: Fix canonicalHost so that all of the following malformed
+// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+	".": "",
+	"..": ".",
+	"...": "..",
+	".net": ".net",
+	".net.": ".net",
+	"a..": "a.",
+	"b.a..": "b.a.",
+	"weird.stuff...": "weird.stuff..",
+	"[bad.unmatched.bracket:": "error",
+}`,
+		out: `let canonicalHostTests = map[str]str{
+	"www.example.com":         "www.example.com",
+	"WWW.EXAMPLE.COM":         "www.example.com",
+	"wWw.eXAmple.CoM":         "www.example.com",
+	"www.example.com:80":      "www.example.com",
+	"192.168.0.10":            "192.168.0.10",
+	"192.168.0.5:8080":        "192.168.0.5",
+	"2001:4860:0:2001::68":    "2001:4860:0:2001::68",
+	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
+	"www.bücher.de":           "www.xn--bcher-kva.de",
+	"www.example.com.":        "www.example.com",
+
+	// TODO: Fix canonicalHost so that all of the following malformed
+	// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+	".":                       "",
+	"..":                      ".",
+	"...":                     "..",
+	".net":                    ".net",
+	".net.":                   ".net",
+	"a..":                     "a.",
+	"b.a..":                   "b.a.",
+	"weird.stuff...":          "weird.stuff..",
+	"[bad.unmatched.bracket:": "error",
+}`,
+	},
+	{
+		data: `let canonicalHostTests = map[str]str{
+	"www.example.com": "www.example.com",
+	"WWW.EXAMPLE.COM": "www.example.com",
+	"wWw.eXAmple.CoM": "www.example.com",
+	"www.example.com:80": "www.example.com",
+	"192.168.0.10": "192.168.0.10",
+	"192.168.0.5:8080": "192.168.0.5",
+	"2001:4860:0:2001::68": "2001:4860:0:2001::68",
+	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
+	"www.bücher.de": "www.xn--bcher-kva.de",
+	"www.example.com.": "www.example.com",
+	
+	// TODO: Fix canonicalHost so that all of the following malformed
+// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+
+	".": "",
+	"..": ".",
+	"...": "..",
+	".net": ".net",
+	".net.": ".net",
+	"a..": "a.",
+	"b.a..": "b.a.",
+	"weird.stuff...": "weird.stuff..",
+	"[bad.unmatched.bracket:": "error",
+}`,
+		out: `let canonicalHostTests = map[str]str{
+	"www.example.com":         "www.example.com",
+	"WWW.EXAMPLE.COM":         "www.example.com",
+	"wWw.eXAmple.CoM":         "www.example.com",
+	"www.example.com:80":      "www.example.com",
+	"192.168.0.10":            "192.168.0.10",
+	"192.168.0.5:8080":        "192.168.0.5",
+	"2001:4860:0:2001::68":    "2001:4860:0:2001::68",
+	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
+	"www.bücher.de":           "www.xn--bcher-kva.de",
+	"www.example.com.":        "www.example.com",
+
+	// TODO: Fix canonicalHost so that all of the following malformed
+	// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+
+	".":                       "",
+	"..":                      ".",
+	"...":                     "..",
+	".net":                    ".net",
+	".net.":                   ".net",
+	"a..":                     "a.",
+	"b.a..":                   "b.a.",
+	"weird.stuff...":          "weird.stuff..",
+	"[bad.unmatched.bracket:": "error",
+}`,
+	},
+	{
+		data: `let canonicalHostTests = map[str]str{
 	"www.example.com": "www.example.com",
 	"WWW.EXAMPLE.COM": "www.example.com",
 	"wWw.eXAmple.CoM": "www.example.com",
@@ -771,8 +903,9 @@ let first: [256]byte = [
 	"www.bücher.de": "www.xn--bcher-kva.de",
 	"www.example.com.": "www.example.com",
 	// TODO: Fix canonicalHost so that all of the following malformed
-	// domain names trigger an error. (This list is not exhaustive, e.g.
+// domain names trigger an error. (This list is not exhaustive, e.g.
 	// malformed internationalized domain names are missing.)
+
 	".": "",
 	"..": ".",
 	"...": "..",
@@ -781,6 +914,31 @@ let first: [256]byte = [
 	"a..": "a.",
 	"b.a..": "b.a.",
 	"weird.stuff...": "weird.stuff..",
+	"[bad.unmatched.bracket:": "error",
+}`,
+		out: `let canonicalHostTests = map[str]str{
+	"www.example.com":         "www.example.com",
+	"WWW.EXAMPLE.COM":         "www.example.com",
+	"wWw.eXAmple.CoM":         "www.example.com",
+	"www.example.com:80":      "www.example.com",
+	"192.168.0.10":            "192.168.0.10",
+	"192.168.0.5:8080":        "192.168.0.5",
+	"2001:4860:0:2001::68":    "2001:4860:0:2001::68",
+	"[2001:4860:0:::68]:8080": "2001:4860:0:::68",
+	"www.bücher.de":           "www.xn--bcher-kva.de",
+	"www.example.com.":        "www.example.com",
+	// TODO: Fix canonicalHost so that all of the following malformed
+	// domain names trigger an error. (This list is not exhaustive, e.g.
+	// malformed internationalized domain names are missing.)
+
+	".":                       "",
+	"..":                      ".",
+	"...":                     "..",
+	".net":                    ".net",
+	".net.":                   ".net",
+	"a..":                     "a.",
+	"b.a..":                   "b.a.",
+	"weird.stuff...":          "weird.stuff..",
 	"[bad.unmatched.bracket:": "error",
 }`,
 	},
@@ -1085,6 +1243,140 @@ invalidIndex = '\xff'
 	invalidIndex = '\xff'
 	invalidIndex = '\xff'
 )`,
+	},
+	{
+		data: `let _ = foo{
+Ln2:   newFL(Ln2		), // bar
+Log2E		: newFL(1 / Ln2),// foo
+	Ln10: fn() {
+// hello world
+	}, 	// hello world
+	Log10Elsnflsnf: newFL(1 / Ln10), // foo
+	Log10	:          newFL(1 / Ln10), // bar
+}`,
+		out: `let _ = foo{
+	Ln2:   newFL(Ln2),     // bar
+	Log2E: newFL(1 / Ln2), // foo
+	Ln10: fn() {
+		// hello world
+	}, // hello world
+	Log10Elsnflsnf: newFL(1 / Ln10), // foo
+	Log10:          newFL(1 / Ln10), // bar
+}`,
+	},
+	{
+		data: `let _ = foo{
+Ln2:   newFL(Ln2		), // bar
+Log2E		: newFL(1 / Ln2),// foo
+	
+	Log10Elsnflsnf: newFL(1 / Ln10), // foo
+	Log10	:          newFL(1 / Ln10), // bar
+}`,
+		out: `let _ = foo{
+	Ln2:   newFL(Ln2),     // bar
+	Log2E: newFL(1 / Ln2), // foo
+
+	Log10Elsnflsnf: newFL(1 / Ln10), // foo
+	Log10:          newFL(1 / Ln10), // bar
+}`,
+	},
+	{
+		data: `let _ = foo{
+Ln2:   newFL(Ln2		), // bar
+Log2E		: newFL(1 / Ln2),// foo
+	Log10Elsnflsnf +
+	 8: newFL(1 / Abc), // foo
+	Log10	:          newFL(1 / Ln10), // bar
+}`,
+		out: `let _ = foo{
+	Ln2:   newFL(Ln2),     // bar
+	Log2E: newFL(1 / Ln2), // foo
+	Log10Elsnflsnf +
+		8: newFL(1 / Abc), // foo
+	Log10: newFL(1 / Ln10), // bar
+}`,
+	},
+	{
+		data: `let _ = foo{
+Ln2:   newFL(Ln2		), // bar
+Log2E		: newFL(1 / Ln2),// foo
+
+	Log10Elsnflsnf +
+	 8: newFL(1 / Abc), // foo
+	Log10	:          newFL(1 / Ln10), // bar
+}`,
+		out: `let _ = foo{
+	Ln2:   newFL(Ln2),     // bar
+	Log2E: newFL(1 / Ln2), // foo
+
+	Log10Elsnflsnf +
+		8: newFL(1 / Abc), // foo
+	Log10: newFL(1 / Ln10), // bar
+}`,
+	},
+	{
+		data: `let _ = foo{
+Ln2:   newFL(Ln2		), // bar
+Log2E		: newFL(1 / Ln2),// foo
+
+	Log10Elsnflsnf +
+	 8: newFL(1 / Abc), // foo
+
+	Log10	:          newFL(1 / Ln10), // bar
+}`,
+		out: `let _ = foo{
+	Ln2:   newFL(Ln2),     // bar
+	Log2E: newFL(1 / Ln2), // foo
+
+	Log10Elsnflsnf +
+		8: newFL(1 / Abc), // foo
+
+	Log10: newFL(1 / Ln10), // bar
+}`,
+	},
+	{
+		data: `let _ = foo{
+Ln2:   newFL(Ln2		),}`,
+		out: `let _ = foo{
+	Ln2: newFL(Ln2),
+}`,
+	},
+	{
+		data: `let _ = foo{Ln2:   newFL(Ln2		),
+		}`,
+		out: `let _ = foo{Ln2: newFL(Ln2)}`,
+	},
+	{
+		data: `let _ = append(self.vars, nilVar{var: 		 var,	 safe:	 safe})`,
+		out:  `let _ = append(self.vars, nilVar{var: var, safe: safe})`,
+	},
+	{
+		data: `let mut rv 	= &sema:: Var	{
+Extern: true,					 // to use identifier directly
+	Name:   resultName,
+		Name:   resultName, 	// foo
+Name: resultName22424224,		 // fe
+}`,
+		out: `let mut rv = &sema::Var{
+	Extern: true, // to use identifier directly
+	Name:   resultName,
+	Name:   resultName,         // foo
+	Name:   resultName22424224, // fe
+}`,
+	},
+	{
+		data: `let mut rv 	= &sema:: Var	{
+Extern: true,					 // to use identifier directly
+	Name:   resultName,// bar
+		Name:   resultName, 	// foo
+Name: resultName22424224,		 // fe
+}`,
+		out: `let mut rv = &sema::Var{
+	Extern: true,               // to use identifier directly
+	Name:   resultName,         // bar
+	Name:   resultName,         // foo
+	Name:   resultName22424224, // fe
+}`,
 	},
 ])
 
