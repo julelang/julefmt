@@ -2410,7 +2410,7 @@ impl exprFormatter {
 		}
 	}
 
-	fn keyValSubGroup(&self, mut pairs: []&ast::Expr, mut &i: *int, newline: bool) {
+	fn keyValSubGroup(&self, mut pairs: []&ast::Expr, mut &i: *int, mut &comma: *bool, newline: bool) {
 		mut lines := make([][2]str, 0, len(pairs[*i:]))
 		mut comments := make([][]&comment, 0, len(pairs[*i:]))
 		mut counts := make([][]int, 0, len(pairs[*i:]))
@@ -2480,10 +2480,9 @@ impl exprFormatter {
 
 		n = 0
 		mut max := 0
-		mut comma := false
 		for j, pline in lines {
 			if j > 0 {
-				if !comma {
+				if !*comma {
 					self.write(",")
 				}
 				if newline {
@@ -2492,7 +2491,7 @@ impl exprFormatter {
 					self.write(" ")
 				}
 			}
-			comma = false
+			*comma = false
 			if newline {
 				self.fmt.buf.Write(self.fmt.indent)!
 			}
@@ -2511,7 +2510,7 @@ impl exprFormatter {
 			pcomments := comments[j]
 			if len(pcomments) > 0 {
 				self.write(",")
-				comma = true
+				*comma = true
 				if n == 0 {
 					max, n = self.getMax2(lines[j:], comments[j:])
 				}
@@ -2521,9 +2520,6 @@ impl exprFormatter {
 					self.fmt.writeComment(c)
 					n--
 				}
-			} else if j+1 >= len(lines) && newline {
-				// Add comma for the last line.
-				self.write(",")
 			}
 		}
 	}
@@ -2534,6 +2530,7 @@ impl exprFormatter {
 			self.fmt.row = lit.End.Row
 			ret
 		}
+		mut comma := false
 		mut row := lit.X[0].Token.Row
 		// Break inlining if expression have new-lines.
 		mut newline := row != lit.Token.Row || row != lit.X[0].End.Row
@@ -2554,8 +2551,15 @@ impl exprFormatter {
 		}
 		mut j := 0
 		for j < len(lit.X) {
-			if j > 0 && newline {
-				self.write("\n")
+			if j > 0 {
+				if !comma {
+					self.write(",")
+				}
+				if newline {
+					self.write("\n")
+				} else {
+					self.write(" ")
+				}
 			}
 			row = lit.X[j].Token.Row
 
@@ -2571,12 +2575,16 @@ impl exprFormatter {
 				self.write("\n")
 			}
 			old := j
-			self.keyValSubGroup(lit.X, &j, newline)
+			self.keyValSubGroup(lit.X, &j, &comma, newline)
 			if old == j {
 				j++
 			}
 		}
 		if newline {
+			if j > 0 && !comma {
+				// Add comma for the last element.
+				self.write(",")
+			}
 			self.fmt.doneIndent()
 			self.write("\n")
 			self.fmt.buf.Write(self.fmt.indent)!

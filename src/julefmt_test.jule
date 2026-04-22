@@ -1378,6 +1378,34 @@ Name: resultName22424224,		 // fe
 	Name:   resultName22424224, // fe
 }`,
 	},
+	{
+		data: `let 	testsQuatCosh:[]	testQuatQuat 	=[
+{		q		: {1, 1, 				1, 1} ,r	: fn () :Quat	 {
+		ret
+				}( ) } ,
+]`,
+		out: `let testsQuatCosh: []testQuatQuat = [
+	{q: {1, 1, 1, 1}, r: fn(): Quat {
+		ret
+	}()},
+]`,
+	},
+	{
+		data: `let 	testsQuatCosh:[]	testQuatQuat 	=[
+{		q		: {1, 1, 				1, 1} ,r	: fn () :Quat	 {
+		ret
+				}( ),          	w:		123 } ,
+]`,
+		out: `let testsQuatCosh: []testQuatQuat = [
+	{
+		q: {1, 1, 1, 1},
+		r: fn(): Quat {
+			ret
+		}(),
+		w: 123,
+	},
+]`,
+	},
 ])
 
 #test
