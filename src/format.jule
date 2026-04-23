@@ -74,36 +74,16 @@ impl formatter {
 	// Writes comment and returns adjustment for row.
 	// Adding adjustment to the row data gives the row with comment adjusted.
 	fn writeComment(&self, c: &comment): (adjustment: int) {
-		if len(self.indent) > 0 && c.txt[1] == '*' {
-			// Range comment should be checked.
-			// Ending is should be padded by indentation.
-			mut i := utf8::RuneCountStr(c.txt) - 3
-		lookup:
-			for i > 1; i-- {
-				b := c.txt[i]
-				match b {
-				| ' ' | '\t' | '\v' | '\r':
-					continue
-				| '\n':
-					cmt := c.txt[:i+1]
-					i = bytes::LastIndexByte(self.ubuf(), '\n')
-					self.write(cmt)
-					self.buf.Write(self.indent)!
-					self.write("*/")
-					adjustment = strings::Count(cmt, "\n")
-					ret
-				|:
-					break lookup
-				}
-			}
-		}
 		if c.txt[1] == '/' {
 			// Single-line comment, trim trailing spaces before writing.
 			self.write(strings::TrimRight(c.txt, " \t\v\b"))
 			ret
 		}
 		self.write(c.txt)
-		ret 0
+		if len(self.indent) > 0 && c.txt[1] == '*' {
+			adjustment = strings::Count(c.txt, "\n")
+		}
+		ret
 	}
 
 	fn seekCommentExcept(&self, row: int): &comment {
