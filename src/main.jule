@@ -110,11 +110,11 @@ async fn cliMode() {
 	mut buf := make([]byte, 1024)
 	for {
 		n := os::Stdin().Read(buf[i:]).await else {
+			if error == io::EOF {
+				break
+			}
 			writeError("error: could not read from stdin").await
 			ret
-		}
-		if n == io::EOF {
-			break
 		}
 		i += n
 		if i >= len(buf) {
