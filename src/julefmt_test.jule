@@ -5,23 +5,23 @@
 use "std/testing"
 
 struct formatTest {
-	data: str
-	out:  str
+	data: string
+	out:  string
 }
 
 let formatTests = []formatTest([
 	{
 		data: `	const 	(
-kind	: str       = types :: F32
+kind	: string       = types :: F32
 	max				 = types	::MaxF32
 			min 		= types::MinF32
 	smallestNonzero =	 types::		SmallestNonzeroF32
 	)	`,
 		out: `const (
-	kind:           str = types::F32
-	max                 = types::MaxF32
-	min                 = types::MinF32
-	smallestNonzero     = types::SmallestNonzeroF32
+	kind:           string = types::F32
+	max                    = types::MaxF32
+	min                    = types::MinF32
+	smallestNonzero        = types::SmallestNonzeroF32
 )`,
 	},
 	{
@@ -1381,26 +1381,26 @@ Name: resultName22424224,		 // fe
 	{
 		data: `let 	testsQuatCosh:[]	testQuatQuat 	=[
 {		q		: {1, 1, 				1, 1} ,r	: fn () :Quat	 {
-		ret
+		return
 				}( ) } ,
 ]`,
 		out: `let testsQuatCosh: []testQuatQuat = [
 	{q: {1, 1, 1, 1}, r: fn(): Quat {
-		ret
+		return
 	}()},
 ]`,
 	},
 	{
 		data: `let 	testsQuatCosh:[]	testQuatQuat 	=[
 {		q		: {1, 1, 				1, 1} ,r	: fn () :Quat	 {
-		ret
+		return
 				}( ),          	w:		123 } ,
 ]`,
 		out: `let testsQuatCosh: []testQuatQuat = [
 	{
 		q: {1, 1, 1, 1},
 		r: fn(): Quat {
-			ret
+			return
 		}(),
 		w: 123,
 	},
@@ -1412,7 +1412,7 @@ Name: resultName22424224,		 // fe
 async fn testFormat(t: &testing::T) {
 	for i, c in formatTests {
 		out := format("<test-input>", []byte(c.data)).await
-		if str(out) != c.out {
+		if string(out) != c.out {
 			t.Errorf("#{} failed", i)
 		}
 	}

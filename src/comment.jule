@@ -7,7 +7,7 @@ use "std/jule/token"
 struct comment {
 	row: int
 	col: int
-	txt: str
+	txt: string
 }
 
 struct commentMap {
@@ -34,18 +34,18 @@ impl commentMap {
 			_ = copy((*tokens)[i:], (*tokens)[i+1:])
 			*tokens = (*tokens)[:len(*tokens)-1]
 		}
-		ret cm
+		return cm
 	}
 
 	fn first(mut *self, row: int): &comment {
 		if len(self.buf) == 0 {
-			ret nil
+			return nil
 		}
 		mut c := self.buf[0]
 		if row != -1 && c.row > row {
-			ret nil
+			return nil
 		}
-		ret c
+		return c
 	}
 
 	fn dropFirst(mut *self) {
@@ -54,24 +54,24 @@ impl commentMap {
 
 	fn pop(mut *self, row: int): &comment {
 		if len(self.buf) == 0 {
-			ret nil
+			return nil
 		}
 		mut c := self.buf[0]
 		if c.row > row {
-			ret nil
+			return nil
 		}
 		self.dropFirst()
-		ret c
+		return c
 	}
 
 	fn find(mut *self, row: int): &comment {
 		if len(self.buf) == 0 {
-			ret nil
+			return nil
 		}
 		mut c := self.buf[0]
 		if c.row > row {
-			ret nil
+			return nil
 		}
-		ret c
+		return c
 	}
 }

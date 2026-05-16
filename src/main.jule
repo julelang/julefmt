@@ -13,64 +13,64 @@ use "std/strings"
 
 let mut _W = new(bool, false) // Flag -w
 
-async fn writeError(message: str) {
-	os::Stderr().WriteStr(message).await!
-	os::Stderr().WriteStr("\n").await!
+async fn writeError(message: string) {
+	os::Stderr().WriteString(message).await!
+	os::Stderr().WriteString("\n").await!
 }
 
 // Prints formatted data to relevant file.
-async fn printFormat(path: str, data: []byte) {
+async fn printFormat(path: string, data: []byte) {
 	if data == nil {
-		ret
+		return
 	}
 	if *_W {
 		os::WriteFile(path, data, 0o660).await else {
 			writeError("error: could not write to file: " + path).await
-			ret
+			return
 		}
 	} else {
 		os::Stdout().Write(data).await else {
 			writeError("error: could not write stdout").await
-			ret
+			return
 		}
 	}
 }
 
 // Formats data with path, and returns result.
 // If result is nil, we have an error(s).
-async fn format(path: str, mut data: []byte): []byte {
+async fn format(path: string, mut data: []byte): []byte {
 	mut file := token::FileSet.New(path)
 	unsafe { file.FillMut(data) }
 	mut errors := token::ScanAll(file, token::Comments)
 	if len(errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path).await
-		ret nil
+		return nil
 	}
 
 	mut cm := commentMap.build(&file.Tokens)
 	mut finfo := parser::ParseFile(file)
 	if len(finfo.Errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path).await
-		ret nil
+		return nil
 	}
 
 	fmt := formatter.new()
-	ret fmt.format(finfo.AST, cm)
+	return fmt.format(finfo.AST, cm)
 }
 
-async fn formatFile(path: str) {
+async fn formatFile(path: string) {
 	mut ctx := os::ReadFile(path).await else {
 		writeError("error: file could not read: " + path).await
-		ret
+		return
 	}
 	data := format(path, ctx).await
 	printFormat(path, data).await
 }
 
-async fn parsePackage(path: str) {
+async fn parsePackage(path: string) {
 	mut dirents := os::ReadDir(path) else {
 		writeError("error: connot read package directory: " + path).await
-		ret
+		return
 	}
 	for _, dirent in dirents {
 		// Skip directories, and non-jule files.
@@ -82,20 +82,20 @@ async fn parsePackage(path: str) {
 	}
 }
 
-async fn parse(path: str) {
+async fn parse(path: string) {
 	stat := os::Stat(path) else {
 		writeError("error: connot read path: " + path).await
-		ret
+		return
 	}
 	m := stat.Mode()
 	match {
 	| m.IsDir():
 		parsePackage(path).await
-		ret
+		return
 	| m.IsRegular():
 		if strings::HasSuffix(path, jule::Ext) {
 			formatFile(path).await
-			ret
+			return
 		}
 	}
 	writeError("error: path is not supported: " + path).await
@@ -104,7 +104,7 @@ async fn parse(path: str) {
 async fn cliMode() {
 	if *_W {
 		writeError("error: -w argument cannot used with stdout mode").await
-		ret
+		return
 	}
 	mut i := 0
 	mut buf := make([]byte, 1024)
@@ -114,7 +114,7 @@ async fn cliMode() {
 				break
 			}
 			writeError("error: could not read from stdin").await
-			ret
+			return
 		}
 		i += n
 		if i >= len(buf) {
