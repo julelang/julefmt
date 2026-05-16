@@ -431,7 +431,7 @@ foo(	)else{} 						// bar
 }`,
 		out: `fn main() {
 	data = append(data, 0) // foo
-	foo() else {} // bar
+	foo() else {}          // bar
 }`,
 	},
 	{
@@ -445,7 +445,7 @@ baz()// baz
 	data = append(data, 0) // foo
 	bar()                  // bar
 	baz()                  // baz
-	foo() else {} // bar
+	foo() else {}          // bar
 }`,
 	},
 	{
@@ -1405,6 +1405,16 @@ Name: resultName22424224,		 // fe
 		w: 123,
 	},
 ]`,
+	},
+	{
+		data: `fn InterpolateLinear(x0:f64,y0:f64,x1:f64,y1:f64){
+_=Term{Coef:slope,Exp:1	}// m * x
+_=Term{Coef:intercept,Exp:0} // b
+}`,
+		out: `fn InterpolateLinear(x0: f64, y0: f64, x1: f64, y1: f64) {
+	_ = Term{Coef: slope, Exp: 1}     // m * x
+	_ = Term{Coef: intercept, Exp: 0} // b
+}`,
 	},
 ])
 

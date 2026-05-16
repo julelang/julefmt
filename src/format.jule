@@ -1334,15 +1334,18 @@ impl formatter {
 				break loop
 			}
 			self.row = row
-			writer(decl)
-			mut line := cloneBuf(self.ubuf()[n:])
-			lines = append(lines, line)
+
+			// Collect trailing comment lines.
 			mut rowComments := make([]&comment, 0)
 			mut &_rowComments := &rowComments // for closure
 			self.popRowCommentsByF(row, -1, fn(mut c: &comment) {
 				unsafe { *_rowComments = append(*_rowComments, c) }
 			})
 			comments = append(comments, rowComments)
+
+			writer(decl)
+			mut line := cloneBuf(self.ubuf()[n:])
+			lines = append(lines, line)
 			rows = append(rows, self.row)
 			self.setBuf(self.ubuf()[:n])
 			*i++
