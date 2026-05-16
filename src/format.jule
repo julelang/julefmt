@@ -2644,18 +2644,6 @@ impl exprFormatter {
 		self.fmt.addIndent()
 		for (i, mut expr) in lit.X {
 			if i > 0 && row != expr.Token.Row {
-				// Collect trailing comments inline for whole row.
-				mut rowComments := make([]&comment, 0)
-				mut &_rowComments := &rowComments // for closure
-				mut col2 := col
-				if lined {
-					col2 = -1
-				}
-				self.fmt.popRowCommentsByF(endRow, col2, fn(mut c: &comment) {
-					unsafe { *_rowComments = append(*_rowComments, c) }
-				})
-				trailingComments = append(trailingComments, rowComments)
-
 				mut line := cloneBuf(self.fmt.ubuf()[n:])
 				diff := utf8::RuneCount(line)
 				if diff > 0 {
@@ -2684,6 +2672,20 @@ impl exprFormatter {
 
 			// Write leading inline row comments before expression.
 			self.fmt.popRowCommentsByC(expr.Token.Row, expr.Token.Column)
+
+			// Collect trailing comments inline for whole row.
+			if i+1 < len(lit.X) && expr.Token.Row != lit.X[i+1].Token.Row {
+				mut rowComments := make([]&comment, 0)
+				mut &_rowComments := &rowComments // for closure
+				mut col2 := col
+				if lined {
+					col2 = -1
+				}
+				self.fmt.popRowCommentsByF(expr.Token.Row, col2, fn(mut c: &comment) {
+					unsafe { *_rowComments = append(*_rowComments, c) }
+				})
+				trailingComments = append(trailingComments, rowComments)
+			}
 
 			self.format(expr)
 
