@@ -131,7 +131,7 @@ async fn cliMode() {
 async fn main() {
 	mut args := os::Args()
 	args = args[1:] // Skip program path.
-	mut flag := flag::FlagSet.New()
+	mut flag := flag::Set.New()
 	flag.AddVar(_W, "write", 'w', "write result to (source) file instead of stdout")
 	args = flag.Parse(args)!
 	if len(args) == 0 {
