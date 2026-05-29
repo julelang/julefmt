@@ -411,67 +411,186 @@ impl formatter {
 		self.write("]")
 	}
 
-	fn enumItem[T](&self, mut item: T) {
-		const match type T {
-		| &ast::EnumItem:
-			self.write(item.Name)
-			if !item.IsAutoExpr() {
-				self.write(": ")
-				self.formatExpr(item.X)
+	fn enumItemsSubGroup[Item: ast::EnumItem | ast::TypeEnumItem](&self, mut pairs: []&Item, mut &i: *int, mut &comma: *bool) {
+		mut exprs := make([]string, 0, len(pairs[*i:]))
+		mut comments := make([][]&comment, 0, len(pairs[*i:]))
+		mut counts := make([][]int, 0, len(pairs[*i:]))
+		mut nameMax := 0
+
+		mut n := self.buf.Len()
+		start := *i
+
+		self.row = -1
+		for *i < len(pairs); *i++ {
+			mut p := pairs[*i]
+			pEnd := enumEndToken(p)
+			if *i != start {
+				// If the row is not first, compare current row with the previous one.
+				// If the difference greatest than one row, end the iteration.
+				if p.Token.Row-enumEndToken(pairs[*i-1]).Row > 1 {
+					break
+				}
+				// Break grouping if expression have new-lines.
+				if p.Token.Row != pEnd.Row {
+					break
+				}
 			}
-		| &ast::TypeEnumItem:
-			self.formatType(item.Type)
+
+			const match type Item {
+			| ast::EnumItem:
+				namelen := utf8::RuneCountString(p.Name)
+				if nameMax < namelen {
+					nameMax = namelen
+				}
+				let mut expr: string
+				if !p.IsAutoExpr() {
+					self.formatExpr(p.X)
+					expr = string(self.ubuf()[n:])
+					self.setBuf(self.ubuf()[:n])
+				} else {
+					expr = p.Name
+				}
+				exprs = append(exprs, expr)
+				exprlen := utf8::RuneCountString(expr)
+				counts = append(counts, [namelen, exprlen])
+			| ast::TypeEnumItem:
+				_ = nameMax
+				self.formatType(p.Type)
+				mut typ := string(self.ubuf()[n:])
+				typlen := utf8::RuneCountString(typ)
+				self.setBuf(self.ubuf()[:n])
+				exprs = append(exprs, typ)
+				counts = append(counts, [0, typlen])
+			}
+
+			self.row = p.Token.Row
+
+			// Collect trailing comments.
+			mut rowComments := make([]&comment, 0)
+			mut &_rowComments := &rowComments // for closure
+			self.popRowCommentsByF(self.row, -1, fn(mut c: &comment) {
+				unsafe { *_rowComments = append(*_rowComments, c) }
+			})
+			comments = append(comments, rowComments)
+
+			// Break grouping if expression have new-lines.
+			if p.Token.Row != pEnd.Row {
+				// This one is the first iteration.
+				// Advance to skip.
+				if *i == start {
+					*i++
+				}
+				break
+			}
 		}
-		self.write(",")
+
+		n = 0
+		mut max := 0
+		for j, expr in exprs {
+			if j > 0 {
+				if !*comma {
+					self.write(",")
+				}
+				self.write("\n")
+			}
+			*comma = false
+			self.buf.Write(self.indent)!
+
+			pcounts := counts[j]
+			namelen, mut exprlen := pcounts[0], pcounts[1]
+
+			const match type Item {
+			| ast::EnumItem:
+				p := pairs[j]
+				self.buf.WriteString(p.Name)!
+				if !p.IsAutoExpr() {
+					self.write(strings::Repeat(" ", nameMax-namelen))
+					self.write(" = ")
+					self.buf.WriteString(expr)!
+				} else {
+					exprlen = namelen
+				}
+			|:
+				_ = namelen
+				self.buf.WriteString(expr)!
+			}
+
+			pcomments := comments[j]
+			if len(pcomments) > 0 {
+				self.write(",")
+				*comma = true
+				if n == 0 {
+					max, n = getMax3(exprs[j:], comments[j:])
+				}
+				self.write(strings::Repeat(" ", paddingAbs(max-exprlen)))
+				for _, c in pcomments {
+					self.write(" ")
+					self.writeComment(c)
+					n--
+				}
+			}
+		}
 	}
 
-	fn enumDecl[T](&self, mut d: T) {
+	fn enumDecl[T](&self, mut lit: &T) {
 		self.write("enum ")
-		self.write(d.Name)
+		self.write(lit.Name)
 		const match type T {
-		| &ast::Enum:
-			if !d.IsDefaultTyped() {
+		| ast::Enum:
+			if !lit.IsDefaultTyped() {
 				self.write(": ")
-				self.formatType(d.Type)
+				self.formatType(lit.Type)
 			}
-		| &ast::TypeEnum:
+		| ast::TypeEnum:
 			self.write(": type")
 		}
-		self.write(" {")
-		if len(d.Items) > 0 {
-			self.write("\n")
-			self.addIndent()
-			mut i, mut row := 0, 0
-			for i < len(d.Items) {
-				old := self.i
-				item := d.Items[i]
-				const match type T {
-				| &ast::Enum:
-					self.groupDecls[&ast::EnumItem, &ast::EnumItem](d.Items, &i, fn(mut d: &ast::EnumItem) {
-						self.buf.Write(self.indent)!
-						self.enumItem[&ast::EnumItem](d)
-					})
-				| &ast::TypeEnum:
-					self.groupDecls[&ast::TypeEnumItem, &ast::TypeEnumItem](d.Items, &i, fn(mut d: &ast::TypeEnumItem) {
-						self.buf.Write(self.indent)!
-						self.enumItem[&ast::TypeEnumItem](d)
-					})
-				}
-				if i < len(d.Items) {
-					padded, _ := self.addGlobalPaddingForComment(d.End.Row)
-					if !padded && old != i {
-						self.write("\n")
-					}
-				}
-				row = item.Token.Row
-			}
-			self.addGlobalPaddingForComment(d.End.Row)
-			self.writeCommentsExcept(d.End.Row)
-			self.doneIndent()
+		self.write(" ")
+		if len(lit.Items) == 0 {
+			self.write("{}")
+			self.row = lit.End.Row
+			return
 		}
+		mut comma := false
+		mut row := lit.Items[0].Token.Row
+		self.row = row
+		self.write("{\n")
+		self.addIndent()
+		mut j := 0
+		for j < len(lit.Items) {
+			if j > 0 {
+				if !comma {
+					self.write(",")
+				}
+				self.write("\n")
+			}
+			row = lit.Items[j].Token.Row
+
+			// Lookup for first comment.
+			c := self.seekCommentExcept(row)
+
+			if row-self.row > 1 && (c == nil || c.row-self.row > 1) {
+				self.write("\n")
+			}
+
+			self.row = self.writeCommentsExcept(row)
+			if row-self.row > 1 {
+				self.write("\n")
+			}
+			old := j
+			self.enumItemsSubGroup(lit.Items, &j, &comma)
+			if old == j {
+				j++
+			}
+		}
+		if j > 0 && !comma {
+			// Add comma for the last element.
+			self.write(",")
+		}
+		self.doneIndent()
+		self.write("\n")
+		self.buf.Write(self.indent)!
 		self.write("}")
-		self.popRowComments(d.End.Row)
-		self.row = d.End.Row
+		self.row = lit.End.Row
 	}
 
 	fn params(&self, mut f: &ast::Func) {
@@ -1464,9 +1583,9 @@ impl formatter {
 		}
 		match type node.Data {
 		| &ast::Enum:
-			self.enumDecl[&ast::Enum](node.Data.(&ast::Enum))
+			self.enumDecl[ast::Enum](node.Data.(&ast::Enum))
 		| &ast::TypeEnum:
-			self.enumDecl[&ast::TypeEnum](node.Data.(&ast::TypeEnum))
+			self.enumDecl[ast::TypeEnum](node.Data.(&ast::TypeEnum))
 		| &ast::Trait:
 			self.traitDecl(node.Data.(&ast::Trait))
 		| &ast::Impl:
@@ -2495,7 +2614,7 @@ impl exprFormatter {
 				self.write(",")
 				*comma = true
 				if n == 0 {
-					max, n = self.getMax2(lines[j:], comments[j:])
+					max, n = getMax2(lines[j:], comments[j:])
 				}
 				self.write(strings::Repeat(" ", paddingAbs(max-linelen)))
 				for _, c in pcomments {
@@ -2579,45 +2698,6 @@ impl exprFormatter {
 	fn typedBraceLit(&self, mut lit: &ast::TypedBraceLit) {
 		self.fmt.formatType(lit.Type)
 		self.braceLit(lit.Lit)
-	}
-
-	fn getMax(*self, lines: [][]byte, rows: []rowAlign, comments: [][]&comment): (max: int, n: int) {
-		if len(comments) == 0 || len(comments[0]) == 0 {
-			return
-		}
-		max = utf8::RuneCount(lines[0])
-		n = 1
-		for n < len(lines); n++ {
-			if rows[n-1].row == rows[n].row || len(comments[n]) == 0 {
-				break
-			}
-			diff := utf8::RuneCount(lines[n])
-			if max < diff {
-				max = diff
-			}
-			if rows[n].row-rows[n-1].row > 1 {
-				break
-			}
-		}
-		return
-	}
-
-	fn getMax2(*self, lines: [][2]string, comments: [][]&comment): (max: int, n: int) {
-		if len(comments) == 0 || len(comments[0]) == 0 {
-			return
-		}
-		max = utf8::RuneCountString(lines[0][1])
-		n = 1
-		for n < len(lines); n++ {
-			if len(comments[n]) == 0 {
-				break
-			}
-			diff := utf8::RuneCountString(lines[n][1])
-			if max < diff {
-				max = diff
-			}
-		}
-		return
 	}
 
 	fn responsiveExprs[T](&self, mut lit: T) {
@@ -2777,7 +2857,7 @@ impl exprFormatter {
 			// to last statement of inline statements.
 			if len(exprs)-i < 2 || rows[i].row != rows[i+1].row {
 				if n == 0 {
-					max, n = self.getMax(exprs[i:], rows[i:], trailingComments[i:])
+					max, n = getMax(exprs[i:], rows[i:], trailingComments[i:])
 				}
 				if n > 0 {
 					for _, c in trailingComments[i] {
@@ -3194,6 +3274,63 @@ impl binaryFormatter {
 	}
 }
 
+fn getMax(lines: [][]byte, rows: []rowAlign, comments: [][]&comment): (max: int, n: int) {
+	if len(comments) == 0 || len(comments[0]) == 0 {
+		return
+	}
+	max = utf8::RuneCount(lines[0])
+	n = 1
+	for n < len(lines); n++ {
+		if rows[n-1].row == rows[n].row || len(comments[n]) == 0 {
+			break
+		}
+		diff := utf8::RuneCount(lines[n])
+		if max < diff {
+			max = diff
+		}
+		if rows[n].row-rows[n-1].row > 1 {
+			break
+		}
+	}
+	return
+}
+
+fn getMax2(lines: [][2]string, comments: [][]&comment): (max: int, n: int) {
+	if len(comments) == 0 || len(comments[0]) == 0 {
+		return
+	}
+	max = utf8::RuneCountString(lines[0][1])
+	n = 1
+	for n < len(lines); n++ {
+		if len(comments[n]) == 0 {
+			break
+		}
+		diff := utf8::RuneCountString(lines[n][1])
+		if max < diff {
+			max = diff
+		}
+	}
+	return
+}
+
+fn getMax3(lines: []string, comments: [][]&comment): (max: int, n: int) {
+	if len(comments) == 0 || len(comments[0]) == 0 {
+		return
+	}
+	max = utf8::RuneCountString(lines[0])
+	n = 1
+	for n < len(lines); n++ {
+		if len(comments[n]) == 0 {
+			break
+		}
+		diff := utf8::RuneCountString(lines[n])
+		if max < diff {
+			max = diff
+		}
+	}
+	return
+}
+
 fn paddingAbs(x: int): int {
 	if x < 0 {
 		return 0
@@ -3263,4 +3400,18 @@ fn indexRowBrake(rows: []int): int {
 fn isParentNeededForCall(expr: &ast::Expr): bool {
 	f, _ := expr.Data.(&ast::Func)
 	return f != nil && f.IsDecl()
+}
+
+fn enumEndToken[T](mut t: &T): &token::Token {
+	const match type T {
+	| ast::EnumItem:
+		if t.IsAutoExpr() {
+			return t.Token
+		}
+		return t.X.End
+	| ast::TypeEnumItem:
+		return t.Type.End
+	|:
+		panic("unreachable")
+	}
 }
