@@ -353,6 +353,18 @@ impl formatter {
 			}
 			// a.Extern == b.Extern
 			if a.Extern {
+				if a.Alias != nil {
+					if b.Alias == nil {
+						return -1
+					}
+					if a.Alias.Kind == b.Alias.Kind {
+						return strings::Compare(a.Path.Kind, b.Path.Kind)
+					}
+					return strings::Compare(a.Alias.Kind, b.Alias.Kind)
+				}
+				if b.Alias != nil {
+					return +1
+				}
 				return strings::Compare(a.Path.Kind, b.Path.Kind)
 			}
 			const StdPrefix = `"std/`
@@ -367,15 +379,25 @@ impl formatter {
 			return -1
 		})
 
-		mut _extern := false // whether any external import seen
-		for i, decl in self.f.UseDecls {
+		mut _extern := false              // whether any external import seen
+		mut alias := (&token::Token)(nil) // last export import alias seen
+		for (i, mut decl) in self.f.UseDecls {
 			if !_extern && decl.Extern {
 				_extern = true
+				alias = decl.Alias
 				if i > 0 {
 					// ordinary import seen
 					// separate external imports
 					self.write("\n")
 				}
+			}
+			if alias != nil && decl.Extern {
+				if decl.Alias == nil || alias.Kind != decl.Alias.Kind {
+					// different extern import alias seen
+					// separate imports
+					self.write("\n")
+				}
+				alias = decl.Alias
 			}
 			self.row = decl.Token.Row
 			self.useDecl(decl)
