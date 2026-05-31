@@ -2,9 +2,11 @@
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
+use "std/bytes"
 use "std/flag"
 use "std/io"
 use "std/jule"
+use "std/jule/mod"
 use "std/jule/parser"
 use "std/jule/token"
 use "std/os"
@@ -36,6 +38,18 @@ async fn printFormat(path: string, data: []byte) {
 	}
 }
 
+async fn formatMod(path: string, mut data: []byte): []byte {
+	mut mod, errors := mod::Parse(path, data, mod::ParseOptions{
+		AllowStd: false,
+	})
+	if len(errors) > 0 {
+		writeError("error: file could not formatted, have error(s): " + path).await
+		return nil
+	}
+	fmt := modFormatter.new(mod)
+	return fmt.format()
+}
+
 // Formats data with path, and returns result.
 // If result is nil, we have an error(s).
 async fn format(path: string, mut data: []byte): []byte {
@@ -58,12 +72,17 @@ async fn format(path: string, mut data: []byte): []byte {
 	return fmt.format(finfo.AST, cm)
 }
 
-async fn formatFile(path: string) {
+async fn formatFile(path: string, mod: bool) {
 	mut ctx := os::ReadFile(path).await else {
 		writeError("error: file could not read: " + path).await
 		return
 	}
-	data := format(path, ctx).await
+	let mut data: []byte
+	if mod {
+		data = formatMod(path, ctx).await
+	} else {
+		data = format(path, ctx).await
+	}
 	printFormat(path, data).await
 }
 
@@ -74,11 +93,13 @@ async fn parsePackage(path: string) {
 	}
 	for _, dirent in dirents {
 		// Skip directories, and non-jule files.
-		if dirent.Stat.IsDir() || !strings::HasSuffix(dirent.Name, jule::Ext) {
+		if dirent.Stat.IsDir() ||
+			dirent.Name != jule::ModuleFile && !strings::HasSuffix(dirent.Name, jule::Ext) {
 			continue
 		}
+		mod := dirent.Name == jule::ModuleFile
 		filepath := filepath::Join(path, dirent.Name)
-		formatFile(filepath).await
+		formatFile(filepath, mod).await
 	}
 }
 
@@ -94,7 +115,12 @@ async fn parse(path: string) {
 		return
 	| m.IsRegular():
 		if strings::HasSuffix(path, jule::Ext) {
-			formatFile(path).await
+			formatFile(path, false).await
+			return
+		}
+		_, file := filepath::Split(path)
+		if file == jule::ModuleFile {
+			formatFile(path, true).await
 			return
 		}
 	}
@@ -125,7 +151,14 @@ async fn cliMode() {
 		}
 	}
 	buf = buf[:i]
-	printFormat("<stdin>", format("<stdin>", buf).await).await
+	mod := bytes::HasPrefix(bytes::TrimSpace(buf), []byte("module "))
+	let mut fmt: []byte
+	if mod {
+		fmt = formatMod("<stdin>", buf).await
+	} else {
+		fmt = format("<stdin>", buf).await
+	}
+	printFormat("<stdin>", fmt).await
 }
 
 async fn main() {
