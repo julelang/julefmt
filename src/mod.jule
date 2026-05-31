@@ -1,4 +1,4 @@
-// Copyright 2024 The Jule Project Contributors. All rights reserved.
+// Copyright 2026 The Jule Project Contributors. All rights reserved.
 // Use of this source code is governed by a BSD 3-Clause
 // license that can be found in the LICENSE file.
 
@@ -30,62 +30,11 @@ impl modFormatter {
 		self.buf.WriteString(s)!
 	}
 
-	fn addIndent(&self) {
-		self.indent = append(self.indent, self.atomIndent...)
-	}
-
-	fn doneIndent(&self) {
-		self.indent = self.indent[:len(self.indent)-self.indentLen]
-	}
-
-	fn formatEntry(&self, entry: mod::Entry) {
-		self.write(entry.Name)
-		self.write(" \"")
-		self.write(entry.Text)
-		self.write("\"")
-	}
-
-	fn formatCPP(&self) {
-		self.write("cpp (")
-		self.addIndent()
-		defer { self.doneIndent() }
-
-		// include
-		for _, inc in self.mod.CPP.Include {
-			self.write("\n")
-			self.buf.Write(self.indent)!
-			self.formatEntry(inc)
-		}
-
-		// link
-		if len(self.mod.CPP.Link) > 0 {
-			if len(self.mod.CPP.Include) > 0 {
-				self.write("\n")
-			}
-			for _, lnk in self.mod.CPP.Link {
-				self.write("\n")
-				self.buf.Write(self.indent)!
-				self.formatEntry(lnk)
-			}
-		}
-
-		self.write("\n)")
-	}
-
 	fn format(&self): []byte {
 		self.write("module ")
 		self.write(self.mod.Name)
 
-		if self.mod.CPP != nil && !isCPPEmpty(self.mod.CPP) {
-			self.write("\n\n")
-			self.formatCPP()
-		}
-
 		mut buf := unsafe { self.buf.Buf() }
 		return bytes::Trim(buf, " \f\n\r\v\t")
 	}
-}
-
-fn isCPPEmpty(cpp: &mod::CPP): bool {
-	return len(cpp.Include) == 0 && len(cpp.Link) == 0
 }
