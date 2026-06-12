@@ -1416,6 +1416,44 @@ _=Term{Coef:intercept,Exp:0} // b
 	_ = Term{Coef: intercept, Exp: 0} // b
 }`,
 	},
+	{
+		data: `fn		main(
+			){
+
+
+//fmt::Printf("{{}}\n")
+		//fmt::Printf("{{{}}}\n", "Hello!")
+
+		//fmt::Printf("{{\n")
+//fmt::Printf("{{a\n")
+	//fmt::Printf("{\n")
+	//fmt::Printf("{aa\n")
+			//fmt::Printf("{{{a\n")
+
+	//fmt::Printf("}}\n")
+			//fmt::Printf("}}a\n")
+//fmt::Printf("}\n")
+//fmt::Printf("}aa\n")
+			//fmt::Printf("}}}a\n")
+}`,
+		out: `fn main() {
+
+	//fmt::Printf("{{}}\n")
+	//fmt::Printf("{{{}}}\n", "Hello!")
+
+	//fmt::Printf("{{\n")
+	//fmt::Printf("{{a\n")
+	//fmt::Printf("{\n")
+	//fmt::Printf("{aa\n")
+	//fmt::Printf("{{{a\n")
+
+	//fmt::Printf("}}\n")
+	//fmt::Printf("}}a\n")
+	//fmt::Printf("}\n")
+	//fmt::Printf("}aa\n")
+	//fmt::Printf("}}}a\n")
+}`,
+	},
 ])
 
 #test

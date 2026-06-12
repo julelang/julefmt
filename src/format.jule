@@ -2104,12 +2104,13 @@ impl scopeFormatter {
 		// Range comment exist and scope is not indented.
 		// Indent scope if indent is true.
 		indent := unsafe { self.fmt.buf.Buf()[self.fmt.buf.Len()-1] } != '\n' &&
-			c != nil && c.txt[1] == '*'
+			c != nil && c.row != scope.End.Row
 
 		if indent {
 			self.write("\n")
 			self.fmt.addIndent()
 		}
+		self.fmt.addGlobalPaddingForComment(scope.End.Row)
 		self.fmt.writeCommentsExcept(scope.End.Row)
 		if indent {
 			self.fmt.doneIndent()
@@ -2225,10 +2226,6 @@ impl scopeFormatter {
 			}
 			if len(scope.Stmts) > 0 && scope.Stmts[0].Token.Row == scope.End.Row {
 				self.fmt.popRowCommentsByF(self.fmt.row, scope.Stmts[0].Token.Column, writer)
-			} else if len(scope.Stmts) == 0 {
-				self.fmt.row = scope.End.Row
-				self.fmt.popRowCommentsUntilByF(self.fmt.row-1, -1, writer)
-				self.fmt.popRowCommentsByF(self.fmt.row, scope.End.Column, writer)
 			}
 			if comment {
 				// Comment(s) written with new-line.
