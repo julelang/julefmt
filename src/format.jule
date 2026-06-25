@@ -245,7 +245,7 @@ impl formatter {
 		self.formatExpr(expr)
 	}
 
-	fn formatScope(&self, mut scope: &ast::ScopeTree, options: scopeOption) {
+	fn formatScope(&self, mut scope: &ast::Scope, options: scopeOption) {
 		self.sf.format(scope, options)
 	}
 
@@ -310,7 +310,7 @@ impl formatter {
 	}
 
 	fn useDecl(&self, d: &ast::Use) {
-		if d.Extern {
+		if d.Flags&ast::F_EXTERN != 0 {
 			self.write("extern ")
 		}
 		self.write("use ")
@@ -345,14 +345,14 @@ impl formatter {
 		// Sort imports.
 		// See formatter documentation how ordering will be made.
 		slices::SortFunc(self.f.UseDecls, fn(a: &ast::Use, b: &ast::Use): int {
-			if a.Extern != b.Extern {
-				if a.Extern {
+			if a.Flags&ast::F_EXTERN != b.Flags&ast::F_EXTERN {
+				if a.Flags&ast::F_EXTERN != 0 {
 					return +1
 				}
 				return -1
 			}
 			// a.Extern == b.Extern
-			if a.Extern {
+			if a.Flags&ast::F_EXTERN != 0 {
 				if a.Alias != nil {
 					if b.Alias == nil {
 						return -1
@@ -382,7 +382,7 @@ impl formatter {
 		mut _extern := false              // whether any external import seen
 		mut alias := (&token::Token)(nil) // last export import alias seen
 		for (i, mut decl) in self.f.UseDecls {
-			if !_extern && decl.Extern {
+			if !_extern && decl.Flags&ast::F_EXTERN != 0 {
 				_extern = true
 				alias = decl.Alias
 				if i > 0 {
@@ -391,7 +391,7 @@ impl formatter {
 					self.write("\n")
 				}
 			}
-			if alias != nil && decl.Extern {
+			if alias != nil && decl.Flags&ast::F_EXTERN != 0 {
 				if decl.Alias == nil || alias.Kind != decl.Alias.Kind {
 					// different extern import alias seen
 					// separate imports
@@ -641,13 +641,13 @@ impl formatter {
 				self.write(" ")
 			}
 			self.popRowCommentsByC(p.Token.Row, p.Token.Column)
-			if p.Mutable {
+			if p.Flags&ast::F_MUTABLE != 0 {
 				self.write("mut ")
 			}
 			if short {
 				self.write(p.Name)
 			} else {
-				if p.Reference {
+				if p.Flags&ast::F_REFERENCE != 0 {
 					self.write("&")
 				}
 				if p.IsSelf() {
@@ -664,11 +664,11 @@ impl formatter {
 					if !jule::IsAnon(p.Name) {
 						self.write(p.Name)
 						self.write(": ")
-					} else if p.Reference {
+					} else if p.Flags&ast::F_REFERENCE != 0 {
 						self.write("_: ")
 					}
 					self.popRowCommentsByC(p.Type.Token.Row, p.Type.Token.Column)
-					if p.Variadic {
+					if p.Flags&ast::F_VARIADIC != 0 {
 						self.write("...")
 					}
 					self.formatType(p.Type)
@@ -733,13 +733,13 @@ impl formatter {
 			self.directives(d.Directives)
 			self.buf.Write(self.indent)!
 		}
-		if d.Extern {
+		if d.Flags&ast::F_EXTERN != 0 {
 			self.write("extern ")
 		}
-		if d.Unsafe {
+		if d.Flags&ast::F_UNSAFE != 0 {
 			self.write("unsafe ")
 		}
-		if d.Async {
+		if d.Flags&ast::F_ASYNC != 0 {
 			self.write("async ")
 		}
 		self.write("fn")
@@ -749,14 +749,14 @@ impl formatter {
 		}
 		self.generics(d.Generics)
 		self.params(d)
-		if d.Fallible {
+		if d.Flags&ast::F_FALLIBLE != 0 {
 			self.write("!")
 		}
 		if d.Result.Type != nil {
 			self.write(": ")
 			self.result(d.Result)
 		}
-		if d.IsShort() && d.Scope.Deferred {
+		if d.IsShort() && d.Scope.Flags&ast::F_DEFER != 0 {
 			// one-liner body
 			self.write(" ")
 			mut e := d.Scope.Stmts[0].Data.(&ast::Expr)
@@ -772,10 +772,10 @@ impl formatter {
 			self.row = e.End.Row
 		} else if d.Scope != nil {
 			self.write(" ")
-			_unsafe := d.Unsafe
-			d.Scope.Unsafe = false // Avoid unsafe keyword beginning of scope.
+			flags := d.Flags
+			d.Scope.Flags &= ^ast::F_UNSAFE // Avoid unsafe keyword beginning of scope.
 			self.formatScope(d.Scope, scopeDefault|scopePopByC)
-			d.Scope.Unsafe = _unsafe
+			d.Scope.Flags = flags
 			self.row = d.Scope.End.Row
 			if !d.IsAnon() {
 				self.popRowCommentsBy(self.row)
@@ -787,7 +787,7 @@ impl formatter {
 	// Leading fields used to calculate maximum declaration length of group for padding.
 	fn field(&self, mut f: &field, mut fieldMax: int, mut typeMax: int) {
 		self.buf.Write(self.indent)!
-		if f.f.Mutable {
+		if f.f.Flags&ast::F_MUTABLE != 0 {
 			self.write("mut ")
 			fieldMax -= 4
 		}
@@ -842,7 +842,7 @@ impl formatter {
 				self.write("\n")
 			}
 		}
-		if d.Extern {
+		if d.Flags&ast::F_EXTERN != 0 {
 			self.write("extern ")
 		}
 		self.write("struct ")
@@ -922,13 +922,13 @@ impl formatter {
 	}
 
 	fn typeAliasDecl(&self, mut d: &ast::TypeAlias) {
-		if d.Extern {
+		if d.Flags&ast::F_EXTERN != 0 {
 			self.write("extern ")
 		}
 		self.write("type ")
 		self.write(d.Name)
 		self.generics(d.Generics)
-		if d.Strict {
+		if d.Flags&ast::F_STRICT != 0 {
 			self.write(": ")
 		} else {
 			self.write(" = ")
@@ -986,21 +986,21 @@ impl formatter {
 			if len(d.Directives) != 0 {
 				self.directives(d.Directives)
 			}
-			if d.Extern {
+			if d.Flags&ast::F_EXTERN != 0 {
 				self.write("extern let ")
 			} else {
-				if d.Static {
+				if d.Flags&ast::F_STATIC != 0 {
 					self.write("let ")
-				} else if d.Const {
+				} else if d.Flags&ast::F_CONST != 0 {
 					self.write("const ")
 				} else if d.Op == nil || d.Op.ID == token::ASSIGN {
 					self.write("let ")
 				}
 			}
-			if d.Mutable {
+			if d.Flags&ast::F_MUTABLE != 0 {
 				self.write("mut ")
 			}
-			if d.Reference {
+			if d.Flags&ast::F_REFERENCE != 0 {
 				self.write("&")
 			}
 		}
@@ -1124,7 +1124,7 @@ impl formatter {
 			}
 			self.row = decl.token.Row
 			mut fm := 0
-			if decl.f.Mutable {
+			if decl.f.Flags&ast::F_MUTABLE != 0 {
 				fm += len("mut ")
 			}
 			fm += utf8::RuneCountString(decl.f.Name)
@@ -1734,7 +1734,7 @@ impl scopeFormatter {
 	}
 
 	fn iter(&self, mut it: &ast::Iter) {
-		if it.Comptime {
+		if it.Flags&ast::F_CONST != 0 {
 			self.write("const ")
 		}
 		self.write("for ")
@@ -1753,13 +1753,14 @@ impl scopeFormatter {
 				self.write(" ")
 			| &ast::RangeKind:
 				mut rk := it.Kind.(&ast::RangeKind)
-				p := (rk.A != nil && rk.A.Mutable) || (rk.B != nil && rk.B.Mutable)
+				p := (rk.A != nil && rk.A.Flags&ast::F_MUTABLE != 0) ||
+					(rk.B != nil && rk.B.Flags&ast::F_MUTABLE != 0)
 				if p {
 					self.write("(")
 				}
 				if rk.A != nil {
 					self.fmt.popRowCommentsByC(rk.A.Token.Row, rk.A.Token.Column)
-					if rk.A.Mutable {
+					if rk.A.Flags&ast::F_MUTABLE != 0 {
 						self.write("mut ")
 					}
 					self.write(rk.A.Name)
@@ -1767,7 +1768,7 @@ impl scopeFormatter {
 				if rk.B != nil {
 					self.write(", ")
 					self.fmt.popRowCommentsByC(rk.B.Token.Row, rk.B.Token.Column)
-					if rk.B.Mutable {
+					if rk.B.Flags&ast::F_MUTABLE != 0 {
 						self.write("mut ")
 					}
 					self.write(rk.B.Name)
@@ -1840,11 +1841,11 @@ impl scopeFormatter {
 	}
 
 	fn matchCase(&self, mut mc: &ast::Match) {
-		if mc.Comptime {
+		if mc.Flags&ast::F_CONST != 0 {
 			self.write("const ")
 		}
 		self.write("match ")
-		if mc.Type {
+		if mc.Flags&ast::F_TYPE != 0 {
 			self.write("type ")
 		}
 		if mc.X != nil {
@@ -2006,10 +2007,10 @@ impl scopeFormatter {
 		}
 		for (i, mut l) in a.X {
 			if l.Name != "" {
-				if l.Mutable {
+				if l.Flags&ast::F_MUTABLE != 0 {
 					self.write("mut ")
 				}
-				if l.Reference {
+				if l.Flags&ast::F_REFERENCE != 0 {
 					self.write("&")
 				}
 			}
@@ -2050,7 +2051,7 @@ impl scopeFormatter {
 	}
 
 	fn throwStmt(&self, mut t: &ast::Throw) {
-		if t.Unsafe {
+		if t.Flags&ast::F_UNSAFE != 0 {
 			self.write("unsafe ")
 		}
 		self.write("throw ")
@@ -2063,8 +2064,8 @@ impl scopeFormatter {
 			self.fmt.varDecl(stmt.(&ast::Var), true, [])
 		| &ast::TypeAlias:
 			self.fmt.typeAliasDecl(stmt.(&ast::TypeAlias))
-		| &ast::ScopeTree:
-			self.format(stmt.(&ast::ScopeTree), options)
+		| &ast::Scope:
+			self.format(stmt.(&ast::Scope), options)
 		| &ast::Expr:
 			mut expr := stmt.(&ast::Expr)
 			self.fmt.formatExpr(expr)
@@ -2097,7 +2098,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn emptyScope(&self, mut scope: &ast::ScopeTree) {
+	fn emptyScope(&self, mut scope: &ast::Scope) {
 		// Lookup for first comment.
 		c := self.fmt.seekCommentExcept(scope.End.Row)
 
@@ -2118,7 +2119,7 @@ impl scopeFormatter {
 		}
 	}
 
-	fn formatStmts(&self, mut scope: &ast::ScopeTree, inline: bool) {
+	fn formatStmts(&self, mut scope: &ast::Scope, inline: bool) {
 		defer {
 			self.fmt.row = scope.End.Row
 		}
@@ -2184,11 +2185,11 @@ impl scopeFormatter {
 		self.fmt.writeCommentsExcept(scope.End.Row)
 	}
 
-	fn format(&self, mut scope: &ast::ScopeTree, options: scopeOption) {
-		if scope.Unsafe {
+	fn format(&self, mut scope: &ast::Scope, options: scopeOption) {
+		if scope.Flags&ast::F_UNSAFE != 0 {
 			self.write("unsafe ")
 		}
-		if scope.Deferred {
+		if scope.Flags&ast::F_DEFER != 0 {
 			self.write("defer ")
 		}
 		self.write("{")
@@ -2383,7 +2384,7 @@ impl exprFormatter {
 	}
 
 	fn name(&self, id: &ast::NameExpr) {
-		if id.Extern {
+		if id.Flags&ast::F_EXTERN != 0 {
 			self.write("extern.")
 		}
 		self.write(id.Name)
@@ -2500,7 +2501,7 @@ impl exprFormatter {
 
 	fn call(&self, mut f: &ast::CallExpr) {
 		self.fmt.row = f.Token.Row
-		if f.IsCo {
+		if f.Flags&ast::F_CO != 0 {
 			self.write("co ")
 		}
 		parent := isParentNeededForCall(f.Func)
@@ -2514,7 +2515,7 @@ impl exprFormatter {
 		self.write("(")
 		self.args(f)
 		self.write(")")
-		if f.Await {
+		if f.Flags&ast::F_AWAIT != 0 {
 			self.write(".await")
 		}
 		match f.Handler {
