@@ -55,14 +55,14 @@ async fn formatMod(path: string, mut data: []byte): []byte {
 async fn format(path: string, mut data: []byte): []byte {
 	mut file := token::FileSet.New(path)
 	unsafe { file.FillMut(data) }
-	mut errors := token::ScanAll(file, token::Comments)
+	mut tokens, mut errors := token::ScanAll(file, token::Standard|token::Comments)
 	if len(errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path).await
 		return nil
 	}
 
-	mut cm := commentMap.build(&file.Tokens)
-	mut finfo := parser::ParseFile(file)
+	mut cm := commentMap.build(&tokens)
+	mut finfo := parser::ParseFile(file, tokens)
 	if len(finfo.Errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path).await
 		return nil
