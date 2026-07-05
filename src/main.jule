@@ -55,7 +55,7 @@ async fn formatMod(path: string, mut data: []byte): []byte {
 async fn format(path: string, mut data: []byte): []byte {
 	mut file := token::FileSet.New(path)
 	unsafe { file.FillMut(data) }
-	mut tokens, mut errors := token::ScanAll(file, token::Standard|token::Comments)
+	mut tokens, mut errors := token::AppendAll(nil, file, token::Standard|token::Comments)
 	if len(errors) > 0 {
 		writeError("error: file could not formatted, have error(s): " + path).await
 		return nil
