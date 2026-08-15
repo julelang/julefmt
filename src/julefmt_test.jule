@@ -1454,6 +1454,18 @@ _=Term{Coef:intercept,Exp:0} // b
 	//fmt::Printf("}}}a\n")
 }`,
 	},
+	{
+		data: `fn main(
+	
+)	 {
+{
+
+	}// foo
+}`,
+		out: `fn main() {
+	{} // foo
+}`,
+	},
 ])
 
 #test
@@ -1461,6 +1473,7 @@ async fn testFormat(t: &testing::T) {
 	for i, c in formatTests {
 		out := format("<test-input>", []byte(c.data)).await
 		if string(out) != c.out {
+			println(c.data)
 			t.Errorf("#{} failed", i)
 		}
 	}

@@ -2111,8 +2111,10 @@ impl scopeFormatter {
 			self.write("\n")
 			self.fmt.addIndent()
 		}
-		self.fmt.addGlobalPaddingForComment(scope.End.Row)
-		self.fmt.writeCommentsExcept(scope.End.Row)
+		if c != nil && c.row < scope.End.Row {
+			self.fmt.addGlobalPaddingForComment(scope.End.Row)
+			self.fmt.writeCommentsExcept(scope.End.Row)
+		}
 		if indent {
 			self.fmt.doneIndent()
 			self.fmt.buf.Write(self.fmt.indent)!
