@@ -1466,6 +1466,26 @@ _=Term{Coef:intercept,Exp:0} // b
 	{} // foo
 }`,
 	},
+	{
+		data: `fn main() {
+	data = append(data, 0) // foo
+	bar()                  // bar
+	baz(
+	)                  // baz
+	baz(10
+	)                  // baz
+	foo() else {
+		
+	}          // bar
+}`,
+		out: `fn main() {
+	data = append(data, 0) // foo
+	bar()                  // bar
+	baz()                  // baz
+	baz(10)                // baz
+	foo() else {}          // bar
+}`,
+	},
 ])
 
 #test

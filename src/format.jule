@@ -1393,6 +1393,33 @@ impl formatter {
 		self.write(")")
 	}
 
+	fn getGroupDeclEndRow(&self, stmt: ast::Stmt): int {
+		expr, mut ok := stmt.Data.(&ast::Expr)
+		if ok {
+			fc, (ok) := expr.Data.(&ast::CallExpr)
+			if ok {
+				// There is args with meaningful new-line.
+				if len(fc.Args) > 0 && stmt.Token.Row != fc.Args[len(fc.Args)-1].End.Row {
+					return stmt.End.Row
+				}
+				// Not fallible or forwarded/ignored, so there is no possible handler scope.
+				// Arguement count is zero or there is no meaningful new-line.
+				// Use start row.
+				if (len(fc.Args) == 0 || stmt.Token.Row == fc.Args[len(fc.Args)-1].End.Row) &&
+					(fc.Handler == nil ||
+						fc.Handler == ast::Ignored ||
+						fc.Handler == ast::Forwarded) {
+					return stmt.Token.Row
+				}
+				// If handler is empty, no stmt and no comments in the body.
+				if len(fc.Handler.Stmts) == 0 && self.seekCommentExcept(stmt.End.Row) == nil {
+					return stmt.Token.Row
+				}
+			}
+		}
+		return stmt.End.Row
+	}
+
 	fn groupDecls[T, Node](&self, mut nodes: []Node, mut &i: *int, writer: fn(mut d: T)) {
 		if len(nodes) == 0 {
 			return
@@ -1437,7 +1464,7 @@ impl formatter {
 	loop:
 		for *i < len(nodes) {
 			let mut decl: T
-			mut row := -1
+			mut row, mut realRow := -1, -1
 			const match type Node {
 			| &ast::Var:
 				if nodes[*i].Group != nil {
@@ -1449,6 +1476,7 @@ impl formatter {
 			| &ast::Func:
 				decl = nodes[*i]
 				row = decl.Token.Row
+				realRow = row
 			| ast::Stmt:
 				decl = nodes[*i]
 				if !isGroupStmt(decl) {
@@ -1458,13 +1486,15 @@ impl formatter {
 				if ok && v.Group != nil {
 					break loop
 				}
-				row = decl.End.Row
+				row = self.getGroupDeclEndRow(decl)
+				realRow = decl.End.Row
 			| ast::Node:
 				node := nodes[*i]
 				match type node.Data {
 				| T:
 					decl = nodes[*i].Data.(T)
 					row = decl.Token.Row
+					realRow = row
 				|:
 					break loop
 				}
@@ -1474,12 +1504,12 @@ impl formatter {
 			if !all && self.row != -1 && row-self.row > 1 {
 				break loop
 			}
-			self.row = row
+			self.row = realRow
 
 			// Collect trailing comment lines.
 			mut rowComments := make([]&comment, 0)
 			mut &_rowComments := &rowComments // for closure
-			self.popRowCommentsByF(row, -1, fn(mut c: &comment) {
+			self.popRowCommentsByF(realRow, -1, fn(mut c: &comment) {
 				unsafe { *_rowComments = append(*_rowComments, c) }
 			})
 			comments = append(comments, rowComments)
@@ -1490,13 +1520,6 @@ impl formatter {
 			rows = append(rows, self.row)
 			self.setBuf(self.ubuf()[:n])
 			*i++
-			const match type Node {
-			| ast::Stmt:
-				if decl.Token.Row != decl.End.Row {
-					// break if start row and end row is not same of stmt
-					break loop
-				}
-			}
 		}
 
 		n = 0
