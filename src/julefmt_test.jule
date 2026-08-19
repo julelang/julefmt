@@ -1486,6 +1486,136 @@ _=Term{Coef:intercept,Exp:0} // b
 	foo() else {}          // bar
 }`,
 	},
+	{
+		data: `const (
+
+A = iota
+	B
+		C
+
+	D
+E
+F
+
+
+
+		G
+)`,
+		out: `const (
+	A = iota
+	B
+	C
+
+	D
+	E
+	F
+
+	G
+)`,
+	},
+	{
+		data: `const (
+// foo
+A = iota // foo
+// foo
+	B // foo
+		C // foo
+
+	D // foo
+E
+// bar
+F
+
+
+// foo
+		G
+)`,
+		out: `const (
+	// foo
+	A = iota // foo
+	// foo
+	B // foo
+	C // foo
+
+	D // foo
+	E
+	// bar
+	F
+
+	// foo
+	G
+)`,
+	},
+	{
+		data: `const (
+
+A = iota
+	B
+		C
+// foo
+// foo
+// bar
+	D
+E
+F
+
+
+// baz
+// baz
+		G
+)`,
+		out: `const (
+	A = iota
+	B
+	C
+	// foo
+	// foo
+	// bar
+	D
+	E
+	F
+
+	// baz
+	// baz
+	G
+)`,
+	},
+	{
+		data: `const (
+
+A = iota
+	B
+		C
+
+// foo
+// foo
+// bar
+	D
+E
+F
+
+
+// baz
+// baz
+		G
+)`,
+		out: `const (
+	A = iota
+	B
+	C
+
+	// foo
+	// foo
+	// bar
+	D
+	E
+	F
+
+	// baz
+	// baz
+	G
+)`,
+	},
 ])
 
 #test

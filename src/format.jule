@@ -1380,8 +1380,16 @@ impl formatter {
 			old := j
 			self.varSubGroup(root.Group, &j)
 			if old != j {
-				if j < len(root.Group) && root.Group[j].Token.Row-self.row > 1 {
-					self.write("\n")
+				if j < len(root.Group) {
+					// Separate defines if there is meaningful space.
+					// If comment or declaration is not separated, keep the order.
+					row := root.Group[j].Token.Row
+					if row-self.row > 1 {
+						c := self.seekCommentExcept(row)
+						if c == nil || c.row-self.row > 1 {
+							self.write("\n")
+						}
+					}
 				}
 			} else {
 				j++
