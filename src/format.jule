@@ -826,7 +826,15 @@ impl formatter {
 			self.fieldGroupDecls(flds, &i)
 			if old != i {
 				if i < len(flds) {
-					self.write("\n")
+					// Separate defines if there is meaningful space.
+					// If comment or declaration is not separated, keep the order.
+					row := flds[i].token.Row
+					if row-self.row > 1 {
+						c := self.seekCommentExcept(row)
+						if c == nil || c.row-self.row > 1 {
+							self.write("\n")
+						}
+					}
 				}
 			} else {
 				i++
