@@ -2487,7 +2487,7 @@ impl exprFormatter {
 		//		Baz(
 		//			"foo",
 		//			"bar",
-		//			"baz") else {
+		//			"baz") catch {
 		//		println("error handling...")
 		//	}
 		mut indent := false
@@ -2561,7 +2561,7 @@ impl exprFormatter {
 		| ast::Forwarded:
 			self.write("?")
 		|:
-			self.write(" else ")
+			self.write(" catch ")
 			self.fmt.formatScope(f.Handler, scopeDefault)
 			self.fmt.row = f.Handler.End.Row
 		}

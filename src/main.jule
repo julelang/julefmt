@@ -26,12 +26,12 @@ fn printFormat(path: string, data: []byte) {
 		return
 	}
 	if *_W {
-		os::WriteFile(path, data, 0o660) else {
+		os::WriteFile(path, data, 0o660) catch {
 			writeError("error: could not write to file: " + path)
 			return
 		}
 	} else {
-		os::Stdout().Write(data) else {
+		os::Stdout().Write(data) catch {
 			writeError("error: could not write stdout")
 			return
 		}
@@ -73,7 +73,7 @@ fn format(path: string, mut data: []byte): []byte {
 }
 
 fn formatFile(path: string, mod: bool) {
-	mut ctx := os::ReadFile(path) else {
+	mut ctx := os::ReadFile(path) catch {
 		writeError("error: file could not read: " + path)
 		return
 	}
@@ -87,7 +87,7 @@ fn formatFile(path: string, mod: bool) {
 }
 
 fn parsePackage(path: string) {
-	mut dirents := os::ReadDir(path) else {
+	mut dirents := os::ReadDir(path) catch {
 		writeError("error: connot read package directory: " + path)
 		return
 	}
@@ -104,7 +104,7 @@ fn parsePackage(path: string) {
 }
 
 fn parse(path: string) {
-	stat := os::Stat(path) else {
+	stat := os::Stat(path) catch {
 		writeError("error: connot read path: " + path)
 		return
 	}
@@ -135,7 +135,7 @@ fn cliMode() {
 	mut i := 0
 	mut buf := make([]byte, 1024)
 	for {
-		n := os::Stdin().Read(buf[i:]) else {
+		n := os::Stdin().Read(buf[i:]) catch {
 			if error == io::EOF {
 				break
 			}

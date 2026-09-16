@@ -410,7 +410,7 @@ Bar().
 Baz(
 "foo",
 "bar",
-"baz") else {
+"baz") catch {
 println("error handling...")
 }}`,
 		out: `fn foo() {
@@ -419,7 +419,7 @@ println("error handling...")
 		Baz(
 			"foo",
 			"bar",
-			"baz") else {
+			"baz") catch {
 		println("error handling...")
 	}
 }`,
@@ -427,11 +427,11 @@ println("error handling...")
 	{
 		data: `fn main() {
 	data 			= append ( data, 0) // foo
-foo(	)else{} 						// bar
+foo(	)catch{} 						// bar
 }`,
 		out: `fn main() {
 	data = append(data, 0) // foo
-	foo() else {}          // bar
+	foo() catch {}         // bar
 }`,
 	},
 	{
@@ -439,13 +439,13 @@ foo(	)else{} 						// bar
 		) {data= 		append(data, 0) // foo
 bar()// bar
 baz()// baz
-	foo()else{} // bar
+	foo()catch{} // bar
 }`,
 		out: `fn main() {
 	data = append(data, 0) // foo
 	bar()                  // bar
 	baz()                  // baz
-	foo() else {}          // bar
+	foo() catch {}         // bar
 }`,
 	},
 	{
@@ -1474,7 +1474,7 @@ _=Term{Coef:intercept,Exp:0} // b
 	)                  // baz
 	baz(10
 	)                  // baz
-	foo() else {
+	foo() catch {
 		
 	}          // bar
 }`,
@@ -1483,7 +1483,7 @@ _=Term{Coef:intercept,Exp:0} // b
 	bar()                  // bar
 	baz()                  // baz
 	baz(10)                // baz
-	foo() else {}          // bar
+	foo() catch {}         // bar
 }`,
 	},
 	{
