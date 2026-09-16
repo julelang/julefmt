@@ -15,35 +15,35 @@ use "std/strings"
 
 let mut _W = new(bool, false) // Flag -w
 
-async fn writeError(message: string) {
-	os::Stderr().WriteString(message).await!
-	os::Stderr().WriteString("\n").await!
+fn writeError(message: string) {
+	os::Stderr().WriteString(message)!
+	os::Stderr().WriteString("\n")!
 }
 
 // Prints formatted data to relevant file.
-async fn printFormat(path: string, data: []byte) {
+fn printFormat(path: string, data: []byte) {
 	if data == nil {
 		return
 	}
 	if *_W {
-		os::WriteFile(path, data, 0o660).await else {
-			writeError("error: could not write to file: " + path).await
+		os::WriteFile(path, data, 0o660) else {
+			writeError("error: could not write to file: " + path)
 			return
 		}
 	} else {
-		os::Stdout().Write(data).await else {
-			writeError("error: could not write stdout").await
+		os::Stdout().Write(data) else {
+			writeError("error: could not write stdout")
 			return
 		}
 	}
 }
 
-async fn formatMod(path: string, mut data: []byte): []byte {
+fn formatMod(path: string, mut data: []byte): []byte {
 	mut mod, errors := mod::Parse(path, data, mod::ParseOptions{
 		AllowStd: false,
 	})
 	if len(errors) > 0 {
-		writeError("error: file could not formatted, have error(s): " + path).await
+		writeError("error: file could not formatted, have error(s): " + path)
 		return nil
 	}
 	fmt := modFormatter.new(mod)
@@ -52,19 +52,19 @@ async fn formatMod(path: string, mut data: []byte): []byte {
 
 // Formats data with path, and returns result.
 // If result is nil, we have an error(s).
-async fn format(path: string, mut data: []byte): []byte {
+fn format(path: string, mut data: []byte): []byte {
 	mut file := token::FileSet.New(path)
 	unsafe { file.FillMut(data) }
 	mut tokens, mut errors := token::AppendAll(nil, file, token::Standard|token::Comments)
 	if len(errors) > 0 {
-		writeError("error: file could not formatted, have error(s): " + path).await
+		writeError("error: file could not formatted, have error(s): " + path)
 		return nil
 	}
 
 	mut cm := commentMap.build(&tokens)
 	mut finfo := parser::ParseFile(file, tokens)
 	if len(finfo.Errors) > 0 {
-		writeError("error: file could not formatted, have error(s): " + path).await
+		writeError("error: file could not formatted, have error(s): " + path)
 		return nil
 	}
 
@@ -72,23 +72,23 @@ async fn format(path: string, mut data: []byte): []byte {
 	return fmt.format(finfo.AST, cm)
 }
 
-async fn formatFile(path: string, mod: bool) {
-	mut ctx := os::ReadFile(path).await else {
-		writeError("error: file could not read: " + path).await
+fn formatFile(path: string, mod: bool) {
+	mut ctx := os::ReadFile(path) else {
+		writeError("error: file could not read: " + path)
 		return
 	}
 	let mut data: []byte
 	if mod {
-		data = formatMod(path, ctx).await
+		data = formatMod(path, ctx)
 	} else {
-		data = format(path, ctx).await
+		data = format(path, ctx)
 	}
-	printFormat(path, data).await
+	printFormat(path, data)
 }
 
-async fn parsePackage(path: string) {
+fn parsePackage(path: string) {
 	mut dirents := os::ReadDir(path) else {
-		writeError("error: connot read package directory: " + path).await
+		writeError("error: connot read package directory: " + path)
 		return
 	}
 	for _, dirent in dirents {
@@ -99,47 +99,47 @@ async fn parsePackage(path: string) {
 		}
 		mod := dirent.Name == jule::ModuleFile
 		filepath := filepath::Join(path, dirent.Name)
-		formatFile(filepath, mod).await
+		formatFile(filepath, mod)
 	}
 }
 
-async fn parse(path: string) {
+fn parse(path: string) {
 	stat := os::Stat(path) else {
-		writeError("error: connot read path: " + path).await
+		writeError("error: connot read path: " + path)
 		return
 	}
 	m := stat.Mode()
 	match {
 	| m.IsDir():
-		parsePackage(path).await
+		parsePackage(path)
 		return
 	| m.IsRegular():
 		if strings::HasSuffix(path, jule::Ext) {
-			formatFile(path, false).await
+			formatFile(path, false)
 			return
 		}
 		_, file := filepath::Split(path)
 		if file == jule::ModuleFile {
-			formatFile(path, true).await
+			formatFile(path, true)
 			return
 		}
 	}
-	writeError("error: path is not supported: " + path).await
+	writeError("error: path is not supported: " + path)
 }
 
-async fn cliMode() {
+fn cliMode() {
 	if *_W {
-		writeError("error: -w argument cannot used with stdout mode").await
+		writeError("error: -w argument cannot used with stdout mode")
 		return
 	}
 	mut i := 0
 	mut buf := make([]byte, 1024)
 	for {
-		n := os::Stdin().Read(buf[i:]).await else {
+		n := os::Stdin().Read(buf[i:]) else {
 			if error == io::EOF {
 				break
 			}
-			writeError("error: could not read from stdin").await
+			writeError("error: could not read from stdin")
 			return
 		}
 		i += n
@@ -154,22 +154,22 @@ async fn cliMode() {
 	mod := bytes::HasPrefix(bytes::TrimSpace(buf), []byte("module "))
 	let mut fmt: []byte
 	if mod {
-		fmt = formatMod("<stdin>", buf).await
+		fmt = formatMod("<stdin>", buf)
 	} else {
-		fmt = format("<stdin>", buf).await
+		fmt = format("<stdin>", buf)
 	}
-	printFormat("<stdin>", fmt).await
+	printFormat("<stdin>", fmt)
 }
 
-async fn main() {
+fn main() {
 	mut args := os::Args()
 	args = args[1:] // Skip program path.
 	mut flag := flag::Set.New()
 	flag.AddVar(_W, "write", 'w', "write result to (source) file instead of stdout")
 	args = flag.Parse(args)!
 	if len(args) == 0 {
-		cliMode().await
+		cliMode()
 	} else {
-		parse(args[0]).await
+		parse(args[0])
 	}
 }

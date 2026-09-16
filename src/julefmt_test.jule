@@ -1619,9 +1619,9 @@ F
 ])
 
 #test
-async fn testFormat(t: &testing::T) {
+fn testFormat(t: &testing::T) {
 	for i, c in formatTests {
-		out := format("<test-input>", []byte(c.data)).await
+		out := format("<test-input>", []byte(c.data))
 		if string(out) != c.out {
 			println(c.data)
 			t.Errorf("#{} failed", i)

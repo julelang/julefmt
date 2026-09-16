@@ -739,9 +739,6 @@ impl formatter {
 		if d.Flags&ast::F_UNSAFE != 0 {
 			self.write("unsafe ")
 		}
-		if d.Flags&ast::F_ASYNC != 0 {
-			self.write("async ")
-		}
 		self.write("fn")
 		if !jule::IsAnon(d.Name) {
 			self.write(" ")
@@ -2542,8 +2539,8 @@ impl exprFormatter {
 
 	fn call(&self, mut f: &ast::CallExpr) {
 		self.fmt.row = f.Token.Row
-		if f.Flags&ast::F_CO != 0 {
-			self.write("co ")
+		if f.Flags&ast::F_SPAWN != 0 {
+			self.write("spawn ")
 		}
 		parent := isParentNeededForCall(f.Func)
 		if parent {
@@ -2556,9 +2553,6 @@ impl exprFormatter {
 		self.write("(")
 		self.args(f)
 		self.write(")")
-		if f.Flags&ast::F_AWAIT != 0 {
-			self.write(".await")
-		}
 		match f.Handler {
 		| nil:
 			// no-op
