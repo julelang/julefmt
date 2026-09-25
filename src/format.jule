@@ -3478,9 +3478,6 @@ fn enumEndToken[T](mut t: &T): &token::Token {
 
 fn directiveRank(kind: string): int {
 	if kind == directive::Export {
-		return 8
-	}
-	if kind == directive::Test {
 		return 7
 	}
 	if kind == directive::Typedef {
@@ -3500,6 +3497,9 @@ fn directiveRank(kind: string): int {
 	}
 	if kind == directive::Noinline {
 		return 1
+	}
+	if kind == directive::Test {
+		return -1
 	}
 	return 0
 }
