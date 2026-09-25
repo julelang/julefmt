@@ -5,6 +5,7 @@
 use "std/bytes"
 use "std/jule"
 use "std/jule/ast"
+use "std/jule/directive"
 use "std/jule/token"
 use "std/jule/types"
 use "std/slices"
@@ -249,9 +250,12 @@ impl formatter {
 		self.sf.format(scope, options)
 	}
 
-	fn directive(&self, d: &ast::Directive) {
+	fn directive(&self, mut d: &ast::Directive, sort: bool) {
 		self.write("#")
 		self.write(d.Tag.Kind)
+		if sort {
+			slices::SortFunc(d.Args, fn|a, b| strings::Compare(a.Kind, b.Kind))
+		}
 		for i, arg in d.Args {
 			match {
 			| i == 0:
@@ -265,7 +269,7 @@ impl formatter {
 		}
 	}
 
-	fn directives(&self, dvs: []&ast::Directive) {
+	fn directives(&self, mut dvs: []&ast::Directive) {
 		if len(dvs) == 0 {
 			return
 		}
@@ -273,25 +277,26 @@ impl formatter {
 		if first.Tag.Row-self.writeCommentsExcept(first.Tag.Row) > 1 {
 			self.write("\n")
 		}
-		for i, d in dvs {
+		slices::SortFunc(dvs, cmpDirective)
+		for (i, mut d) in dvs {
 			if i > 0 {
 				self.buf.Write(self.indent)!
 			}
 			self.writeCommentsExcept(d.Tag.Row)
-			self.directive(d)
+			self.directive(d, true)
 			self.popRowComments(d.Tag.Row)
 			self.write("\n")
 			self.row = d.Tag.Row
 		}
 	}
 
-	fn topDirectives(&self, dvs: []&ast::Directive) {
+	fn topDirectives(&self, mut dvs: []&ast::Directive) {
 		if len(dvs) == 0 {
 			return
 		}
 		first := dvs[0]
 		self.row = self.writeCommentsExcept(first.Tag.Row)
-		for i, d in dvs {
+		for (i, mut d) in dvs {
 			if i > 0 {
 				self.buf.Write(self.indent)!
 			}
@@ -302,7 +307,7 @@ impl formatter {
 				}
 			}
 			self.writeCommentsExcept(d.Tag.Row)
-			self.directive(d)
+			self.directive(d, false)
 			self.popRowComments(d.Tag.Row)
 			self.write("\n")
 			self.row = d.Tag.Row
@@ -3469,4 +3474,57 @@ fn enumEndToken[T](mut t: &T): &token::Token {
 	|:
 		panic("unreachable")
 	}
+}
+
+fn directiveRank(kind: string): int {
+	if kind == directive::Export {
+		return 8
+	}
+	if kind == directive::Test {
+		return 7
+	}
+	if kind == directive::Typedef {
+		return 6
+	}
+	if kind == directive::Cdef {
+		return 5
+	}
+	if kind == directive::Noinit {
+		return 4
+	}
+	if kind == directive::Disable {
+		return 3
+	}
+	if kind == directive::Inline {
+		return 2
+	}
+	if kind == directive::Noinline {
+		return 1
+	}
+	return 0
+}
+
+fn cmpDirective(a: &ast::Directive, b: &ast::Directive): int {
+	arank := directiveRank(a.Tag.Kind)
+	brank := directiveRank(b.Tag.Kind)
+
+	if arank == 0 && brank == 0 {
+		return strings::Compare(a.Tag.Kind, b.Tag.Kind)
+	}
+
+	if arank == 0 {
+		return -1
+	}
+	if brank == 0 {
+		return +1
+	}
+
+	if arank > brank {
+		return +1
+	}
+	if arank < brank {
+		return -1
+	}
+
+	return strings::Compare(a.Tag.Kind, b.Tag.Kind)
 }
