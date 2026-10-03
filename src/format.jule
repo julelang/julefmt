@@ -12,6 +12,9 @@ use "std/slices"
 use "std/strings"
 use "std/unicode/utf8"
 
+// Source for padding without allocating a new string for each padding.
+const spaces = "                                                                " // 64 spaces
+
 struct field {
 	f:     &ast::Field
 	token: &token::Token
@@ -64,6 +67,43 @@ impl formatter {
 		self.buf.WriteString(s)!
 	}
 
+	// Writes n spaces directly to the buffer without allocating.
+	// Does nothing if n <= 0.
+	fn pad(&self, mut n: int) {
+		for n > 0 {
+			mut k := n
+			if k > len(spaces) {
+				k = len(spaces)
+			}
+			self.buf.WriteString(spaces[:k])!
+			n -= k
+		}
+	}
+
+	// Removes the comment at index i from the comment buffer.
+	// Removing from the front is O(1).
+	fn removeComment(&self, i: int) {
+		if i == 0 {
+			self.cm.buf = self.cm.buf[1:]
+			return
+		}
+		self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+	}
+
+	// Collects all comments of the row and removes them from the comment buffer.
+	// Does not create a closure if there is no comment on the row.
+	fn takeRowComments(&self, row: int): []&comment {
+		mut rc := make([]&comment, 0)
+		if !self.isPopsRowCommentsByF(row, -1) {
+			return rc
+		}
+		mut &_rc := &rc // for closure
+		self.popRowCommentsByF(row, -1, fn(mut c: &comment) {
+			unsafe { *_rc = append(*_rc, c) }
+		})
+		return rc
+	}
+
 	fn addIndent(&self) {
 		self.indent = append(self.indent, self.atomIndent...)
 	}
@@ -112,7 +152,7 @@ impl formatter {
 				self.write("\n")
 			}
 			lrow = c.row
-			self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+			self.removeComment(i)
 			self.buf.Write(self.indent)!
 			self.writeComment(c)
 			if c.txt[1] == '*' {
@@ -190,7 +230,7 @@ impl formatter {
 			}
 			if col == -1 || c.col < col {
 				f(c)
-				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+				self.removeComment(i)
 				continue
 			}
 			i++
@@ -203,7 +243,7 @@ impl formatter {
 			mut c := self.cm.buf[i]
 			if c.row == row && (col == -1 || c.col < col) {
 				f(c)
-				self.cm.buf = append(self.cm.buf[:i], self.cm.buf[i+1:]...)
+				self.removeComment(i)
 				continue
 			} else if c.row > row {
 				break
@@ -493,12 +533,7 @@ impl formatter {
 			self.row = p.Token.Row
 
 			// Collect trailing comments.
-			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := &rowComments // for closure
-			self.popRowCommentsByF(self.row, -1, fn(mut c: &comment) {
-				unsafe { *_rowComments = append(*_rowComments, c) }
-			})
-			comments = append(comments, rowComments)
+			comments = append(comments, self.takeRowComments(self.row))
 
 			// Break grouping if expression have new-lines.
 			if p.Token.Row != pEnd.Row {
@@ -531,7 +566,7 @@ impl formatter {
 				p := pairs[j]
 				self.buf.WriteString(p.Name)!
 				if !p.IsAutoExpr() {
-					self.write(strings::Repeat(" ", nameMax-namelen))
+					self.pad(nameMax - namelen)
 					self.write(" = ")
 					self.buf.WriteString(expr)!
 				} else {
@@ -549,7 +584,7 @@ impl formatter {
 				if n == 0 {
 					max, n = getMax3(exprs[j:], comments[j:])
 				}
-				self.write(strings::Repeat(" ", paddingAbs(max-exprlen)))
+				self.pad(paddingAbs(max - exprlen))
 				for _, c in pcomments {
 					self.write(" ")
 					self.writeComment(c)
@@ -796,16 +831,12 @@ impl formatter {
 		self.write(f.f.Name)
 		fieldMax -= utf8::RuneCountString(f.f.Name)
 		self.write(": ")
-		if fieldMax > 0 {
-			self.write(strings::Repeat(" ", fieldMax))
-		}
+		self.pad(fieldMax)
 		n := len(self.ubuf())
 		self.formatType(f.f.Type)
 		typeMax -= utf8::RuneCount(self.ubuf()[n:])
 		if len(f.tag) != 0 {
-			if typeMax > 0 {
-				self.write(strings::Repeat(" ", typeMax))
-			}
+			self.pad(typeMax)
 			self.write(" ")
 			self.buf.Write(f.tag)!
 		}
@@ -1029,9 +1060,7 @@ impl formatter {
 				if !nameMaxHaveType {
 					diff--
 				}
-				if diff > 0 {
-					self.write(strings::Repeat(" ", diff))
-				}
+				self.pad(diff)
 			}
 
 			// Measure actual formatted width of the type.
@@ -1067,9 +1096,7 @@ impl formatter {
 				// Pad type to the maximum type width.
 				if typeMax > 0 && d.Type != nil {
 					diff := typeMax - typ
-					if diff > 0 {
-						self.write(strings::Repeat(" ", diff))
-					}
+					self.pad(diff)
 					align -= diff
 				}
 
@@ -1083,9 +1110,7 @@ impl formatter {
 				}
 
 				// Final padding so '=' lands in the target column.
-				if align > 0 {
-					self.write(strings::Repeat(" ", align))
-				}
+				self.pad(align)
 			}
 
 			self.write(" ")
@@ -1152,12 +1177,7 @@ impl formatter {
 			if row != -1 && decl.token.Row != self.row {
 				break
 			}
-			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := &rowComments // for closure
-			self.popRowCommentsByF(decl.token.Row, -1, fn(mut c: &comment) {
-				unsafe { *_rowComments = append(*_rowComments, c) }
-			})
-			comments = append(comments, rowComments)
+			comments = append(comments, self.takeRowComments(decl.token.Row))
 			rows = append(rows, decl.token.Row)
 			if fm > fieldMax {
 				fieldMax = fm
@@ -1192,7 +1212,7 @@ impl formatter {
 				}
 				if n > 0 {
 					for _, c in comments[k] {
-						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
+						self.pad(paddingAbs(max-utf8::RuneCount(line)) + 1)
 						self.writeComment(c)
 					}
 					n--
@@ -1212,92 +1232,6 @@ impl formatter {
 
 		start := *i
 		mut n := self.buf.Len()
-
-		// Returns maximum length of identifiers for type annotation alignment.
-		// j is the current varaible.
-		getTypeAnnoMax := fn(mut j: int): (nameMax: int) {
-			counts = counts[:unsafe { *i }-start] // use all capacity of counts
-			for j > start {
-				v := vars[j-1]
-				if v.Type != nil {
-					j--
-				} else {
-					break
-				}
-			}
-			for j < unsafe { *i }; j++ {
-				mut v := vars[j]
-				if v.Type != nil {
-					name := counts[j-start][0]
-					if name > nameMax {
-						nameMax = name
-					}
-				} else {
-					break
-				}
-			}
-			return
-		}
-
-		// Returns maximum length of assignment alignment.
-		// j is the current varaible
-		getAssignMax := fn(mut j: int, mut &typeAnnoMax: *int, shouldTable: bool): (nameMax: int, nameMaxHaveType: int, typeMax: int, table: int) {
-			counts = counts[:unsafe { *i }-start] // use all capacity of counts
-			for j > start {
-				v := vars[j-1]
-				if v.X != nil || self.isPopsRowCommentsByF(v.Token.Row, -1) {
-					j--
-				} else {
-					break
-				}
-			}
-			mut fullComment := true // whether the all group members have comment
-			mut maxPlainName := 0
-			mut maxNameWithType := *typeAnnoMax
-			for j < unsafe { *i }; j++ {
-				mut v := vars[j]
-				comment := self.isPopsRowCommentsByF(v.Token.Row, -1)
-				if v.X == nil && !comment {
-					break
-				}
-				fullComment = fullComment && comment
-				c := counts[j-start]
-				t := c[0]
-				if maxPlainName < t {
-					maxPlainName = t
-				}
-				if v.Type != nil {
-					if maxNameWithType < t {
-						maxNameWithType = t
-					}
-				}
-				if c[1] > typeMax {
-					typeMax = c[1]
-				}
-			}
-			if fullComment || shouldTable {
-				table = 1
-				// typeAnnoMax must strore the maximum length of the group for type alignment.
-				*typeAnnoMax = maxNameWithType
-				if *typeAnnoMax < maxPlainName {
-					*typeAnnoMax = maxPlainName
-				}
-				// add typeMax to maxPlainName for type alignment.
-				// Because all the group must be aligned column-by-column.
-				maxPlainName += typeMax
-			}
-			maxNameWithType += typeMax
-			maxNameWithType += 2 // add space for ": " part of type annotation
-			if maxNameWithType > maxPlainName {
-				maxNameWithType -= 2 // remove space for ": " part of type annotation
-				nameMax = maxNameWithType
-				nameMaxHaveType = 1
-			} else {
-				nameMax = maxPlainName
-				nameMaxHaveType = 0
-			}
-			return
-		}
 
 		self.row = -1
 		for *i < len(vars); *i++ {
@@ -1324,11 +1258,93 @@ impl formatter {
 			}
 			counts = append(counts, [name, typ])
 		}
+
+		// Analysis phase.
+		// All alignment data of the group is computed in linear time with
+		// a few passes, instead of rescanning neighbour rows for each row.
+		cnt := *i - start
+		mut hasComment := make([]bool, cnt)
+		mut qual := make([]bool, cnt) // whether row participates in assignment alignment
+		mut k := 0
+		for k < cnt; k++ {
+			hasComment[k] = self.isPopsRowCommentsByF(vars[start+k].Token.Row, -1)
+			qual[k] = vars[start+k].X != nil || hasComment[k]
+		}
+
+		// Maximum name width of consecutive typed variables (type annotation alignment).
+		// The untyped variable following a typed run shares the maximum of that run.
+		mut annoMax := make([]int, cnt)
+		k = 0
+		for k < cnt {
+			if vars[start+k].Type == nil {
+				k++
+				continue
+			}
+			a := k
+			mut m := 0
+			for k < cnt && vars[start+k].Type != nil; k++ {
+				m = maxInt(m, counts[k][0])
+			}
+			mut q := a
+			for q < k; q++ {
+				annoMax[q] = m
+			}
+			if k < cnt {
+				annoMax[k] = m
+			}
+		}
+
+		// Statistics of consecutive assigned (or commented) variables.
+		// The row following such a run shares the statistics of that run.
+		mut runPlain := make([]int, cnt)
+		mut runTyped := make([]int, cnt)
+		mut runTypeMax := make([]int, cnt)
+		k = 0
+		for k < cnt {
+			if !qual[k] {
+				k++
+				continue
+			}
+			a := k
+			mut plain, mut typed, mut tmax := 0, 0, 0
+			for k < cnt && qual[k]; k++ {
+				c := counts[k]
+				plain = maxInt(plain, c[0])
+				if vars[start+k].Type != nil {
+					typed = maxInt(typed, c[0])
+				}
+				tmax = maxInt(tmax, c[1])
+			}
+			mut q := a
+			for q < k; q++ {
+				runPlain[q], runTyped[q], runTypeMax[q] = plain, typed, tmax
+			}
+			if k < cnt {
+				runPlain[k], runTyped[k], runTypeMax[k] = plain, typed, tmax
+			}
+		}
+
 		mut z := start
 		for z < *i; z++ {
-			mut typeAnnoMax := getTypeAnnoMax(z)
-			nameMax, nameMaxHaveType, typeMax, table := getAssignMax(z, &typeAnnoMax, true)
-			self.varDecl(vars[z], false, [typeAnnoMax, nameMax, nameMaxHaveType, typeMax, table])
+			k = z - start
+			typeMax := runTypeMax[k]
+			mut maxPlain := runPlain[k]
+			mut maxTyped := maxInt(annoMax[k], runTyped[k])
+			// Table mode is always enabled.
+			// typeAnnoMax must store the maximum length of the group for type alignment.
+			typeAnnoMax := maxInt(maxTyped, maxPlain)
+			// add typeMax to maxPlain for type alignment.
+			// Because all the group must be aligned column-by-column.
+			maxPlain += typeMax
+			maxTyped += typeMax
+			maxTyped += 2 // add space for ": " part of type annotation
+			mut nameMax := maxPlain
+			mut nameMaxHaveType := 0
+			if maxTyped > maxPlain {
+				nameMax = maxTyped - 2 // remove space for ": " part of type annotation
+				nameMaxHaveType = 1
+			}
+			self.varDecl(vars[z], false, [typeAnnoMax, nameMax, nameMaxHaveType, typeMax, 1])
 			mut line := cloneBuf(self.ubuf()[n:])
 			lines = append(lines, line)
 			rows = append(rows, self.row)
@@ -1340,12 +1356,7 @@ impl formatter {
 		n = 0
 		z = start
 		for z < *i; z++ {
-			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := &rowComments // for closure
-			self.popRowCommentsByF(rows[n], -1, fn(mut c: &comment) {
-				unsafe { *_rowComments = append(*_rowComments, c) }
-			})
-			comments = append(comments, rowComments)
+			comments = append(comments, self.takeRowComments(rows[n]))
 			n++
 		}
 
@@ -1370,7 +1381,7 @@ impl formatter {
 				}
 				if n > 0 {
 					for _, c in comments[j] {
-						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
+						self.pad(paddingAbs(max-utf8::RuneCount(line)) + 1)
 						self.writeComment(c)
 					}
 					n--
@@ -1525,12 +1536,7 @@ impl formatter {
 			self.row = realRow
 
 			// Collect trailing comment lines.
-			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := &rowComments // for closure
-			self.popRowCommentsByF(realRow, -1, fn(mut c: &comment) {
-				unsafe { *_rowComments = append(*_rowComments, c) }
-			})
-			comments = append(comments, rowComments)
+			comments = append(comments, self.takeRowComments(realRow))
 
 			writer(decl)
 			mut line := cloneBuf(self.ubuf()[n:])
@@ -1553,7 +1559,7 @@ impl formatter {
 				}
 				if n > 0 {
 					for _, c in comments[j] {
-						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(line))+1))
+						self.pad(paddingAbs(max-utf8::RuneCount(line)) + 1)
 						self.writeComment(c)
 					}
 					n--
@@ -2278,6 +2284,8 @@ impl scopeFormatter {
 				if buf[n] != '\n' {
 					buf[n] = '\n'
 					buf = slices::Insert(buf, n+1, self.fmt.indent...)
+					// Insert may return a new slice, write the result back to the builder.
+					self.fmt.setBuf(buf)
 				}
 			}
 		}
@@ -2352,6 +2360,10 @@ impl exprFormatter {
 
 	fn write(&self, s: string) {
 		self.fmt.buf.WriteString(s)!
+	}
+
+	fn pad(&self, n: int) {
+		self.fmt.pad(n)
 	}
 
 	fn clean(&self) {
@@ -2615,12 +2627,7 @@ impl exprFormatter {
 			self.fmt.setBuf(self.fmt.ubuf()[:n])
 
 			// Collect trailing comments.
-			mut rowComments := make([]&comment, 0)
-			mut &_rowComments := &rowComments // for closure
-			self.fmt.popRowCommentsByF(self.fmt.row, -1, fn(mut c: &comment) {
-				unsafe { *_rowComments = append(*_rowComments, c) }
-			})
-			comments = append(comments, rowComments)
+			comments = append(comments, self.fmt.takeRowComments(self.fmt.row))
 
 			if lineMax < linelen {
 				lineMax = linelen
@@ -2665,7 +2672,7 @@ impl exprFormatter {
 			self.write(": ")
 			// Add padding for newline mode.
 			if newline {
-				self.write(strings::Repeat(" ", nameMax-namelen))
+				self.pad(nameMax - namelen)
 			}
 			self.fmt.buf.WriteString(line)!
 
@@ -2676,7 +2683,7 @@ impl exprFormatter {
 				if n == 0 {
 					max, n = getMax2(lines[j:], comments[j:])
 				}
-				self.write(strings::Repeat(" ", paddingAbs(max-linelen)))
+				self.pad(paddingAbs(max - linelen))
 				for _, c in pcomments {
 					self.write(" ")
 					self.fmt.writeComment(c)
@@ -2921,7 +2928,7 @@ impl exprFormatter {
 				}
 				if n > 0 {
 					for _, c in trailingComments[i] {
-						self.write(strings::Repeat(" ", paddingAbs(max-utf8::RuneCount(expr))+1))
+						self.pad(paddingAbs(max-utf8::RuneCount(expr)) + 1)
 						self.fmt.writeComment(c)
 					}
 					n--
@@ -3391,6 +3398,13 @@ fn getMax3(lines: []string, comments: [][]&comment): (max: int, n: int) {
 	return
 }
 
+fn maxInt(a: int, b: int): int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 fn paddingAbs(x: int): int {
 	if x < 0 {
 		return 0
@@ -3477,31 +3491,26 @@ fn enumEndToken[T](mut t: &T): &token::Token {
 }
 
 fn directiveRank(kind: string): int {
-	if kind == directive::Export {
+	match kind {
+	| directive::Export:
 		return 7
-	}
-	if kind == directive::Typedef {
+	| directive::Typedef:
 		return 6
-	}
-	if kind == directive::Cdef {
+	| directive::Cdef:
 		return 5
-	}
-	if kind == directive::Noinit {
+	| directive::Noinit:
 		return 4
-	}
-	if kind == directive::Disable {
+	| directive::Disable:
 		return 3
-	}
-	if kind == directive::Inline {
+	| directive::Inline:
 		return 2
-	}
-	if kind == directive::Noinline {
+	| directive::Noinline:
 		return 1
-	}
-	if kind == directive::Test {
+	| directive::Test:
 		return -1
+	|:
+		return 0
 	}
-	return 0
 }
 
 fn cmpDirective(a: &ast::Directive, b: &ast::Directive): int {
